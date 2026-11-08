@@ -1,6 +1,6 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-08 · **Verzija:** v0.1.0 · **Faza:** 0 – provjera tržišta
+**Zadnje ažuriranje:** 2026-11-09 · **Verzija:** v0.1.1 · **Faza:** 0 – provjera tržišta
 
 ## Gotovo
 - Strategija i plan razvoja (Claude Docs, poveznica u `docs/strategija.md`).

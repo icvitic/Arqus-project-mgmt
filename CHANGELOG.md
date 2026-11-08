@@ -4,6 +4,10 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-09
+### Promijenjeno
+- Verzija se vodi u datoteci `VERSION` i commitovima `release: vX.Y.Z` jer sesije ne smiju stvarati git tagove ni GitHub Release.
+
 ## [0.1.0] - 2026-11-08
 ### Dodano
 - Početna struktura repozitorija i dokumentacije (README, STATUS, ROADMAP, CONTRIBUTING, pravila autonomnog rada).

@@ -4,7 +4,8 @@
 - [SemVer](https://semver.org/lang/hr/): `MAJOR.MINOR.PATCH`. Do komercijalnog izdanja `0.x`.
   - `MINOR` – završen radni paket (npr. WP0.2) ili nova funkcionalnost.
   - `PATCH` – ispravci i dopune dokumentacije.
-- Svaka verzija = git tag `vX.Y.Z` + GitHub Release + zapis u `CHANGELOG.md`.
+- Svaka verzija = nova vrijednost u datoteci `VERSION` + zapis u `CHANGELOG.md` + commit s porukom `release: vX.Y.Z`.
+- Git tagove i GitHub Release izrađuje Ivan ručno ako ih želi (Claudeove sesije ne smiju stvarati tagove ni releaseove); povijest verzija uvijek je vidljiva u `CHANGELOG.md` i `git log --grep release:`.
 
 ## Grane
 - `main` je uvijek ispravna i dokumentirana.
