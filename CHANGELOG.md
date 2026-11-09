@@ -3,6 +3,9 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+### Dodano
+- WP0.3 (dio 1/2): analiza konkurencije proširena na 15+ alata u četiri skupine (EU specijalizirani, institucijski sustavi, javni HR/EU alati, opći PM), s cijenama, pokrivenošću životnog ciklusa, izvorima i preliminarnom kartom tržišta.
+
 ### Promijenjeno
 - Samostalni rad: jedna sesija dnevno u Claude Code u oblaku (umjesto tri tjedno).
 
