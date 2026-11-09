@@ -4,6 +4,13 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-09
+### Dodano
+- WP0.5: klikabilni prototip `prototip/index.html` – radar poziva s ocjenom prikladnosti i go/no-go, prijava (konzorcij, radni paketi, proračun po pravilima paketa s izračunom neizravnih troškova i stope financiranja, verzije proračuna, provjera spremnosti, predaja, ishod), ugovaranje prema ADR-0006, projekt (aktivacija, izvještajna razdoblja iz paketa, isporuke, prekretnice, troškovi vs. ugovoreno), portfelj. Tok provjeren automatski u Chromiumu.
+- `verzija.cmd` + `scripts/verzija.py`: Windows/međuplatformski pokretač – povlači verzije s GitHuba, nudi izbornik, izdvaja odabranu verziju i pokreće je lokalno s preglednikom.
+### Promijenjeno
+- ADR-0006 potvrdio Ivan (2026-11-09).
+
 ## [0.3.1] - 2026-11-09
 ### Dodano
 - `scripts/verzija.sh`: popis verzija iz release commitova, izdvajanje verzija u `.verzije/` (git worktree), usporedba, lokalni poslužitelj.

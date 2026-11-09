@@ -19,9 +19,10 @@ Proizvod je potpuno odvojen od FPZ Projektnog portala: novi kod, bez kopiranja k
 | [docs/adr/](docs/adr/) | arhitekturne odluke (ADR) |
 | [docs/faza-0/](docs/faza-0/) | materijali za provjeru tržišta |
 | [docs/domena/](docs/domena/) | domenski model i paketi programa (shema + primjeri) |
+| [prototip/](prototip/) | klikabilni prototip toka radar → prijava → projekt (WP0.5) |
 | [docs/izvjestaji/](docs/izvjestaji/) | izvještaji o napretku po datumu |
 | [docs/AUTONOMNI-RAD.md](docs/AUTONOMNI-RAD.md) | pravila samostalnog rada i izvještavanja |
 | [docs/POTROSNJA.md](docs/POTROSNJA.md) | dnevnik potrošnje tokena po sesiji |
-| [docs/LOKALNO-TESTIRANJE.md](docs/LOKALNO-TESTIRANJE.md) | kako lokalno pregledati i testirati pojedinu verziju (`scripts/verzija.sh`) |
+| [docs/LOKALNO-TESTIRANJE.md](docs/LOKALNO-TESTIRANJE.md) | kako lokalno pregledati i testirati pojedinu verziju (`verzija.cmd` na Windowsu, `scripts/verzija.sh`) |
 | [CHANGELOG.md](CHANGELOG.md) | promjene po verzijama |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | verzioniranje, grane, poruke commitova |
