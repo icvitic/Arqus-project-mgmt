@@ -3,6 +3,8 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+### Promijenjeno
+- Samostalni rad: jedna sesija dnevno u Claude Code u oblaku (umjesto tri tjedno).
 
 ## [0.1.1] - 2026-11-09
 ### Promijenjeno
