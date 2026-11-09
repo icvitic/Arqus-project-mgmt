@@ -95,3 +95,31 @@ describe('RLS: programme_packages', () => {
     } finally { c.release(); }
   });
 });
+
+describe('RLS: svaka tablica i kompozitni strani ključevi', () => {
+  const admin = new Pool({ connectionString: ADMIN_URL, max: 1 });
+  const app = new Pool({ connectionString: APP_URL, max: 1 });
+  afterAll(async () => { await app.end(); await admin.end(); });
+
+  it('svaka tablica u shemi public ima uključen i prisilan (FORCE) RLS', async () => {
+    const { rows } = await admin.query(`select c.relname, c.relrowsecurity, c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r' order by 1`);
+    const missing = rows.filter((r) => !r.relrowsecurity || !r.relforcerowsecurity).map((r) => r.relname);
+    expect(rows.length).toBeGreaterThanOrEqual(10);
+    expect(missing).toEqual([]);
+  });
+
+  it('stanar A ne može dodati organizaciju stanara B kao partnera ni kad zna njezin id', async () => {
+    const A = randomUUID(), B = randomUUID(), tag = randomUUID().slice(0, 8);
+    await admin.query(`insert into tenants (id, slug, name) values ($1, $2, 'A'), ($3, $4, 'B')`, [A, `fk-a-${tag}`, B, `fk-b-${tag}`]);
+    const pkg = (await admin.query(`insert into programme_packages (tenant_id, package_id, version, programme, valid_from, content, checksum) values (null, $1, '1.0.0', 'G', '2026-01-01', '{}', 'x') returning id`, [`fk-${tag}`])).rows[0].id;
+    const orgB = (await admin.query(`insert into organisations (tenant_id, name, country) values ($1, 'Tuđa', 'HR') returning id`, [B])).rows[0].id;
+    const projA = (await admin.query(`insert into projects (tenant_id, acronym, title, package_row_id, package_id, package_version, action_type) values ($1, 'P', 'Projekt', $2, $3, '1.0.0', 'RIA') returning id`, [A, pkg, `fk-${tag}`])).rows[0].id;
+    const c = await app.connect();
+    try {
+      await c.query('begin'); await c.query(`select set_config('app.tenant_id', $1, true)`, [A]);
+      await expect(c.query(`insert into project_partners (tenant_id, project_id, organisation_id, order_no) values ($1, $2, $3, 1)`, [A, projA, orgB])).rejects.toThrow(/foreign key/);
+      await c.query('rollback');
+    } finally { c.release(); }
+  });
+});

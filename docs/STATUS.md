@@ -1,8 +1,9 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-09 · **Verzija:** v0.8.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-09 · **Verzija:** v0.9.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- WP1.6 (v0.9.0): organizacije, projekti, partneri, prijelazi statusa, izvještajna razdoblja iz paketa; kompozitni strani ključevi protiv miješanja stanara. 48 testova. PR #2 i #3 spojeni.
 - WP1.3 (v0.8.0): paketi programa u bazi (globalni/stanarski, verzije, objava), uvoz iz datoteka, nasljeđivanje za paket po pozivu, ESLint. 30 testova.
 - WP1.2 (v0.7.0): Drizzle, migracije, RLS po stanaru s testovima izolacije na pravoj bazi, aplikacijska DB uloga, prijava lozinkom + JWT, dozvole i sistemske uloge, revizijski zapis (append-only). 22 testa.
 - WP1.1 (v0.6.0): monorepo `apps/api` (NestJS), `apps/web` (React/Vite), `packages/domain` (validator paketa, izračun proračuna), Docker Compose, CI; ADR-0008. PR #1 (faza 0) spojen u `main`.
@@ -19,15 +20,16 @@
 - WP0.4 (v0.3.0): domenski model v1 – moduli, entiteti, životni ciklusi, invarijante (`docs/domena/domenski-model-v1.md`); JSON shema paketa programa + primjeri HE i NPOO (`docs/domena/paketi/`); ADR-0006.
 
 ## U tijeku
-- Ništa – WP1.3 završen.
+- Ništa – WP1.6 završen.
 
 ## Sljedeće
-1. WP1.6 – ugovaranje i projekt: tablice `projects`, `project_partners`, `organisations`, veza na objavljeni paket, osnovni CRUD + RLS testovi.
-2. WP1.7 – provedba: radni paketi, zadaci, isporuke, prekretnice, rizici; proračun projekta (`BudgetLine` iz domene) s izračunom po paketu.
-3. WP1.8 – troškovi, timesheetovi, ZNS (prema WP0.7 prije radara i prijave).
+1. WP1.7 – provedba: radni paketi, zadaci, isporuke, prekretnice, rizici; proračun projekta po partneru i kategoriji s izračunom iz paketa (`computePartnerBudget`).
+2. WP1.8 – troškovi, timesheetovi, zahtjevi za nadoknadu (ZNS).
+3. Web sučelje za projekte (prijenos prototipa u React) – nakon WP1.7, da prvi pilot može raditi bez API klijenta.
 4. WP1.2b – OIDC/MFA kad krene prvi pilot.
 
 ## Otvorena pitanja za Ivana
+- Globalni paketi HE i NPOO su `draft` jer pravila nisu provjerena prema službenim dokumentima, pa se HE projekti zasad ne mogu aktivirati. Da ih provjerim prema važećem HE Model Grant Agreementu i objavim (1–2 dohvaćanja dokumenata)?
 - Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?
 - Pošalji Upute za prijavitelje jednog PKK ili NPOO poziva (PDF/poveznica): mehanizam „paket po pozivu” (`extends`) je gotov, treba prvi stvarni sadržaj.
 - Identitet za pilote: koriste li ciljne institucije AAI@EduHr (sveučilišta) ili Microsoft 365? To određuje redoslijed u WP1.2b.
