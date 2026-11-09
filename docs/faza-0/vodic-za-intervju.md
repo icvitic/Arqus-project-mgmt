@@ -29,6 +29,19 @@
 15. Tko bi kod vas odobrio kupnju takvog alata i kako (nabava, iz projekta)?
 16. Biste li sudjelovali u besplatnom pilotu (3–6 mjeseci) i dali povratnu informaciju?
 
+## Dopunska pitanja (iz WP0.3 i WP0.4; birati 3–4 prema sugovorniku)
+17. Koji alat danas koristite za provedbu (Excel, EMDESK, Kronis, vlastiti sustav) i što vam nedostaje?
+18. Koliko vremena trošite na prepisivanje podataka u fondovieu / Funding & Tenders Portal?
+19. Kako pratite pozive – državna aplikacija, newsletteri, konzultanti?
+20. Do kojeg iznosa godišnje možete kupiti alat bez javne nabave i tko to odobrava?
+21. Biste li platili po korisniku, po projektu ili paušalno za instituciju?
+22. Vodite li proračun po radnom paketu ili samo po kategoriji i partneru?
+23. Tko unosi troškove – voditelj projekta ili računovodstvo? Je li timesheet mjesečni ili dnevni i tko ga odobrava?
+24. Koliko verzija proračuna prođete prije predaje prijave?
+
+## Demonstracija prototipa (10 min, po želji sugovornika)
+Prema `scenarij-demonstracije.md`; tek nakon pitanja 1–16 da ne usmjeri odgovore.
+
 ## Završetak (2 min)
 - Koga još preporučujete za razgovor? · Smijemo li vam poslati prototip?
 

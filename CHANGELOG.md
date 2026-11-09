@@ -4,6 +4,13 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-09
+### Dodano
+- WP0.2 (priprema): prijedlog 20 sugovornika po segmentima – institucije, ciljne uloge, razlozi, javne ulazne točke, prioriteti i raspored kontakta (`docs/faza-0/prijedlog-sugovornika.md`); predložak pozivne poruke (`pozivna-poruka.md`). Bez osobnih podataka; čeka Ivanovo odobrenje.
+- WP0.6 (priprema): scenarij 10-minutne demonstracije prototipa s pitanjima po koraku (`scenarij-demonstracije.md`); predložak sinteze s 10 hipoteza H1–H10 i tablicom reakcija na prototip (`sinteza-predlozak.md`); mapa `intervjui/` s pravilima.
+### Promijenjeno
+- Vodič za intervju: dopunska pitanja 17–24 (iz analize konkurencije i domenskog modela) i korak demonstracije.
+
 ## [0.4.0] - 2026-11-09
 ### Dodano
 - WP0.5: klikabilni prototip `prototip/index.html` – radar poziva s ocjenom prikladnosti i go/no-go, prijava (konzorcij, radni paketi, proračun po pravilima paketa s izračunom neizravnih troškova i stope financiranja, verzije proračuna, provjera spremnosti, predaja, ishod), ugovaranje prema ADR-0006, projekt (aktivacija, izvještajna razdoblja iz paketa, isporuke, prekretnice, troškovi vs. ugovoreno), portfelj. Tok provjeren automatski u Chromiumu.
