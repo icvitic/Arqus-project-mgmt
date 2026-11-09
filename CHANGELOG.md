@@ -4,6 +4,16 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-09
+### Dodano
+- WP1.2: Drizzle shema (`tenants`, `users`, `roles`, `role_assignments`, `audit_entries`) i migracije; RLS na svim tablicama s `FORCE`, politike po `app_current_tenant()`, zasebna aplikacijska uloga `arqus_app` bez BYPASSRLS, revizijski zapis samo za dodavanje (bez UPDATE/DELETE prava).
+- Identitet: prijava lozinkom (scrypt) + JWT (HS256, `jose`), `AuthGuard` s `@Public()` i `@RequirePermission()`, kontekst zahtjeva (AsyncLocalStorage) → `DbService.tx()` postavlja stanara u transakciji; katalog dozvola i 6 sistemskih uloga; rute `/api/auth/login`, `/api/me`, `/api/users`, `/api/audit`.
+- Seed (`db:seed`) i migracijska skripta (`db:migrate`); CI s PostgreSQL servisom.
+- Testovi: 6 RLS testova na pravoj bazi (izolacija čitanja i pisanja, fail-closed bez konteksta, nepromjenjiva revizija, sistemske uloge) + 6 e2e testova identiteta; ukupno 22 testa prolaze.
+### Promijenjeno
+- Sve rute osim `/api/health` i `/api/auth/login` traže Bearer token; paketi programa traže `packages:read`.
+- ADR-0008 dopunjen odlukom o Drizzleu i autentikaciji; OIDC/SAML i MFA izdvojeni u WP1.2b.
+
 ## [0.6.0] - 2026-11-09
 ### Dodano
 - WP1.1 temelji platforme: pnpm monorepo; `packages/domain` (tipovi paketa programa, validator Ajv 2020-12 + semantička pravila, izračun proračuna partnera s izvedenim neizravnim troškovima i stopom financiranja, CLI); `apps/api` NestJS s modulima `health` i `programmes` (učitava i validira pakete iz `docs/domena/paketi`, REST `/api/programme-packages`); `apps/web` React/Vite početna stranica; `infra/docker-compose.yml` (PostgreSQL 16, Redis 7, MinIO); GitHub Actions CI; `docs/RAZVOJ.md`.

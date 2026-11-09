@@ -4,14 +4,22 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { seedDemo } from '../src/db/seed';
+import { randomUUID } from 'node:crypto';
 
 describe('API (e2e)', () => {
   let app: INestApplication;
+  let token = '';
+  const slug = `pk-${randomUUID().slice(0, 8)}`;
   beforeAll(async () => {
+    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? 'postgres://arqus_app:arqus@127.0.0.1:5433/arqus_test';
+    await seedDemo({ url: process.env.TEST_DATABASE_MIGRATE_URL ?? 'postgres://arqus@127.0.0.1:5433/arqus_test', tenantSlug: slug, adminEmail: `a@${slug}.hr`, adminPassword: 'Lozinka-12345' });
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
+    const login = await request(app.getHttpServer()).post('/api/auth/login').send({ tenantSlug: slug, email: `a@${slug}.hr`, password: 'Lozinka-12345' }).expect(201);
+    token = login.body.accessToken;
   });
   afterAll(async () => { await app.close(); });
 
@@ -21,15 +29,15 @@ describe('API (e2e)', () => {
     expect(res.body.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
   it('GET /api/programme-packages vraća HE i NPOO pakete, bez odbijenih', async () => {
-    const res = await request(app.getHttpServer()).get('/api/programme-packages').expect(200);
+    const res = await request(app.getHttpServer()).get('/api/programme-packages').set('Authorization', `Bearer ${token}`).expect(200);
     const ids = res.body.map((p: { id: string }) => p.id).sort();
     expect(ids).toEqual(['horizon-europe-2021-2027', 'npoo-2021-2026']);
-    const rej = await request(app.getHttpServer()).get('/api/programme-packages/rejected').expect(200);
+    const rej = await request(app.getHttpServer()).get('/api/programme-packages/rejected').set('Authorization', `Bearer ${token}`).expect(200);
     expect(rej.body).toEqual([]);
   });
   it('GET /api/programme-packages/:id vraća paket, nepoznati id 404', async () => {
-    const res = await request(app.getHttpServer()).get('/api/programme-packages/horizon-europe-2021-2027').expect(200);
+    const res = await request(app.getHttpServer()).get('/api/programme-packages/horizon-europe-2021-2027').set('Authorization', `Bearer ${token}`).expect(200);
     expect(res.body.costCategories.length).toBeGreaterThan(3);
-    await request(app.getHttpServer()).get('/api/programme-packages/nema').expect(404);
+    await request(app.getHttpServer()).get('/api/programme-packages/nema').set('Authorization', `Bearer ${token}`).expect(404);
   });
 });

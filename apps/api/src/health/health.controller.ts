@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Public } from '../identity/auth.guard';
 
 function readVersion(): string {
   for (const p of [join(__dirname, '..', '..', '..', '..', 'VERSION'), join(process.cwd(), 'VERSION'), join(process.cwd(), '..', '..', 'VERSION')]) {
@@ -9,6 +10,7 @@ function readVersion(): string {
   return 'unknown';
 }
 
+@Public()
 @Controller('health')
 export class HealthController {
   private readonly startedAt = Date.now();
