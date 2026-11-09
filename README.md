@@ -5,7 +5,8 @@ Generička SaaS/PaaS platforma za cijeli životni ciklus nacionalnih i EU projek
 - **Vlasnik proizvoda:** Arqus Solutions (zaseban produkt tvrtke)
 - **Odgovorna osoba:** Ivan Cvitić
 - **Repozitorij:** https://github.com/icvitic/arqus-project-mgmt
-- **Status:** Faza 0 – provjera tržišta (vidi [docs/STATUS.md](docs/STATUS.md))
+- **Status:** Faza 1 – MVP i pilot (faza 0 zatvorena odlukom GO; vidi [docs/STATUS.md](docs/STATUS.md))
+- **Razvoj:** [docs/RAZVOJ.md](docs/RAZVOJ.md) – `pnpm install && pnpm infra:up && pnpm dev`
 
 Proizvod je potpuno odvojen od FPZ Projektnog portala: novi kod, bez kopiranja koda ili podataka portala (vidi [ADR-0005](docs/adr/0005-odvojenost-od-fpz-portala.md)).
 
@@ -20,6 +21,7 @@ Proizvod je potpuno odvojen od FPZ Projektnog portala: novi kod, bez kopiranja k
 | [docs/faza-0/](docs/faza-0/) | materijali za provjeru tržišta |
 | [docs/domena/](docs/domena/) | domenski model i paketi programa (shema + primjeri) |
 | [prototip/](prototip/) | klikabilni prototip toka radar → prijava → projekt (WP0.5) |
+| [docs/RAZVOJ.md](docs/RAZVOJ.md) | lokalno pokretanje, struktura monorepa, pravila koda |
 | [docs/izvjestaji/](docs/izvjestaji/) | izvještaji o napretku po datumu |
 | [docs/AUTONOMNI-RAD.md](docs/AUTONOMNI-RAD.md) | pravila samostalnog rada i izvještavanja |
 | [docs/POTROSNJA.md](docs/POTROSNJA.md) | dnevnik potrošnje tokena po sesiji |

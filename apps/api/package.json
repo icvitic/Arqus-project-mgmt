@@ -1,0 +1,41 @@
+{
+  "name": "@arqus/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ArQus Projekti – API (modularni monolit, NestJS)",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --no-file-parallelism",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node -r ./scripts/register.js scripts/migrate.ts",
+    "db:seed": "node -r ./scripts/register.js scripts/seed.ts"
+  },
+  "dependencies": {
+    "@arqus/domain": "workspace:*",
+    "@nestjs/common": "^11.0.6",
+    "@nestjs/core": "^11.0.6",
+    "@nestjs/platform-express": "^11.0.6",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "drizzle-orm": "^0.38.4",
+    "pg": "^8.13.1",
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.2",
+    "@nestjs/testing": "^11.0.6",
+    "@swc/core": "^1.10.9",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.7",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "typescript": "^5.7.3",
+    "unplugin-swc": "^1.5.1",
+    "vitest": "^3.0.5",
+    "drizzle-kit": "^0.30.2",
+    "@types/pg": "^8.11.10"
+  }
+}

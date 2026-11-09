@@ -19,8 +19,9 @@ Uvjet za fazu 1: ~~≥ 15 intervjua i ≥ 3 pisma namjere~~ → zamijenjeno ADR-
 Uvjet za fazu 2 (WP0.7): 3 aktivna pilota od kojih ≥ 1 plaća, ≥ 10 institucija u beti, ušteda ≥ 30 % vremena na ZNS-u kod pilota, pentest bez kritičnih nalaza.
 Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prijave.
 
-- [ ] **WP1.1** Temelji platforme: monorepo, CI/CD, IaC, okruženja dev/stage
-- [ ] **WP1.2** Stanari (tenants), identitet (OIDC/SAML, MFA), uloge i prava, revizijski zapis
+- [x] **WP1.1** Temelji platforme: pnpm monorepo (api, web, domain), CI, Docker Compose, validator i izračun iz paketa programa, ADR-0008 (v0.6.0); IaC i stage okruženje → WP1.9
+- [x] **WP1.2** Stanari, identitet (lozinka + JWT), uloge i dozvole, revizijski zapis, RLS s automatskim testovima izolacije (v0.7.0)
+- [ ] **WP1.2b** OIDC/SAML prijava (AAI@EduHr, Microsoft Entra), MFA (TOTP), pozivnice korisnika, poništavanje tokena
 - [ ] **WP1.3** Paketi programa (konfiguracija pravila) – HE i NPOO
 - [ ] **WP1.4** Radar poziva i go/no-go
 - [ ] **WP1.5** Prijava i proračun prijave, konzorcij
