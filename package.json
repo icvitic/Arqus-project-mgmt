@@ -10,8 +10,8 @@
   "scripts": {
     "dev": "pnpm -r --parallel --filter ./apps/* dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "typecheck": "pnpm --filter @arqus/domain build && pnpm -r typecheck",
+    "test": "pnpm --filter @arqus/domain build && pnpm -r test",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
     "infra:down": "docker compose -f infra/docker-compose.yml down"
   },
