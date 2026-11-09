@@ -4,6 +4,14 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-09
+### Dodano
+- WP0.6b: istraživanje tržišta iz javnih izvora (`docs/faza-0/istrazivanje-trzista.md`) – veličina i rast tržišta, obujam Horizon Europe (HR: 352 projekta, 539 sudjelovanja 2021.–2024.), SAFU 2024 (262 ugovora, 1.807 ZNS-ova), broj potencijalnih kupaca u HR (117 visokih učilišta…), TAM/SAM/SOM, posljedice za proizvod.
+- WP0.7: cjenovna hipoteza v2 (Projekt 150 EUR/projekt/mj., Institucija 6.000 EUR/god., Institucija+ 13.200 EUR/god., PaaS od 25.000 EUR/god.; sve ispod praga jednostavne nabave), projekcija prihoda i odluka **GO, uvjetno** (`docs/faza-0/cjenovna-hipoteza-v2.md`).
+- ADR-0007: faza 0 zatvara se desk istraživanjem umjesto intervjuima; provjera s kupcima seli u pilote faze 1.
+### Promijenjeno
+- ROADMAP: WP0.2 i WP0.6 ukinuti; novi kriterij za fazu 2; redoslijed faze 1 – provedba i troškovi/ZNS (novi WP1.8) prije radara i prijave; sigurnosni pregled postaje WP1.9.
+
 ## [0.4.1] - 2026-11-09
 ### Dodano
 - WP0.2 (priprema): prijedlog 20 sugovornika po segmentima – institucije, ciljne uloge, razlozi, javne ulazne točke, prioriteti i raspored kontakta (`docs/faza-0/prijedlog-sugovornika.md`); predložak pozivne poruke (`pozivna-poruka.md`). Bez osobnih podataka; čeka Ivanovo odobrenje.

@@ -1,21 +1,23 @@
 # Roadmap
 
-Oznake: `[ ]` nije počelo · `[~]` u tijeku · `[x]` gotovo · 👤 traži ljudski rad (Claude priprema materijale)
+Oznake: `[ ]` nije počelo · `[~]` u tijeku · `[x]` gotovo · `[-]` ukinuto · 👤 traži ljudski rad (Claude priprema materijale)
 
 ## Faza 0 – Provjera tržišta (mj. 1–3: studeni 2026. – siječanj 2027.)
-Uvjet za fazu 1: ≥ 15 intervjua i ≥ 3 pisma namjere / dogovora o pilotu.
+Uvjet za fazu 1: ~~≥ 15 intervjua i ≥ 3 pisma namjere~~ → zamijenjeno ADR-0007: desk istraživanje tržišta i odluka go/no-go (WP0.6b, WP0.7). **Odluka: GO, uvjetno (2026-11-09).**
 
 - [x] **WP0.0** Repozitorij, pravila verzioniranja, dokumentacija, ADR-ovi (v0.1.0)
 - [x] **WP0.1** Materijali za intervjue: vodič za intervju, okvir popisa sugovornika, predložak bilješke s intervjua (v0.1.0)
-- [~] **WP0.2** 👤 Popis 20 konkretnih sugovornika (imena, institucije, kontakti) – priprema Claude, odobrava Ivan (prijedlog institucija i uloga + pozivna poruka pripremljeni v0.4.1; čeka odobrenje, kontakti izvan gita)
+- [-] **WP0.2** ~~Popis 20 sugovornika~~ – ukinuto ADR-0007; prijedlog i pozivna poruka ostaju za prodaju/pilote (v0.4.1)
 - [x] **WP0.3** Detaljna analiza konkurencije (≥ 15 alata, cijene, funkcije, EU/HR pokrivenost) + karta tržišta (v0.2.0)
 - [x] **WP0.4** Domenski model v1 (generički, neovisan o FPZ portalu): entiteti, odnosi, paketi programa (HE, NPOO) (v0.3.0)
 - [x] **WP0.5** Klikabilni prototip toka „radar poziva → prijava → projekt” (HTML, bez backenda) (v0.4.0, `prototip/`)
-- [~] **WP0.6** 👤 Provedba intervjua i sinteza nalaza (Claude priprema sintezu iz bilježaka) – pripremljeni scenarij demonstracije, predložak sinteze s 10 hipoteza, dopuna vodiča (v0.4.1); čeka intervjue
-- [ ] **WP0.7** Cjenovna hipoteza v2 i odluka go/no-go za fazu 1
+- [-] **WP0.6** ~~Provedba intervjua i sinteza~~ – ukinuto ADR-0007; scenarij demonstracije i hipoteze H1–H10 koriste se u pilotima
+- [x] **WP0.6b** Istraživanje tržišta iz javnih izvora: veličina tržišta, obujam HE/NPOO/PKK, broj potencijalnih kupaca, TAM/SAM/SOM (v0.5.0)
+- [x] **WP0.7** Cjenovna hipoteza v2 (paketi Projekt / Institucija / Institucija+ / PaaS, svi ispod praga jednostavne nabave) i odluka go/no-go: GO uvjetno (v0.5.0)
 
 ## Faza 1 – MVP i pilot (mj. 4–9)
-Uvjet za fazu 2: 3 aktivna pilota, pentest bez kritičnih nalaza.
+Uvjet za fazu 2 (WP0.7): 3 aktivna pilota od kojih ≥ 1 plaća, ≥ 10 institucija u beti, ušteda ≥ 30 % vremena na ZNS-u kod pilota, pentest bez kritičnih nalaza.
+Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prijave.
 
 - [ ] **WP1.1** Temelji platforme: monorepo, CI/CD, IaC, okruženja dev/stage
 - [ ] **WP1.2** Stanari (tenants), identitet (OIDC/SAML, MFA), uloge i prava, revizijski zapis
@@ -24,12 +26,13 @@ Uvjet za fazu 2: 3 aktivna pilota, pentest bez kritičnih nalaza.
 - [ ] **WP1.5** Prijava i proračun prijave, konzorcij
 - [ ] **WP1.6** Ugovaranje: pretvorba prijave u projekt
 - [ ] **WP1.7** Tehnička provedba (WP, zadaci, isporuke, prekretnice, rizici) i portfelj
-- [ ] **WP1.8** Sigurnosni pregled i pilot-instalacija
+- [ ] **WP1.8** Troškovi, timesheetovi i zahtjevi za nadoknadu (ZNS) – prebačeno iz WP2.1 (WP0.7)
+- [ ] **WP1.9** Sigurnosni pregled i pilot-instalacija
 
 ## Faza 2 – Komercijalna v1 (mj. 10–15)
 Uvjet za fazu 3: 10 kupaca koji plaćaju, 60.000 € ARR.
 
-- [ ] **WP2.1** Financije, timesheetovi, zahtjevi za nadoknadu
+- [ ] **WP2.1** Napredne financije: više valuta, storna, revizijski izvještaji (osnova prebačena u WP1.8)
 - [ ] **WP2.2** Administracija (izvještaji, ZNS, putovanja, nabava, zapošljavanje)
 - [ ] **WP2.3** AI pomoćnik (EU-hostani LLM, RAG po stanaru, oznake AI sadržaja)
 - [ ] **WP2.4** Integracije M365/Google, uvoz iz Excela
