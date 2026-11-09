@@ -22,7 +22,7 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [x] **WP1.1** Temelji platforme: pnpm monorepo (api, web, domain), CI, Docker Compose, validator i izračun iz paketa programa, ADR-0008 (v0.6.0); IaC i stage okruženje → WP1.9
 - [x] **WP1.2** Stanari, identitet (lozinka + JWT), uloge i dozvole, revizijski zapis, RLS s automatskim testovima izolacije (v0.7.0)
 - [ ] **WP1.2b** OIDC/SAML prijava (AAI@EduHr, Microsoft Entra), MFA (TOTP), pozivnice korisnika, poništavanje tokena
-- [ ] **WP1.3** Paketi programa (konfiguracija pravila) – HE i NPOO
+- [x] **WP1.3** Paketi programa u bazi: globalni + stanarski, verzije i status, uvoz iz `docs/domena/paketi`, validacija, nasljeđivanje (`extends`) za paket po pozivu, objava; ESLint (v0.8.0)
 - [ ] **WP1.4** Radar poziva i go/no-go
 - [ ] **WP1.5** Prijava i proračun prijave, konzorcij
 - [ ] **WP1.6** Ugovaranje: pretvorba prijave u projekt

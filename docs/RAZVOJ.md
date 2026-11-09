@@ -21,6 +21,9 @@ pnpm --filter @arqus/api db:migrate
 ```bash
 pnpm --filter @arqus/api db:seed
 ```
+```bash
+pnpm --filter @arqus/api db:import-packages   # osvježi globalne pakete nakon promjene JSON-a u docs/domena/paketi
+```
 Seed stvara sistemske uloge i demo stanara `demo` s administratorom `admin@demo.local` / `Demo-lozinka-1` (promjenjivo kroz `SEED_*` varijable). Prijava: `POST /api/auth/login {tenantSlug, email, password}` → `accessToken` (Bearer).
 
 Dvije uloge u bazi: `arqus` (vlasnik, migracije) i `arqus_app` (aplikacija, bez BYPASSRLS). API uvijek radi pod `arqus_app`, pa RLS politike vrijede i za grešku u kodu. Testovi traže PostgreSQL na `127.0.0.1:5433` (`TEST_DATABASE_MIGRATE_URL`, `TEST_DATABASE_URL`); CI ga diže kao servis.
@@ -32,7 +35,7 @@ pnpm dev
 API: http://localhost:3000/api/health · Web: http://localhost:5173 (proxy `/api` → 3000).
 
 ```bash
-pnpm typecheck && pnpm test
+pnpm typecheck && pnpm lint && pnpm test
 ```
 
 ## Struktura
@@ -51,5 +54,6 @@ pnpm typecheck && pnpm test
 - Svaki poslovni upit ide kroz `DbService.tx()` (stanar iz konteksta) ili `withTenant()`; `withoutTenant()` samo za prijavu i sistemske poslove.
 - Svaka promjena poslovnih podataka zove `AuditService.record()` u istoj transakciji. Zapis neuspjele radnje ide u zasebnoj transakciji.
 - Nova tablica = migracija s `ENABLE/FORCE ROW LEVEL SECURITY`, politika po `app_current_tenant()`, GRANT za `arqus_app` i test u `test/rls.test.ts`.
+- Paket po pozivu: stanarski JSON s `meta.extends = <id programskog paketa>` i samo razlikama; `POST /api/programme-packages/validate` vraća razriješeni paket; nakon `publish` je nepromjenjiv.
 - Migracije: promijeni `src/db/schema.ts` → `pnpm --filter @arqus/api db:generate` → dopuni RLS u generiranom SQL-u ili novoj `--custom` migraciji.
 - Svaka promjena sheme paketa: ažurirati `docs/domena/paketi/schema.v1.json` i kopiju u `packages/domain/src/schema/` (test to provjerava).

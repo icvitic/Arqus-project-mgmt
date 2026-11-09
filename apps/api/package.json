@@ -11,7 +11,8 @@
     "test": "vitest run --no-file-parallelism",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node -r ./scripts/register.js scripts/migrate.ts",
-    "db:seed": "node -r ./scripts/register.js scripts/seed.ts"
+    "db:seed": "node -r ./scripts/register.js scripts/seed.ts",
+    "db:import-packages": "node -r ./scripts/register.js scripts/import-packages.ts"
   },
   "dependencies": {
     "@arqus/domain": "workspace:*",

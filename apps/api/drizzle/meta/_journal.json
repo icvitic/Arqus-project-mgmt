@@ -15,6 +15,20 @@
       "when": 1794229971844,
       "tag": "0001_rls_and_app_role",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794230514699,
+      "tag": "0002_programme_packages",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794230515448,
+      "tag": "0003_programme_packages_rls",
+      "breakpoints": true
     }
   ]
 }

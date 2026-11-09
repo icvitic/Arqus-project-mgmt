@@ -1,8 +1,9 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-09 · **Verzija:** v0.7.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-09 · **Verzija:** v0.8.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- WP1.3 (v0.8.0): paketi programa u bazi (globalni/stanarski, verzije, objava), uvoz iz datoteka, nasljeđivanje za paket po pozivu, ESLint. 30 testova.
 - WP1.2 (v0.7.0): Drizzle, migracije, RLS po stanaru s testovima izolacije na pravoj bazi, aplikacijska DB uloga, prijava lozinkom + JWT, dozvole i sistemske uloge, revizijski zapis (append-only). 22 testa.
 - WP1.1 (v0.6.0): monorepo `apps/api` (NestJS), `apps/web` (React/Vite), `packages/domain` (validator paketa, izračun proračuna), Docker Compose, CI; ADR-0008. PR #1 (faza 0) spojen u `main`.
 - Odluka (Ivan, 2026-11-09): faza 1 financira se zasad iz vlastitih sredstava Arqus Solutionsa; prijava na EU poziv za MSP ostaje opcija za kasnije.
@@ -18,16 +19,17 @@
 - WP0.4 (v0.3.0): domenski model v1 – moduli, entiteti, životni ciklusi, invarijante (`docs/domena/domenski-model-v1.md`); JSON shema paketa programa + primjeri HE i NPOO (`docs/domena/paketi/`); ADR-0006.
 
 ## U tijeku
-- Ništa – WP1.2 završen (OIDC/SAML, MFA → WP1.2b).
+- Ništa – WP1.3 završen.
 
 ## Sljedeće
-1. WP1.3 – paketi programa u bazi: tablica `programme_packages` (globalni + stanarski, verzije, status), uvoz iz `docs/domena/paketi`, REST za pregled/validaciju/objavu, ESLint/Prettier.
-2. WP1.6–1.7 – projekt i provedba (partneri, WP, isporuke, prekretnice, proračun projekta) – prije radara/prijave (WP0.7).
-3. WP1.2b – OIDC (AAI@EduHr / Entra), MFA, pozivnice – kad krene prvi pilot.
+1. WP1.6 – ugovaranje i projekt: tablice `projects`, `project_partners`, `organisations`, veza na objavljeni paket, osnovni CRUD + RLS testovi.
+2. WP1.7 – provedba: radni paketi, zadaci, isporuke, prekretnice, rizici; proračun projekta (`BudgetLine` iz domene) s izračunom po paketu.
+3. WP1.8 – troškovi, timesheetovi, ZNS (prema WP0.7 prije radara i prijave).
+4. WP1.2b – OIDC/MFA kad krene prvi pilot.
 
 ## Otvorena pitanja za Ivana
 - Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?
-- Pošalji Upute za prijavitelje jednog PKK ili NPOO poziva (PDF/poveznica) za prvi stvarni „paket po pozivu” – prema istraživanju, nacionalni programi su komercijalno važniji od HE.
+- Pošalji Upute za prijavitelje jednog PKK ili NPOO poziva (PDF/poveznica): mehanizam „paket po pozivu” (`extends`) je gotov, treba prvi stvarni sadržaj.
 - Identitet za pilote: koriste li ciljne institucije AAI@EduHr (sveučilišta) ili Microsoft 365? To određuje redoslijed u WP1.2b.
 - Potrošnja: Claude ne može očitati tvoj brojač; ako želiš nadzor, povremeno upiši postotak iz Settings → Usage u `docs/POTROSNJA.md` ili ga javi u poruci.
 - Konačan naziv proizvoda (radni: „ArQus Projekti”).

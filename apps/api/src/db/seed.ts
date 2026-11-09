@@ -4,14 +4,33 @@ import { eq, sql } from 'drizzle-orm';
 import * as schema from './schema';
 import { IdentityService } from '../identity/identity.service';
 import { hashPassword } from '../identity/password';
+import { ProgrammePackagesService } from '../programmes/programme-packages.service';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** Pod vlasničkom vezom: sistemske uloge + (ako ne postoji) demo stanar s administratorom. */
-export async function seedDemo(opts: { url?: string; tenantSlug?: string; tenantName?: string; adminEmail?: string; adminPassword?: string } = {}) {
+function defaultPackagesDir(): string | undefined {
+  for (const p of [process.env.ARQUS_PACKAGES_DIR, join(process.cwd(), 'docs', 'domena', 'paketi'), join(process.cwd(), '..', '..', 'docs', 'domena', 'paketi'), join(__dirname, '..', '..', '..', '..', 'docs', 'domena', 'paketi')]) {
+    if (p && existsSync(p)) return p;
+  }
+  return undefined;
+}
+
+/** Uvoz globalnih paketa programa iz mape (vlasnička veza). */
+export async function importGlobalPackages(url: string, dir = defaultPackagesDir()) {
+  if (!dir) throw new Error('Mapa s paketima programa nije pronađena (ARQUS_PACKAGES_DIR)');
+  const pool = new Pool({ connectionString: url, max: 1 });
+  try { return await drizzle(pool, { schema }).transaction((tx) => ProgrammePackagesService.importDir(tx, dir)); }
+  finally { await pool.end(); }
+}
+
+export async function seedDemo(opts: { url?: string; tenantSlug?: string; tenantName?: string; adminEmail?: string; adminPassword?: string; importPackages?: boolean } = {}) {
   const url = opts.url ?? process.env.DATABASE_MIGRATE_URL ?? 'postgres://arqus:arqus@127.0.0.1:5432/arqus';
   const tenantSlug = opts.tenantSlug ?? process.env.SEED_TENANT_SLUG ?? 'demo';
   const tenantName = opts.tenantName ?? process.env.SEED_TENANT_NAME ?? 'Demo institucija';
   const adminEmail = (opts.adminEmail ?? process.env.SEED_ADMIN_EMAIL ?? 'admin@demo.local').toLowerCase();
   const adminPassword = opts.adminPassword ?? process.env.SEED_ADMIN_PASSWORD ?? 'Demo-lozinka-1';
+  if (opts.importPackages !== false) await importGlobalPackages(url);
   const pool = new Pool({ connectionString: url, max: 1 });
   const db = drizzle(pool, { schema });
   try {

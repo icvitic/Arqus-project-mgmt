@@ -28,12 +28,11 @@ describe('API (e2e)', () => {
     expect(res.body.status).toBe('ok');
     expect(res.body.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
-  it('GET /api/programme-packages vraća HE i NPOO pakete, bez odbijenih', async () => {
+  it('GET /api/programme-packages vraća globalne HE i NPOO pakete', async () => {
     const res = await request(app.getHttpServer()).get('/api/programme-packages').set('Authorization', `Bearer ${token}`).expect(200);
-    const ids = res.body.map((p: { id: string }) => p.id).sort();
-    expect(ids).toEqual(['horizon-europe-2021-2027', 'npoo-2021-2026']);
-    const rej = await request(app.getHttpServer()).get('/api/programme-packages/rejected').set('Authorization', `Bearer ${token}`).expect(200);
-    expect(rej.body).toEqual([]);
+    const ids = [...new Set(res.body.filter((p: { scope: string }) => p.scope === 'global').map((p: { packageId: string }) => p.packageId))].sort();
+    expect(ids).toEqual(expect.arrayContaining(['horizon-europe-2021-2027', 'npoo-2021-2026']));
+    expect(res.body.every((p: { status: string }) => p.status === 'published' || p.status === 'draft')).toBe(true);
   });
   it('GET /api/programme-packages/:id vraća paket, nepoznati id 404', async () => {
     const res = await request(app.getHttpServer()).get('/api/programme-packages/horizon-europe-2021-2027').set('Authorization', `Bearer ${token}`).expect(200);
