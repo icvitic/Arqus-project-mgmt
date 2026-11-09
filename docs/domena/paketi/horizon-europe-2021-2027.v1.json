@@ -1,0 +1,69 @@
+{
+  "meta": {
+    "id": "horizon-europe-2021-2027",
+    "programme": "Horizon Europe",
+    "funder": "Europska komisija",
+    "version": "1.0.0",
+    "status": "draft",
+    "validFrom": "2021-01-01",
+    "validTo": "2027-12-31",
+    "language": "hr",
+    "sources": [
+      "https://ec.europa.eu/info/funding-tenders/opportunities/docs/2021-2027/common/guidance/aga_en.pdf",
+      "https://ec.europa.eu/info/funding-tenders/opportunities/docs/2021-2027/horizon/agr-contr/general-mga_horizon-euratom_en.pdf"
+    ],
+    "notes": "Model grant agreement HE (actual costs). Lump-sum projekti traže zaseban paket (extends) s kind=lumpSum po radnom paketu. Provjeriti prema važećem AGA-u prije MVP-a."
+  },
+  "actionTypes": [
+    { "code": "RIA", "name": "Research and Innovation Action", "fundingRates": [ { "beneficiaryType": "default", "ratePercent": 100 } ] },
+    { "code": "IA", "name": "Innovation Action", "fundingRates": [ { "beneficiaryType": "default", "ratePercent": 70 }, { "beneficiaryType": "nonProfit", "ratePercent": 100 } ] },
+    { "code": "CSA", "name": "Coordination and Support Action", "fundingRates": [ { "beneficiaryType": "default", "ratePercent": 100 } ] }
+  ],
+  "costCategories": [
+    { "code": "A", "name": "Troškovi osoblja", "kind": "direct", "children": [
+      { "code": "A.1", "name": "Zaposlenici", "kind": "direct" },
+      { "code": "A.2", "name": "Fizičke osobe s izravnim ugovorom", "kind": "direct" },
+      { "code": "A.3", "name": "Upućene osobe", "kind": "direct" },
+      { "code": "A.4", "name": "Vlasnici MSP-ova / fizičke osobe bez plaće", "kind": "unit" }
+    ] },
+    { "code": "B", "name": "Podugovaranje", "kind": "direct", "constraints": { "requiresJustification": true } },
+    { "code": "C", "name": "Troškovi nabave", "kind": "direct", "children": [
+      { "code": "C.1", "name": "Putovanja i dnevnice", "kind": "direct", "constraints": { "requiresEvidence": true } },
+      { "code": "C.2", "name": "Oprema (amortizacija)", "kind": "direct", "constraints": { "requiresEvidence": true } },
+      { "code": "C.3", "name": "Ostala roba, radovi i usluge", "kind": "direct" }
+    ] },
+    { "code": "D", "name": "Ostale kategorije", "kind": "direct", "children": [
+      { "code": "D.1", "name": "Financijska potpora trećima", "kind": "direct" },
+      { "code": "D.2", "name": "Interno fakturirana roba i usluge", "kind": "unit" }
+    ] },
+    { "code": "E", "name": "Neizravni troškovi", "kind": "indirect",
+      "calculation": { "ratePercent": 25, "baseCategories": ["A", "C"], "excludeCategories": ["B", "D.1", "D.2"] } }
+  ],
+  "personnelRule": { "method": "dailyRate", "divisor": 215, "maxUnitsPerYear": 215, "timeRecordingRequired": true, "declarationAllowed": true },
+  "reporting": {
+    "periodMonths": 18,
+    "submissionDeadlineDays": 60,
+    "finalReportDeadlineDays": 60,
+    "reportTypes": [
+      { "code": "periodic-technical", "name": "Periodični tehnički izvještaj", "sections": ["Part A (web obrasci)", "Part B: ciljevi, rad po WP-ovima, odstupanja, diseminacija"] },
+      { "code": "periodic-financial", "name": "Periodični financijski izvještaj", "sections": ["Financial statement po partneru", "Use of resources", "CFS iznad praga"] },
+      { "code": "final", "name": "Završni izvještaj" }
+    ]
+  },
+  "proposalStructure": [
+    { "code": "partA", "name": "Part A – administrativni obrasci", "required": true },
+    { "code": "partB", "name": "Part B – tehnički opis", "required": true, "pageLimit": 45, "sections": ["1. Excellence", "2. Impact", "3. Quality and efficiency of the implementation"] }
+  ],
+  "deliverableTypes": [
+    { "code": "R", "name": "Document, report" }, { "code": "DEM", "name": "Demonstrator, pilot, prototype" },
+    { "code": "DEC", "name": "Websites, patent filings, videos" }, { "code": "DATA", "name": "Data sets, microdata" },
+    { "code": "DMP", "name": "Data management plan" }, { "code": "ETHICS", "name": "Ethics deliverable" }, { "code": "OTHER", "name": "Other" }
+  ],
+  "disseminationLevels": [ { "code": "PU", "name": "Public" }, { "code": "SEN", "name": "Sensitive" } ],
+  "consortiumRules": { "minPartners": 3, "minCountries": 3, "notes": "Najmanje 3 neovisna pravna subjekta iz 3 različite države članice/pridružene zemlje (standardno pravilo; iznimke u pozivu)." },
+  "validations": [
+    { "id": "he-subcontracting-share", "severity": "warning", "rule": "sum(B) > 0.15 * sum(direct)", "message": "Podugovaranje prelazi 15 % izravnih troškova – obrazložiti u prijavi." },
+    { "id": "he-indirect-derived", "severity": "error", "rule": "manualEntry(E)", "message": "Neizravni troškovi se izračunavaju (25 %), ne unose ručno." },
+    { "id": "he-persondays", "severity": "warning", "rule": "personDaysPerYear(person) > 215", "message": "Više od 215 dana godišnje po osobi." }
+  ]
+}

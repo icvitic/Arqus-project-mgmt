@@ -18,6 +18,7 @@ Proizvod je potpuno odvojen od FPZ Projektnog portala: novi kod, bez kopiranja k
 | [docs/strategija.md](docs/strategija.md) | sažetak strategije i poveznica na puni dokument |
 | [docs/adr/](docs/adr/) | arhitekturne odluke (ADR) |
 | [docs/faza-0/](docs/faza-0/) | materijali za provjeru tržišta |
+| [docs/domena/](docs/domena/) | domenski model i paketi programa (shema + primjeri) |
 | [docs/izvjestaji/](docs/izvjestaji/) | izvještaji o napretku po datumu |
 | [docs/AUTONOMNI-RAD.md](docs/AUTONOMNI-RAD.md) | pravila samostalnog rada i izvještavanja |
 | [CHANGELOG.md](CHANGELOG.md) | promjene po verzijama |
