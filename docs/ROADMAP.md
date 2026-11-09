@@ -8,7 +8,7 @@ Uvjet za fazu 1: ≥ 15 intervjua i ≥ 3 pisma namjere / dogovora o pilotu.
 - [x] **WP0.0** Repozitorij, pravila verzioniranja, dokumentacija, ADR-ovi (v0.1.0)
 - [x] **WP0.1** Materijali za intervjue: vodič za intervju, okvir popisa sugovornika, predložak bilješke s intervjua (v0.1.0)
 - [ ] **WP0.2** 👤 Popis 20 konkretnih sugovornika (imena, institucije, kontakti) – priprema Claude, odobrava Ivan
-- [~] **WP0.3** Detaljna analiza konkurencije (≥ 15 alata, cijene, funkcije, EU/HR pokrivenost) + karta tržišta
+- [x] **WP0.3** Detaljna analiza konkurencije (≥ 15 alata, cijene, funkcije, EU/HR pokrivenost) + karta tržišta (v0.2.0)
 - [ ] **WP0.4** Domenski model v1 (generički, neovisan o FPZ portalu): entiteti, odnosi, paketi programa (HE, NPOO)
 - [ ] **WP0.5** Klikabilni prototip toka „radar poziva → prijava → projekt” (HTML, bez backenda)
 - [ ] **WP0.6** 👤 Provedba intervjua i sinteza nalaza (Claude priprema sintezu iz bilježaka)

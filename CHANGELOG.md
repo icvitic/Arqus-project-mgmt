@@ -3,7 +3,10 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-11-09
 ### Dodano
+- WP0.3 (dio 2/2): Converis, Cayuse, InfoEd, GrantBite, ažurirane cijene Instrumentla; konačna karta tržišta, zaključci za proizvod i pitanja za intervjue. WP0.3 završen.
 - WP0.3 (dio 1/2): analiza konkurencije proširena na 15+ alata u četiri skupine (EU specijalizirani, institucijski sustavi, javni HR/EU alati, opći PM), s cijenama, pokrivenošću životnog ciklusa, izvorima i preliminarnom kartom tržišta.
 
 ### Promijenjeno
