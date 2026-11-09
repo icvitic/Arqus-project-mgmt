@@ -1,6 +1,6 @@
 # Okvir popisa sugovornika (WP0.2)
 
-Cilj: 20 razgovora, raspoređenih po segmentima. Konkretna imena i kontakti upisuju se tek nakon Ivanova odobrenja; u repozitorij se ne upisuju osobni kontakti (drže se izvan gita).
+Cilj: 20 razgovora, raspoređenih po segmentima. Konkretan prijedlog institucija i uloga: `prijedlog-sugovornika.md` (čeka odobrenje); pozivna poruka: `pozivna-poruka.md`. Konkretna imena i kontakti upisuju se tek nakon Ivanova odobrenja; u repozitorij se ne upisuju osobni kontakti (drže se izvan gita).
 
 | Segment | Broj | Primjeri tipova sugovornika | Status |
 | --- | --- | --- | --- |

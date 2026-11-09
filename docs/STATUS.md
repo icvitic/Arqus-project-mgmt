@@ -1,27 +1,38 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-09 · **Verzija:** v0.2.0 · **Faza:** 0 – provjera tržišta
+**Zadnje ažuriranje:** 2026-11-09 · **Verzija:** v0.5.0 · **Faza:** 0 završena (GO, uvjetno) → faza 1 – MVP i pilot
 
 ## Gotovo
+- Odluka (Ivan, 2026-11-09): faza 1 financira se zasad iz vlastitih sredstava Arqus Solutionsa; prijava na EU poziv za MSP ostaje opcija za kasnije.
 - Strategija i plan razvoja (Claude Docs, poveznica u `docs/strategija.md`).
 - Odluka: proizvod razvija Arqus Solutions kao zaseban produkt (ADR-0005).
 - Repozitorij, pravila verzioniranja i dokumentacije, ADR-0001 – ADR-0005.
 - WP0.1: vodič za intervju, okvir popisa sugovornika, predložak bilješke s intervjua, početna analiza konkurencije.
 - WP0.3 (v0.2.0): analiza konkurencije – 20 alata, karta tržišta, zaključci i pitanja za intervjue (`docs/faza-0/analiza-konkurencije.md`).
+- WP0.6b + WP0.7 (v0.5.0): istraživanje tržišta iz javnih izvora, TAM/SAM/SOM, cjenovna hipoteza v2, odluka GO uvjetno; ADR-0007 (bez intervjua).
+- Priprema WP0.2 i WP0.6 (v0.4.1): prijedlog 20 sugovornika, pozivna poruka, scenarij demonstracije, predložak sinteze s hipotezama, dopuna vodiča.
+- WP0.5 (v0.4.0): klikabilni prototip (`prototip/index.html`) s automatskim testom toka; Windows pokretač `verzija.cmd`.
+- Alati (v0.3.1): `scripts/verzija.sh` + lokalni preglednik verzija (`site/`), upute `docs/LOKALNO-TESTIRANJE.md`, dnevnik potrošnje `docs/POTROSNJA.md`.
+- WP0.4 (v0.3.0): domenski model v1 – moduli, entiteti, životni ciklusi, invarijante (`docs/domena/domenski-model-v1.md`); JSON shema paketa programa + primjeri HE i NPOO (`docs/domena/paketi/`); ADR-0006.
 
 ## U tijeku
-- Ništa – WP0.3 završen.
+- Ništa – faza 0 zatvorena. Sljedeća sesija počinje WP1.1.
 
 ## Sljedeće
-1. WP0.4 – generički domenski model v1.
-2. WP0.2 – prijedlog konkretnih sugovornika (traži Ivanovo odobrenje).
-3. WP0.5 – klikabilni prototip toka „radar poziva → prijava → projekt”.
+1. WP1.1 – temelji platforme: monorepo (TypeScript), struktura modula iz domenskog modela, CI, lokalno okruženje (Docker Compose: PostgreSQL, Redis, MinIO), ADR o konačnom izboru okvira.
+2. WP1.2 – stanari, identitet, uloge, revizijski zapis (RLS testovi izolacije od prvog dana).
+3. WP1.3 – paketi programa: validator sheme + učitavanje HE i PKK/NPOO paketa.
+Napomena o potrošnji: sesije faze 1 su težine H (kod + testovi). Preporuka: jedna zakazana sesija dnevno s jednim WP-om ili jasno omeđenim dijelom; bez paralelnih podagenata.
 
 ## Otvorena pitanja za Ivana
+- Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?
+- Pošalji Upute za prijavitelje jednog PKK ili NPOO poziva (PDF/poveznica) za prvi stvarni „paket po pozivu” – prema istraživanju, nacionalni programi su komercijalno važniji od HE.
+- Tehnološki okvir (ADR-0002 ostavlja otvoreno): predlažem NestJS + Prisma/Drizzle + React/Vite; potvrda u WP1.1.
+- Potrošnja: Claude ne može očitati tvoj brojač; ako želiš nadzor, povremeno upiši postotak iz Settings → Usage u `docs/POTROSNJA.md` ili ga javi u poruci.
 - Konačan naziv proizvoda (radni: „ArQus Projekti”).
 - Tko provodi intervjue (Ivan osobno ili netko iz Arqus Solutions)?
 - Znaš li za HR institucije koje koriste EMDESK ili Kronis (Sploro)? To bi bili dobri sugovornici za WP0.2.
-- Ova je sesija bila druga istog dana (ručno pokretanje). Ako želiš strože čuvati tjednu potrošnju, ručna pokretanja ubuduće ostavi za dane bez zakazane sesije.
+- NPOO paket je ilustrativan (stope ovise o pozivu). Imaš li Upute za prijavitelje nekog konkretnog NPOO poziva koje bi poslužile kao prvi „paket po pozivu”?
 
 ## Blokade
 - Nema.
