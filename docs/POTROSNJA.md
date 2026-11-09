@@ -15,6 +15,7 @@ Težina: **L** = samo pisanje/uređivanje dokumenata iz postojećeg znanja; **M*
 | 2026-11-09 | 2 (ručno) | WP0.3 dio 2, v0.2.0 | 4 / 6 | 0 | M | |
 | 2026-11-09 | 3 (ručno) | WP0.4 domenski model, v0.3.0 | 0 / 0 | 0 | L | |
 | 2026-11-09 | 3 (nastavak) | skripta verzija + preglednik, test u pregledniku, v0.3.1 | 0 / 0 | 0 | M | |
+| 2026-11-09 | 3 (nastavak 5) | spajanje PR #1; WP1.1 monorepo (api, web, domain, CI, compose), 10 testova, v0.6.0 | 0 / 0 | 0 | H | |
 | 2026-11-09 | 3 (nastavak 4) | WP0.6b istraživanje tržišta, WP0.7 cijene i go/no-go, ADR-0007, v0.5.0 | 8 / 4 (3 neuspjela: EK profili 404, PDF ručno izvučen) | 0 | M | |
 | 2026-11-09 | 3 (nastavak 3) | priprema WP0.2 (prijedlog sugovornika, pozivna poruka) i WP0.6 (scenarij demo, sinteza), v0.4.1 | 0 / 0 | 0 | L | |
 | 2026-11-09 | 3 (nastavak 2) | WP0.5 prototip (318 redaka HTML/JS) + automatski test toka u Chromiumu, `verzija.cmd`/`verzija.py`, v0.4.0 | 0 / 0 | 0 | H | |

@@ -4,6 +4,12 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-09
+### Dodano
+- WP1.1 temelji platforme: pnpm monorepo; `packages/domain` (tipovi paketa programa, validator Ajv 2020-12 + semantička pravila, izračun proračuna partnera s izvedenim neizravnim troškovima i stopom financiranja, CLI); `apps/api` NestJS s modulima `health` i `programmes` (učitava i validira pakete iz `docs/domena/paketi`, REST `/api/programme-packages`); `apps/web` React/Vite početna stranica; `infra/docker-compose.yml` (PostgreSQL 16, Redis 7, MinIO); GitHub Actions CI; `docs/RAZVOJ.md`.
+- ADR-0008: tehnološki okvir (NestJS, React/Vite, Vitest, pnpm, PostgreSQL).
+- Testovi: 7 jediničnih (domena) + 3 e2e (API); svi prolaze. Izgrađeni API provjeren ručno.
+
 ## [0.5.0] - 2026-11-09
 ### Dodano
 - WP0.6b: istraživanje tržišta iz javnih izvora (`docs/faza-0/istrazivanje-trzista.md`) – veličina i rast tržišta, obujam Horizon Europe (HR: 352 projekta, 539 sudjelovanja 2021.–2024.), SAFU 2024 (262 ugovora, 1.807 ZNS-ova), broj potencijalnih kupaca u HR (117 visokih učilišta…), TAM/SAM/SOM, posljedice za proizvod.

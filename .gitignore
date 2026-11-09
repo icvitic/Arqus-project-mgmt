@@ -1,2 +1,9 @@
 .verzije/
 site/docs.json
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+infra/.env
