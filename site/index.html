@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArQus Projekti – pregled verzija</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<style>
+:root{--bg:#fff;--fg:#1f2328;--muted:#656d76;--line:#d0d7de;--side:#f6f8fa;--accent:#0969da;--code:#f6f8fa}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--line:#30363d;--side:#161b22;--accent:#58a6ff;--code:#161b22}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+aside{background:var(--side);border-right:1px solid var(--line);padding:16px;overflow:auto;position:sticky;top:0;height:100vh}
+main{padding:24px 40px;max-width:960px}
+h1.brand{font-size:16px;margin:0 0 12px}select{width:100%;padding:6px;margin-bottom:12px;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px}
+aside a{display:block;padding:3px 6px;border-radius:4px;color:var(--fg);text-decoration:none;font-size:13px;word-break:break-all}aside a:hover{background:var(--line)}aside a.active{background:var(--accent);color:#fff}
+aside .grp{margin:10px 0 2px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+main table{border-collapse:collapse;width:100%;font-size:14px}main th,main td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}main th{background:var(--side)}
+main pre{background:var(--code);padding:12px;border-radius:6px;overflow:auto;font-size:13px}main code{background:var(--code);padding:1px 4px;border-radius:3px;font-size:.92em}main pre code{padding:0}
+main a{color:var(--accent)}.meta{color:var(--muted);font-size:13px;margin-bottom:16px}.mermaid{background:#fff;border-radius:6px;padding:8px}
+@media(max-width:800px){body{grid-template-columns:1fr}aside{position:static;height:auto}main{padding:16px}}
+</style>
+</head>
+<body>
+<aside>
+  <h1 class="brand">ArQus Projekti</h1>
+  <select id="ver"></select>
+  <nav id="nav"></nav>
+</aside>
+<main>
+  <div class="meta" id="meta">Učitavam…</div>
+  <article id="out"></article>
+</main>
+<script>
+mermaid.initialize({startOnLoad:false, theme:'neutral'});
+const q = new URLSearchParams(location.search);
+let idx = {};
+async function init(){
+  idx = await (await fetch('docs.json?'+Date.now())).json();
+  const sel = document.getElementById('ver');
+  sel.innerHTML = Object.keys(idx).map(k=>`<option value="${k}">${k==='radno'?'radna kopija (grana)':k}</option>`).join('');
+  sel.value = q.get('v') && idx[q.get('v')] ? q.get('v') : Object.keys(idx)[0];
+  sel.onchange = ()=>{ go(sel.value, 'README.md'); };
+  go(sel.value, q.get('f') || 'README.md');
+}
+function go(v, f){
+  const files = idx[v].files; if(!files.includes(f)) f = files.find(x=>x.endsWith('README.md')) || files[0];
+  history.replaceState(null,'',`?v=${encodeURIComponent(v)}&f=${encodeURIComponent(f)}`);
+  document.getElementById('ver').value = v;
+  const groups = {};
+  files.forEach(p=>{ const g = p.includes('/') ? p.split('/').slice(0,-1).join('/') : '/'; (groups[g] ||= []).push(p); });
+  document.getElementById('nav').innerHTML = Object.keys(groups).sort().map(g=>`<div class="grp">${g}</div>`+groups[g].map(p=>`<a href="#" data-f="${p}" class="${p===f?'active':''}">${p.split('/').pop()}</a>`).join('')).join('');
+  document.querySelectorAll('#nav a').forEach(a=>a.onclick=e=>{e.preventDefault(); go(v, a.dataset.f);});
+  render(v, f);
+}
+async function render(v, f){
+  const base = idx[v].path === '.' ? '../' : '../' + idx[v].path + '/'; const url = (base.endsWith('/')?base:base+'/') + f;
+  const res = await fetch(url); const txt = await res.text();
+  document.getElementById('meta').textContent = `${v} · ${f}`;
+  const out = document.getElementById('out');
+  if (f.endsWith('.json')) { out.innerHTML = `<pre><code>${esc(txt)}</code></pre>`; return; }
+  if (f.endsWith('.html')) { out.innerHTML = `<p>HTML dokument: <a href="${url}" target="_blank">otvori u novoj kartici</a></p><iframe src="${url}" style="width:100%;height:80vh;border:1px solid var(--line);border-radius:6px"></iframe>`; return; }
+  const renderer = new marked.Renderer();
+  const defCode = renderer.code.bind(renderer);
+  renderer.code = (code, lang) => { const c = typeof code === 'object' ? code.text : code; const l = typeof code === 'object' ? code.lang : lang; return l === 'mermaid' ? `<pre class="mermaid">${esc(c)}</pre>` : defCode(code, lang); };
+  renderer.link = (href, title, text) => { const h = typeof href==='object' ? href.href : href; const t = typeof href==='object' ? href.text : text;
+    if (h && !/^(https?:|#|mailto:)/.test(h) && /\.(md|json|html)$/.test(h.split('#')[0])) { const target = new URL(h, 'http://x/'+f).pathname.slice(1); return `<a href="#" data-f="${target}">${t}</a>`; }
+    return `<a href="${h}" target="_blank">${t}</a>`; };
+  out.innerHTML = marked.parse(txt, { renderer });
+  out.querySelectorAll('a[data-f]').forEach(a=>a.onclick=e=>{e.preventDefault(); go(v, a.dataset.f);});
+  await mermaid.run({ nodes: out.querySelectorAll('.mermaid') });
+}
+const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+init();
+</script>
+</body>
+</html>

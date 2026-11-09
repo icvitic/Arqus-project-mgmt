@@ -4,6 +4,12 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-09
+### Dodano
+- `scripts/verzija.sh`: popis verzija iz release commitova, izdvajanje verzija u `.verzije/` (git worktree), usporedba, lokalni poslužitelj.
+- `site/index.html`: lokalni preglednik dokumentacije po verzijama (Markdown + Mermaid, JSON, HTML), testiran u pregledniku.
+- `docs/LOKALNO-TESTIRANJE.md` (upute) i `docs/POTROSNJA.md` (dnevnik potrošnje tokena s pravilima pauziranja).
+
 ## [0.3.0] - 2026-11-09
 ### Dodano
 - WP0.4: domenski model v1 (`docs/domena/domenski-model-v1.md`) – 11 modula, entiteti s atributima, životni ciklusi (poziv, prijava, projekt, zahtjev za nadoknadu, timesheet), ER dijagram, 9 invarijanti, pitanja za intervjue.

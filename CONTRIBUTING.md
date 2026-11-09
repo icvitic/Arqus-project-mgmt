@@ -6,6 +6,7 @@
   - `PATCH` – ispravci i dopune dokumentacije.
 - Svaka verzija = nova vrijednost u datoteci `VERSION` + zapis u `CHANGELOG.md` + commit s porukom `release: vX.Y.Z`.
 - Git tagove i GitHub Release izrađuje Ivan ručno ako ih želi (Claudeove sesije ne smiju stvarati tagove ni releaseove); povijest verzija uvijek je vidljiva u `CHANGELOG.md` i `git log --grep release:`.
+- Lokalni pregled bilo koje verzije: `scripts/verzija.sh` (vidi `docs/LOKALNO-TESTIRANJE.md`).
 
 ## Grane
 - `main` je uvijek ispravna i dokumentirana.
