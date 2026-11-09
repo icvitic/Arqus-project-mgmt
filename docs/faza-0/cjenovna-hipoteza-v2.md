@@ -26,7 +26,7 @@ Usporedba sa sidrima: EMDESK 6,50–12 EUR/korisnik/mj. → institucija s 60 kor
 | 2 (faza 2, 2028.) | 8 Institucija, 2 Institucija+, 1 PaaS, 30 Projekt | ~145.000 | kriterij faze 2: 10 kupaca, 60.000 ARR – premašen |
 | 3 (faza 3, 2029.) | 15 Institucija, 5 Institucija+, 3 PaaS, 60 Projekt, prvi kupci u SLO/SRB | ~320.000 | u skladu sa SOM procjenom |
 
-Pesimistično (sporiji javni sektor): 2. godina ~70.000, 3. godina ~160.000 EUR. Trošak razvoja 550–700 tis. EUR kroz 24 mj. (strategija) ne pokriva se iz prihoda do 4.–5. godine → potrebno vanjsko financiranje ili ulaganje Arqus Solutionsa; moguć izvor: EU poziv za digitalna rješenja (EDIH, NPOO/PKK za MSP) – sam proizvod je kandidat za bespovratna sredstva.
+Pesimistično (sporiji javni sektor): 2. godina ~70.000, 3. godina ~160.000 EUR. Trošak razvoja 550–700 tis. EUR kroz 24 mj. (strategija) ne pokriva se iz prihoda do 4.–5. godine → potrebno vanjsko financiranje ili ulaganje Arqus Solutionsa; moguć izvor: EU poziv za digitalna rješenja (EDIH, NPOO/PKK za MSP) – sam proizvod je kandidat za bespovratna sredstva. **Odluka (2026-11-09): zasad vlastita sredstva Arqus Solutionsa.**
 
 ## 4. Odluka go/no-go za fazu 1
 **Preporuka: GO, uvjetno**, uz promjenu kriterija (ADR-0007).

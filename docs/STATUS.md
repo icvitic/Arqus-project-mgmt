@@ -3,6 +3,7 @@
 **Zadnje ažuriranje:** 2026-11-09 · **Verzija:** v0.5.0 · **Faza:** 0 završena (GO, uvjetno) → faza 1 – MVP i pilot
 
 ## Gotovo
+- Odluka (Ivan, 2026-11-09): faza 1 financira se zasad iz vlastitih sredstava Arqus Solutionsa; prijava na EU poziv za MSP ostaje opcija za kasnije.
 - Strategija i plan razvoja (Claude Docs, poveznica u `docs/strategija.md`).
 - Odluka: proizvod razvija Arqus Solutions kao zaseban produkt (ADR-0005).
 - Repozitorij, pravila verzioniranja i dokumentacije, ADR-0001 – ADR-0005.
@@ -26,7 +27,6 @@ Napomena o potrošnji: sesije faze 1 su težine H (kod + testovi). Preporuka: je
 ## Otvorena pitanja za Ivana
 - Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?
 - Pošalji Upute za prijavitelje jednog PKK ili NPOO poziva (PDF/poveznica) za prvi stvarni „paket po pozivu” – prema istraživanju, nacionalni programi su komercijalno važniji od HE.
-- Financiranje faze 1: razvoj iz vlastitih sredstava Arqus Solutionsa ili prijava proizvoda na EU poziv za MSP (vidi WP0.7, odjeljak 3)?
 - Tehnološki okvir (ADR-0002 ostavlja otvoreno): predlažem NestJS + Prisma/Drizzle + React/Vite; potvrda u WP1.1.
 - Potrošnja: Claude ne može očitati tvoj brojač; ako želiš nadzor, povremeno upiši postotak iz Settings → Usage u `docs/POTROSNJA.md` ili ga javi u poruci.
 - Konačan naziv proizvoda (radni: „ArQus Projekti”).
