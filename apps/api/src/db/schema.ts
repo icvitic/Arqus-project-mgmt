@@ -77,3 +77,27 @@ export type Tenant = typeof tenants.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Role = typeof roles.$inferSelect;
 export type AuditEntry = typeof auditEntries.$inferSelect;
+
+/** M2 Paket programa u bazi: globalni (tenant_id NULL, održava Arqus) ili stanarski. Sadržaj = JSON validiran shemom v1. */
+export type PackageStatus = 'draft' | 'published' | 'deprecated';
+export const programmePackages = pgTable('programme_packages', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').references(() => tenants.id),
+  packageId: text('package_id').notNull(),
+  version: text('version').notNull(),
+  programme: text('programme').notNull(),
+  funder: text('funder'),
+  status: text('status').$type<PackageStatus>().notNull().default('draft'),
+  extendsId: text('extends_id'),
+  validFrom: text('valid_from').notNull(),
+  validTo: text('valid_to'),
+  content: jsonb('content').$type<Record<string, unknown>>().notNull(),
+  checksum: text('checksum').notNull(),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  ...audited,
+}, (t) => [
+  uniqueIndex('programme_packages_tenant_uq').on(t.tenantId, t.packageId, t.version).where(sql`tenant_id is not null`),
+  uniqueIndex('programme_packages_global_uq').on(t.packageId, t.version).where(sql`tenant_id is null`),
+  index('programme_packages_lookup_idx').on(t.packageId, t.status),
+]);
+export type ProgrammePackageRow = typeof programmePackages.$inferSelect;

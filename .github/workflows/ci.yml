@@ -23,6 +23,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm typecheck
+      - run: pnpm lint
       - run: pnpm test
       - name: Validacija paketa programa (shema + semantika)
         run: node packages/domain/dist/cli.js docs/domena/paketi

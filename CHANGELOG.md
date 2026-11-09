@@ -4,6 +4,16 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-09
+### Dodano
+- WP1.3: tablica `programme_packages` (globalni paketi `tenant_id NULL` vidljivi svima, stanarski izolirani RLS-om), migracije 0002/0003; uvoz globalnih paketa iz `docs/domena/paketi` (`db:import-packages`, idempotentno po checksumu; seed ga poziva); REST: popis, dohvat razriješenog paketa (`?version=`), `POST /validate`, `POST` (stanarski nacrt), `POST /:id/publish`.
+- `@arqus/domain`: nasljeđivanje paketa (`mergePackages`, `resolvePackage`) – paket po pozivu nasljeđuje programski paket i mijenja samo razlike; otkrivanje kružnog nasljeđivanja; semantička validacija izvodi se na razriješenom paketu.
+- ESLint 9 (flat config, typescript-eslint) + `pnpm lint` u CI-ju.
+- Testovi: ukupno 30 (10 domena, 7 RLS, 13 e2e).
+### Promijenjeno
+- Paketi programa se više ne čitaju iz datoteka pri pokretanju API-ja nego iz baze.
+- CI: izgradnja prije typechecka (CI je padao jer `@arqus/domain` nije imao `dist`).
+
 ## [0.7.0] - 2026-11-09
 ### Dodano
 - WP1.2: Drizzle shema (`tenants`, `users`, `roles`, `role_assignments`, `audit_entries`) i migracije; RLS na svim tablicama s `FORCE`, politike po `app_current_tenant()`, zasebna aplikacijska uloga `arqus_app` bez BYPASSRLS, revizijski zapis samo za dodavanje (bez UPDATE/DELETE prava).

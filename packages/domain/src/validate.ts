@@ -52,10 +52,11 @@ export function semanticIssues(pkg: ProgrammePackage): ValidationIssue[] {
   return issues;
 }
 
-/** Validira JSON paket programa prema shemi v1 i semantičkim pravilima. */
-export function validateProgrammePackage(input: unknown): ValidationResult {
+/** Validira JSON paket programa prema shemi v1 i semantičkim pravilima (semantika se preskače za pakete s `extends`; za njih validirati razriješeni paket). */
+export function validateProgrammePackage(input: unknown, opts: { schemaOnly?: boolean } = {}): ValidationResult {
   if (!validateSchema(input)) return { ok: false, issues: fromAjv(validateSchema.errors) };
   const pkg = input as unknown as ProgrammePackage;
-  const issues = semanticIssues(pkg);
+  // Dijete s `extends` nasljeđuje osnovice, stope i vrste akcija – semantika se provjerava tek na razriješenom paketu.
+  const issues = opts.schemaOnly || pkg.meta.extends ? [] : semanticIssues(pkg);
   return issues.length ? { ok: false, issues } : { ok: true, pkg };
 }

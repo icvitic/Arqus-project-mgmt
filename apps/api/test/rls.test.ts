@@ -70,3 +70,28 @@ describe('Row-Level Security po stanaru', () => {
     expect(changed).toBe(0);
   });
 });
+
+describe('RLS: programme_packages', () => {
+  const admin = new Pool({ connectionString: ADMIN_URL, max: 1 });
+  const app = new Pool({ connectionString: APP_URL, max: 1 });
+  const A = randomUUID(), B = randomUUID(); const tag = randomUUID().slice(0, 8);
+  beforeAll(async () => {
+    await admin.query(`insert into tenants (id, slug, name) values ($1, $2, 'A'), ($3, $4, 'B')`, [A, `pk-a-${tag}`, B, `pk-b-${tag}`]);
+    await admin.query(`insert into programme_packages (tenant_id, package_id, version, programme, valid_from, content, checksum) values
+      (null, $1, '1.0.0', 'G', '2026-01-01', '{}', 'g'), ($2, $3, '1.0.0', 'A', '2026-01-01', '{}', 'a'), ($4, $5, '1.0.0', 'B', '2026-01-01', '{}', 'b')`,
+      [`glob-${tag}`, A, `ten-a-${tag}`, B, `ten-b-${tag}`]);
+  });
+  afterAll(async () => { await app.end(); await admin.end(); });
+  it('stanar vidi globalne i vlastite pakete, ne tuđe; globalne ne može mijenjati', async () => {
+    const c = await app.connect();
+    try {
+      await c.query('begin'); await c.query(`select set_config('app.tenant_id', $1, true)`, [A]);
+      const seen = (await c.query(`select package_id from programme_packages where package_id like $1 order by 1`, [`%-${tag}`])).rows.map((r) => r.package_id);
+      expect(seen).toEqual([`glob-${tag}`, `ten-a-${tag}`]);
+      const upd = await c.query(`update programme_packages set programme = 'hak' where package_id = $1 returning id`, [`glob-${tag}`]);
+      expect(upd.rows.length).toBe(0);
+      await expect(c.query(`insert into programme_packages (tenant_id, package_id, version, programme, valid_from, content, checksum) values (null, 'x-${tag}', '1', 'x', '2026-01-01', '{}', 'x')`)).rejects.toThrow(/row-level security/);
+      await c.query('rollback');
+    } finally { c.release(); }
+  });
+});
