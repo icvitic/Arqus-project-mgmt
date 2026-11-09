@@ -53,6 +53,8 @@ pnpm typecheck && pnpm lint && pnpm test
 - Izračuni koji ovise o pravilima programa žive u `@arqus/domain`, ne u kontrolerima.
 - Svaki poslovni upit ide kroz `DbService.tx()` (stanar iz konteksta) ili `withTenant()`; `withoutTenant()` samo za prijavu i sistemske poslove.
 - Svaka promjena poslovnih podataka zove `AuditService.record()` u istoj transakciji. Zapis neuspjele radnje ide u zasebnoj transakciji.
+- Tablica koja pokazuje na drugi redak stanara ima kompozitni strani ključ `(tenant_id, <fk>)` → `(tenant_id, id)`; sam RLS ne štiti strane ključeve.
+- Provjeri redoslijed u migraciji koju generira drizzle-kit: jedinstveno ograničenje mora biti prije stranog ključa koji ga koristi.
 - Nova tablica = migracija s `ENABLE/FORCE ROW LEVEL SECURITY`, politika po `app_current_tenant()`, GRANT za `arqus_app` i test u `test/rls.test.ts`.
 - Paket po pozivu: stanarski JSON s `meta.extends = <id programskog paketa>` i samo razlikama; `POST /api/programme-packages/validate` vraća razriješeni paket; nakon `publish` je nepromjenjiv.
 - Migracije: promijeni `src/db/schema.ts` → `pnpm --filter @arqus/api db:generate` → dopuni RLS u generiranom SQL-u ili novoj `--custom` migraciji.

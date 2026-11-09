@@ -4,6 +4,18 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-09
+### Dodano
+- WP1.6: tablice `organisations`, `projects`, `project_partners`, `reporting_periods` (migracije 0004/0005, RLS s FORCE). Kompozitni strani ključevi `(tenant_id, id)` sprječavaju vezu na retke drugog stanara i kad je id poznat (provjere stranih ključeva u PostgreSQL-u zaobilaze RLS).
+- REST `/api/organisations` (popis s pretragom, dohvat, stvaranje, izmjena; validacija PIC/OIB) i `/api/projects` (popis, detalj s partnerima i razdobljima, stvaranje uz paket i vrstu akcije, izmjena, dodavanje/uklanjanje partnera, `POST /:id/transition`).
+- Vlastita organizacija stanara dodaje se automatski kao partner; vrsta korisnika (npr. `nonProfit`) određuje se iz paketa i organizacije.
+- `@arqus/domain`: životni ciklus projekta (`transitionIssues`), datumi bez pomaka vremenske zone, `generateReportingPeriods` (aktivacija generira razdoblja iz pravila paketa).
+- Zod validacija tijela zahtjeva (`parseBody`, 400 s popisom problema); dozvole `organisations:read/write`.
+- Testovi: ukupno 48 (17 domena, 31 API) – uključuje provjeru da svaka tablica ima prisilni RLS i napad preko poznatog id-a tuđe organizacije.
+### Promijenjeno
+- Projekt se aktivira samo uz objavljenu verziju paketa; nakon aktivacije početak, trajanje i partneri mijenjaju se samo amandmanom (dolazi kasnije).
+- Pravilo rada: Claude spaja PR čim CI prođe (AUTONOMNI-RAD, t. 7).
+
 ## [0.8.0] - 2026-11-09
 ### Dodano
 - WP1.3: tablica `programme_packages` (globalni paketi `tenant_id NULL` vidljivi svima, stanarski izolirani RLS-om), migracije 0002/0003; uvoz globalnih paketa iz `docs/domena/paketi` (`db:import-packages`, idempotentno po checksumu; seed ga poziva); REST: popis, dohvat razriješenog paketa (`?version=`), `POST /validate`, `POST` (stanarski nacrt), `POST /:id/publish`.
