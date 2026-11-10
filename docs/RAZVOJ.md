@@ -38,11 +38,21 @@ API: http://localhost:3000/api/health · Web: http://localhost:5173 (proxy `/api
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
+## Web sučelje
+`pnpm dev` diže API (3000) i web (5173, proxy `/api`). Prijava: oznaka institucije `demo`, `admin@demo.local` / `Demo-lozinka-1` (nakon `db:seed`).
+Za pilot je potreban objavljen paket programa (vidi otvoreno pitanje u STATUS-u); stanarski paket po pozivu stvara se kroz `POST /api/programme-packages` + `/publish`.
+
+## E2E provjera u pregledniku
+```bash
+DATABASE_MIGRATE_URL=postgres://arqus@127.0.0.1:5433/arqus_e2e DATABASE_URL=postgres://arqus_app:arqus@127.0.0.1:5433/arqus_e2e apps/web/e2e/run-local.sh
+```
+Izgradi sve, primijeni migracije i seed, digne API i `vite preview` te Playwrightom prođe tok prijava → projekt → proračun → aktivacija → timesheet → trošak → ZNS. `E2E_SHOTS=<mapa>` sprema snimke zaslona. Nije u CI-ju (traži preglednik); pokrenuti prije spajanja promjena u sučelju.
+
 ## Struktura
 | Putanja | Sadržaj |
 | --- | --- |
 | `apps/api` | NestJS API; jedan modul po domenskom modulu (`src/health`, `src/programmes`, `src/identity`, `src/audit`); `src/db` Drizzle shema i servis; `drizzle/` migracije |
-| `apps/web` | React/Vite sučelje |
+| `apps/web` | React/Vite sučelje: `src/pages` (stranice), `src/tabs` (kartice projekta), `src/lib` (API klijent, formatiranje, tipovi), `e2e/` (Playwright) |
 | `packages/domain` | tipovi, validator paketa programa, izračun proračuna; CLI `node packages/domain/dist/cli.js <mapa>` |
 | `docs/domena/paketi` | izvor istine za shemu i pakete programa (HE, NPOO) |
 | `infra` | Docker Compose i `.env.example` |

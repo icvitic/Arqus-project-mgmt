@@ -1,8 +1,9 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-10 · **Verzija:** v0.11.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-10 · **Verzija:** v0.12.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- WP1.10 (v0.12.0): web sučelje za pilot – projekti, organizacije, struktura, proračun, timesheetovi, troškovi, ZNS, ugovoreno/ostvareno; e2e provjera cijelog toka u pregledniku. Prvi pilot može raditi kroz preglednik.
 - WP1.8 (v0.11.0): tim, timesheetovi s izračunom troška osoblja iz paketa, troškovi, zahtjevi za nadoknadu (predaja, povrat, odluka, isplata), ugovoreno vs. ostvareno; nepromjenjivost prihvaćenih troškova u bazi. 78 testova. Backend jezgra provedbe za MVP je gotova.
 - WP1.7 (v0.10.0): struktura provedbe (WP, zadaci, isporuke, prekretnice, rizici) i proračun projekta s izračunom iz paketa; zaključavanje proračuna aktivacijom; ograničenja baze → 409. 62 testa.
 - WP1.6 (v0.9.0): organizacije, projekti, partneri, prijelazi statusa, izvještajna razdoblja iz paketa; kompozitni strani ključevi protiv miješanja stanara. 48 testova. PR #2 i #3 spojeni.
@@ -22,14 +23,15 @@
 - WP0.4 (v0.3.0): domenski model v1 – moduli, entiteti, životni ciklusi, invarijante (`docs/domena/domenski-model-v1.md`); JSON shema paketa programa + primjeri HE i NPOO (`docs/domena/paketi/`); ADR-0006.
 
 ## U tijeku
-- Ništa – WP1.8 završen.
+- Ništa – WP1.10 završen.
 
 ## Sljedeće
-1. Web sučelje (WP1.10, novo): prijava, popis i detalj projekta, struktura, proračun, timesheet, troškovi, ZNS – prijenos prototipa u React, da pilot radi bez API klijenta.
-2. WP1.4–1.5 – radar poziva i prijava (pretvorba prijave u projekt prema ADR-0006).
-3. WP1.9 – sigurnosni pregled, okruženje za pilot (stage), sigurnosne kopije; WP1.2b OIDC/MFA.
+1. WP1.9 – pilot-instalacija: Docker slika (API poslužuje i web), okruženje u EU oblaku, sigurnosne kopije, osnovni sigurnosni pregled (OWASP ASVS L2 popis), ograničenje pokušaja prijave.
+2. Objava provjerenih paketa HE i NPOO (čeka odgovor) i sučelje za pakete po pozivu.
+3. WP1.4–1.5 – radar poziva i prijava; WP1.2b OIDC/MFA.
 
 ## Otvorena pitanja za Ivana
+- Pilot: postoji li već institucija koja bi isprobala sustav? Za instalaciju (WP1.9) treba odabrati EU pružatelja (npr. Hetzner DE/FI, Scaleway FR, OVH FR) – imaš li preferenciju?
 - Globalni paketi HE i NPOO su `draft` jer pravila nisu provjerena prema službenim dokumentima, pa se HE projekti zasad ne mogu aktivirati. Da ih provjerim prema važećem HE Model Grant Agreementu i objavim (1–2 dohvaćanja dokumenata)?
 - Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?
 - Pošalji Upute za prijavitelje jednog PKK ili NPOO poziva (PDF/poveznica): mehanizam „paket po pozivu” (`extends`) je gotov, treba prvi stvarni sadržaj.
