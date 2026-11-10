@@ -8,44 +8,191 @@
     "validFrom": "2021-01-01",
     "validTo": "2026-08-31",
     "language": "hr",
-    "sources": [ "https://fondovieu.gov.hr/" ],
+    "sources": [
+      "https://fondovieu.gov.hr/"
+    ],
     "notes": "ILUSTRATIVAN programski paket. U NPOO-u kategorije, stope i rokovi ovise o pojedinom pozivu (Upute za prijavitelje), pa se za svaki poziv izrađuje paket koji nasljeđuje ovaj (extends: npoo-2021-2026) i mijenja stope. Vrijednosti niže su tipične, nisu normativne."
   },
   "actionTypes": [
-    { "code": "BESPOVRATNA", "name": "Bespovratna sredstva (otvoreni poziv)", "fundingRates": [ { "beneficiaryType": "default", "ratePercent": 100 } ] },
-    { "code": "IZRAVNA-DODJELA", "name": "Izravna dodjela", "fundingRates": [ { "beneficiaryType": "default", "ratePercent": 100 } ] }
+    {
+      "code": "BESPOVRATNA",
+      "name": "Bespovratna sredstva (otvoreni poziv)",
+      "fundingRates": [
+        {
+          "beneficiaryType": "default",
+          "ratePercent": 100
+        }
+      ]
+    },
+    {
+      "code": "IZRAVNA-DODJELA",
+      "name": "Izravna dodjela",
+      "fundingRates": [
+        {
+          "beneficiaryType": "default",
+          "ratePercent": 100
+        }
+      ]
+    }
   ],
   "costCategories": [
-    { "code": "OS", "name": "Troškovi osoblja", "kind": "direct", "constraints": { "requiresEvidence": true } },
-    { "code": "VU", "name": "Vanjske usluge", "kind": "direct", "constraints": { "requiresEvidence": true, "vatEligible": "ifNotRecoverable" } },
-    { "code": "OP", "name": "Oprema", "kind": "direct", "constraints": { "requiresEvidence": true, "vatEligible": "ifNotRecoverable" } },
-    { "code": "RAD", "name": "Radovi / infrastruktura", "kind": "direct", "constraints": { "requiresEvidence": true, "vatEligible": "ifNotRecoverable" } },
-    { "code": "PUT", "name": "Putovanja", "kind": "direct", "constraints": { "requiresEvidence": true } },
-    { "code": "UP", "name": "Upravljanje projektom i administracija", "kind": "direct", "constraints": { "maxPercentOfDirect": 10 } },
-    { "code": "PV", "name": "Promidžba i vidljivost", "kind": "direct" },
-    { "code": "NT", "name": "Neizravni troškovi (paušal)", "kind": "indirect", "calculation": { "ratePercent": 15, "baseCategories": ["OS"] } }
+    {
+      "code": "OS",
+      "name": "Troškovi osoblja",
+      "kind": "direct",
+      "constraints": {
+        "requiresEvidence": true
+      }
+    },
+    {
+      "code": "VU",
+      "name": "Vanjske usluge",
+      "kind": "direct",
+      "constraints": {
+        "requiresEvidence": true,
+        "vatEligible": "ifNotRecoverable"
+      }
+    },
+    {
+      "code": "OP",
+      "name": "Oprema",
+      "kind": "direct",
+      "constraints": {
+        "requiresEvidence": true,
+        "vatEligible": "ifNotRecoverable"
+      }
+    },
+    {
+      "code": "RAD",
+      "name": "Radovi / infrastruktura",
+      "kind": "direct",
+      "constraints": {
+        "requiresEvidence": true,
+        "vatEligible": "ifNotRecoverable"
+      }
+    },
+    {
+      "code": "PUT",
+      "name": "Putovanja",
+      "kind": "direct",
+      "constraints": {
+        "requiresEvidence": true
+      }
+    },
+    {
+      "code": "UP",
+      "name": "Upravljanje projektom i administracija",
+      "kind": "direct",
+      "constraints": {
+        "maxPercentOfDirect": 10
+      }
+    },
+    {
+      "code": "PV",
+      "name": "Promidžba i vidljivost",
+      "kind": "direct"
+    },
+    {
+      "code": "NT",
+      "name": "Neizravni troškovi (paušal)",
+      "kind": "indirect",
+      "calculation": {
+        "ratePercent": 15,
+        "baseCategories": [
+          "OS"
+        ]
+      }
+    }
   ],
-  "personnelRule": { "method": "hourlyRate", "divisor": 1720, "timeRecordingRequired": true, "declarationAllowed": false },
+  "personnelRule": {
+    "method": "hourlyRate",
+    "categoryCode": "OS",
+    "divisor": 1720,
+    "timeRecordingRequired": true,
+    "declarationAllowed": false
+  },
   "reporting": {
     "periodMonths": 3,
     "submissionDeadlineDays": 30,
     "finalReportDeadlineDays": 60,
     "reportTypes": [
-      { "code": "zns", "name": "Zahtjev za nadoknadom sredstava (ZNS)", "sections": ["Financijski dio po kategorijama", "Dokazi o plaćanju", "Izvještaj o napretku"] },
-      { "code": "zavrsni", "name": "Završni ZNS i izvještaj" }
+      {
+        "code": "zns",
+        "name": "Zahtjev za nadoknadom sredstava (ZNS)",
+        "sections": [
+          "Financijski dio po kategorijama",
+          "Dokazi o plaćanju",
+          "Izvještaj o napretku"
+        ]
+      },
+      {
+        "code": "zavrsni",
+        "name": "Završni ZNS i izvještaj"
+      }
     ]
   },
   "proposalStructure": [
-    { "code": "prijavni-obrazac", "name": "Prijavni obrazac A (fondovieu)", "required": true },
-    { "code": "proracun", "name": "Proračun projekta (obrazac)", "required": true },
-    { "code": "izjave", "name": "Izjave prijavitelja i partnera", "required": true }
+    {
+      "code": "prijavni-obrazac",
+      "name": "Prijavni obrazac A (fondovieu)",
+      "required": true
+    },
+    {
+      "code": "proracun",
+      "name": "Proračun projekta (obrazac)",
+      "required": true
+    },
+    {
+      "code": "izjave",
+      "name": "Izjave prijavitelja i partnera",
+      "required": true
+    }
   ],
-  "deliverableTypes": [ { "code": "ISP", "name": "Isporučevina" }, { "code": "POK", "name": "Pokazatelj (ključna etapa/cilj)" } ],
-  "disseminationLevels": [ { "code": "JAV", "name": "Javno" }, { "code": "INT", "name": "Interno" } ],
-  "consortiumRules": { "minPartners": 1, "eligibleCountries": ["HR"], "notes": "Partnerstvo ovisi o pozivu; prijavitelj je u pravilu hrvatska pravna osoba." },
+  "deliverableTypes": [
+    {
+      "code": "ISP",
+      "name": "Isporučevina"
+    },
+    {
+      "code": "POK",
+      "name": "Pokazatelj (ključna etapa/cilj)"
+    }
+  ],
+  "disseminationLevels": [
+    {
+      "code": "JAV",
+      "name": "Javno"
+    },
+    {
+      "code": "INT",
+      "name": "Interno"
+    }
+  ],
+  "consortiumRules": {
+    "minPartners": 1,
+    "eligibleCountries": [
+      "HR"
+    ],
+    "notes": "Partnerstvo ovisi o pozivu; prijavitelj je u pravilu hrvatska pravna osoba."
+  },
   "validations": [
-    { "id": "npoo-up-share", "severity": "error", "rule": "sum(UP) > 0.10 * sum(direct)", "message": "Upravljanje projektom prelazi 10 % izravnih troškova." },
-    { "id": "npoo-end-date", "severity": "error", "rule": "project.endDate > 2026-06-30", "message": "Završetak projekta nakon 30. 6. 2026. – provjeriti rok poziva (RRF krajnji rok 31. 8. 2026.)." },
-    { "id": "npoo-vat", "severity": "warning", "rule": "expense.vatIncluded && beneficiary.vatRecoverable", "message": "PDV nije prihvatljiv trošak ako ga korisnik može odbiti." }
+    {
+      "id": "npoo-up-share",
+      "severity": "error",
+      "rule": "sum(UP) > 0.10 * sum(direct)",
+      "message": "Upravljanje projektom prelazi 10 % izravnih troškova."
+    },
+    {
+      "id": "npoo-end-date",
+      "severity": "error",
+      "rule": "project.endDate > 2026-06-30",
+      "message": "Završetak projekta nakon 30. 6. 2026. – provjeriti rok poziva (RRF krajnji rok 31. 8. 2026.)."
+    },
+    {
+      "id": "npoo-vat",
+      "severity": "warning",
+      "rule": "expense.vatIncluded && beneficiary.vatRecoverable",
+      "message": "PDV nije prihvatljiv trošak ako ga korisnik može odbiti."
+    }
   ]
 }

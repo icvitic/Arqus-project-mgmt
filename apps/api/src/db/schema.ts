@@ -180,6 +180,7 @@ export const reportingPeriods = pgTable('reporting_periods', {
   dueDate: date('due_date', { mode: 'string' }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
+  unique('reporting_periods_tenant_id_uq').on(t.tenantId, t.id),
   uniqueIndex('reporting_periods_uq').on(t.projectId, t.number),
   foreignKey({ name: 'reporting_periods_project_fk', columns: [t.tenantId, t.projectId], foreignColumns: [projects.tenantId, projects.id] }).onDelete('cascade'),
 ]);
@@ -313,6 +314,115 @@ export const budgetLines = pgTable('budget_lines', {
   foreignKey({ name: 'budget_lines_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),
   wpFk('budget_lines_wp_fk', t),
   check('budget_lines_amount_ck', sql`amount_cents >= 0`),
+]);
+
+/* ---------- M7 Financije: tim, timesheetovi, troškovi, zahtjevi za nadoknadu (ZNS) ---------- */
+export const teamMembers = pgTable('team_members', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  partnerId: uuid('partner_id').notNull(),
+  userId: uuid('user_id'),
+  fullName: text('full_name').notNull(),
+  role: text('role'),
+  annualCostCents: bigint('annual_cost_cents', { mode: 'number' }).notNull(),
+  active: boolean('active').notNull().default(true),
+  ...audited,
+}, (t) => [
+  unique('team_members_tenant_id_uq').on(t.tenantId, t.id),
+  uniqueIndex('team_members_user_uq').on(t.projectId, t.userId).where(sql`user_id is not null`),
+  projectFk('team_members_project_fk', t),
+  foreignKey({ name: 'team_members_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),
+  foreignKey({ name: 'team_members_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }),
+  check('team_members_cost_ck', sql`annual_cost_cents >= 0`),
+]);
+
+export type TimesheetStatus = 'draft' | 'submitted' | 'approved' | 'locked';
+export const timesheets = pgTable('timesheets', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  teamMemberId: uuid('team_member_id').notNull(),
+  month: text('month').notNull(),
+  status: text('status').$type<TimesheetStatus>().notNull().default('draft'),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  approvedBy: uuid('approved_by'),
+  ...audited,
+}, (t) => [
+  unique('timesheets_tenant_id_uq').on(t.tenantId, t.id),
+  uniqueIndex('timesheets_member_month_uq').on(t.teamMemberId, t.month),
+  projectFk('timesheets_project_fk', t),
+  foreignKey({ name: 'timesheets_member_fk', columns: [t.tenantId, t.teamMemberId], foreignColumns: [teamMembers.tenantId, teamMembers.id] }),
+  check('timesheets_month_ck', sql`month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+]);
+
+export const timesheetEntries = pgTable('timesheet_entries', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  timesheetId: uuid('timesheet_id').notNull(),
+  day: integer('day').notNull(),
+  workPackageId: uuid('work_package_id'),
+  minutes: integer('minutes').notNull(),
+}, (t) => [
+  index('timesheet_entries_ts_idx').on(t.timesheetId),
+  foreignKey({ name: 'timesheet_entries_ts_fk', columns: [t.tenantId, t.timesheetId], foreignColumns: [timesheets.tenantId, timesheets.id] }).onDelete('cascade'),
+  wpFk('timesheet_entries_wp_fk', t),
+  check('timesheet_entries_ck', sql`day between 1 and 31 and minutes between 0 and 1440`),
+]);
+
+export type ClaimStatus = 'draft' | 'submitted' | 'approved' | 'partially_approved' | 'rejected';
+export const reimbursementClaims = pgTable('reimbursement_claims', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  reportingPeriodId: uuid('reporting_period_id').notNull(),
+  partnerId: uuid('partner_id').notNull(),
+  status: text('status').$type<ClaimStatus>().notNull().default('draft'),
+  totals: jsonb('totals').$type<Record<string, unknown>>(),
+  requestedCents: bigint('requested_cents', { mode: 'number' }),
+  approvedCents: bigint('approved_cents', { mode: 'number' }),
+  paidCents: bigint('paid_cents', { mode: 'number' }),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  paidAt: date('paid_at', { mode: 'string' }),
+  note: text('note'),
+  ...audited,
+}, (t) => [
+  unique('reimbursement_claims_tenant_id_uq').on(t.tenantId, t.id),
+  uniqueIndex('reimbursement_claims_period_partner_uq').on(t.reportingPeriodId, t.partnerId),
+  projectFk('reimbursement_claims_project_fk', t),
+  foreignKey({ name: 'reimbursement_claims_period_fk', columns: [t.tenantId, t.reportingPeriodId], foreignColumns: [reportingPeriods.tenantId, reportingPeriods.id] }),
+  foreignKey({ name: 'reimbursement_claims_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),
+]);
+
+export type ExpenseStatus = 'recorded' | 'claimed' | 'accepted' | 'rejected';
+export const expenses = pgTable('expenses', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  partnerId: uuid('partner_id').notNull(),
+  categoryCode: text('category_code').notNull(),
+  workPackageId: uuid('work_package_id'),
+  date: date('date', { mode: 'string' }).notNull(),
+  description: text('description').notNull(),
+  supplier: text('supplier'),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  evidenceRef: text('evidence_ref'),
+  source: text('source').$type<'manual' | 'timesheet'>().notNull().default('manual'),
+  timesheetId: uuid('timesheet_id'),
+  claimId: uuid('claim_id'),
+  status: text('status').$type<ExpenseStatus>().notNull().default('recorded'),
+  ...audited,
+}, (t) => [
+  index('expenses_project_date_idx').on(t.projectId, t.date),
+  projectFk('expenses_project_fk', t),
+  foreignKey({ name: 'expenses_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),
+  wpFk('expenses_wp_fk', t),
+  foreignKey({ name: 'expenses_timesheet_fk', columns: [t.tenantId, t.timesheetId], foreignColumns: [timesheets.tenantId, timesheets.id] }).onDelete('cascade'),
+  foreignKey({ name: 'expenses_claim_fk', columns: [t.tenantId, t.claimId], foreignColumns: [reimbursementClaims.tenantId, reimbursementClaims.id] }),
+  check('expenses_amount_ck', sql`amount_cents >= 0`),
+  check('expenses_claim_status_ck', sql`(status = 'recorded') = (claim_id is null)`),
 ]);
 
 export type WorkPackage = typeof workPackages.$inferSelect;

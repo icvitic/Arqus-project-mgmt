@@ -15,6 +15,7 @@ Težina: **L** = samo pisanje/uređivanje dokumenata iz postojećeg znanja; **M*
 | 2026-11-09 | 2 (ručno) | WP0.3 dio 2, v0.2.0 | 4 / 6 | 0 | M | |
 | 2026-11-09 | 3 (ručno) | WP0.4 domenski model, v0.3.0 | 0 / 0 | 0 | L | |
 | 2026-11-09 | 3 (nastavak) | skripta verzija + preglednik, test u pregledniku, v0.3.1 | 0 / 0 | 0 | M | |
+| 2026-11-10 | 4 (nastavak) | WP1.8 tim, timesheetovi, troškovi, ZNS; 78 testova; v0.11.0 | 0 / 0 | 0 | H | |
 | 2026-11-10 | 4 (ručno) | WP1.7 provedba i proračun projekta; 62 testa; v0.10.0 | 0 / 0 | 0 | H | |
 | 2026-11-09 | 3 (nastavak 8) | spajanje PR #2/#3; WP1.6 projekti, organizacije, razdoblja; 48 testova; v0.9.0 | 0 / 0 | 0 | H | |
 | 2026-11-09 | 3 (nastavak 7) | CI popravak; WP1.3 paketi u bazi, nasljeđivanje, ESLint; 30 testova; v0.8.0 | 0 / 0 | 0 | H | |
