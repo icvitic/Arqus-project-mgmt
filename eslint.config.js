@@ -8,7 +8,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.mjs'],
+    files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.mjs', '**/*.cjs'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
@@ -19,6 +19,7 @@ export default tseslint.config(
   },
   // NestJS: `import type` za konstruktorski ubrizgane klase briše metapodatke dekoratora i ruši DI.
   { files: ['apps/api/**/*.ts'], rules: { '@typescript-eslint/consistent-type-imports': 'off' } },
-  { files: ['**/scripts/**', '**/*.mjs', '**/cli.ts', 'apps/api/src/main.ts', 'scripts/**'], rules: { 'no-console': 'off' } },
+  { files: ['**/scripts/**', '**/*.mjs', '**/e2e/**', '**/cli.ts', 'apps/api/src/main.ts', 'scripts/**'], rules: { 'no-console': 'off' } },
   { files: ['**/*.test.ts'], rules: { '@typescript-eslint/no-non-null-assertion': 'off' } },
+  { files: ['**/*.cjs'], languageOptions: { sourceType: 'commonjs' }, rules: { '@typescript-eslint/no-require-imports': 'off' } },
 );

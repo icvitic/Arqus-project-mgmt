@@ -4,6 +4,15 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-10
+### Dodano
+- WP1.10 web sučelje (`apps/web`, React 19 + Vite, bez UI biblioteka, svijetla i tamna tema): prijava; popis i izrada projekata (paket i vrsta akcije iz paketa); registar organizacija; detalj projekta s karticama Pregled (ugovor, partneri, promjena statusa s potvrdom, izvještajna razdoblja), Struktura rada (radni paketi, isporuke sa statusom, prekretnice, rizici), Proračun (tablični unos partner × kategorija, izračun iz paketa), Tim i timesheetovi (mjesečna mreža dan × radni paket, predaja, odobrenje, povrat), Troškovi, Zahtjevi za nadoknadu (otvaranje, predaja, odluka, isplata), Ugovoreno / ostvareno.
+- Gumbi i polja prikazuju se prema dozvolama iz `/api/me`; greške API-ja s popisom problema prikazuju se uz obrazac.
+- E2E provjera u pregledniku (`apps/web/e2e/run-local.sh`, Playwright): cijeli tok od prijave do predaje ZNS-a na pravom API-ju i bazi.
+- Jedinični testovi formatiranja (euri, sati, datumi).
+### Ispravljeno
+- Unos iznosa „20.000” tumači se kao dvadeset tisuća (hrvatski zapis), ne kao decimalni broj – greška pronađena e2e testom.
+
 ## [0.11.0] - 2026-11-10
 ### Dodano
 - WP1.8 tim i timesheetovi: `team_members` (godišnji trošak osoblja), mjesečni `timesheets` (nacrt → predan → odobren → zaključan) s unosom u minutama po danu i radnom paketu. Odobrenje stvara troškove osoblja po WP-u prema pravilu paketa (satnica ili dnevnica). Bez dozvole `timesheets:approve` korisnik uređuje samo vlastiti timesheet.
