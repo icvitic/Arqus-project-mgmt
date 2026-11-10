@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+.git
+.verzije
+site/docs.json
+**/*.log
+infra/prod/.env

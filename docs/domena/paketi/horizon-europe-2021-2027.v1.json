@@ -4,15 +4,17 @@
     "programme": "Horizon Europe",
     "funder": "Europska komisija",
     "version": "1.0.0",
-    "status": "draft",
+    "status": "published",
     "validFrom": "2021-01-01",
     "validTo": "2027-12-31",
     "language": "hr",
     "sources": [
       "https://ec.europa.eu/info/funding-tenders/opportunities/docs/2021-2027/common/guidance/aga_en.pdf",
-      "https://ec.europa.eu/info/funding-tenders/opportunities/docs/2021-2027/horizon/agr-contr/general-mga_horizon-euratom_en.pdf"
+      "https://ec.europa.eu/info/funding-tenders/opportunities/docs/2021-2027/horizon/agr-contr/general-mga_horizon-euratom_en.pdf",
+      "https://www.emdesk.com/horizon-2020-horizon-europe-basics-guide/horizon-europe-budget-plan-allocate-manage",
+      "https://www.euacc.ai/knowledge/guide/eu-grant-budget-guide"
     ],
-    "notes": "Model grant agreement HE (actual costs). Lump-sum projekti traže zaseban paket (extends) s kind=lumpSum po radnom paketu. Provjeriti prema važećem AGA-u prije MVP-a."
+    "notes": "Model grant agreement HE (actual costs). Provjereno 2026-11-10: neizravni 25 % na prihvatljive izravne troškove A–D osim volontera (A.5), podugovaranja (B), financijske potpore trećima (D.1) i interno fakturiranih usluga (D.2, mogu sadržavati stvarne neizravne troškove); dnevnica = godišnji trošak osoblja / 215, najviše 215 dana; stope RIA/CSA 100 %, IA 70 % (100 % neprofitni); razdoblja tipično 18 mj., rok 60 dana. Izvori: sekundarni vodiči (službeni MGA/AGA nedostupan pri provjeri) – ponovno provjeriti prema važećem AGA-u. Lump-sum projekti traže zaseban paket (extends)."
   },
   "actionTypes": [
     {
@@ -75,6 +77,11 @@
           "code": "A.4",
           "name": "Vlasnici MSP-ova / fizičke osobe bez plaće",
           "kind": "unit"
+        },
+        {
+          "code": "A.5",
+          "name": "Volonteri (jedinični trošak)",
+          "kind": "unit"
         }
       ]
     },
@@ -133,15 +140,17 @@
     },
     {
       "code": "E",
-      "name": "Neizravni troškovi",
+      "name": "Neizravni troškovi (25 %)",
       "kind": "indirect",
       "calculation": {
         "ratePercent": 25,
         "baseCategories": [
           "A",
-          "C"
+          "C",
+          "D"
         ],
         "excludeCategories": [
+          "A.5",
           "B",
           "D.1",
           "D.2"
@@ -253,7 +262,7 @@
       "id": "he-subcontracting-share",
       "severity": "warning",
       "rule": "sum(B) > 0.15 * sum(direct)",
-      "message": "Podugovaranje prelazi 15 % izravnih troškova – obrazložiti u prijavi."
+      "message": "Podugovaranje prelazi 15 % izravnih troškova – obrazložiti u prijavi (interna provjera, nije pravilo programa)."
     },
     {
       "id": "he-indirect-derived",

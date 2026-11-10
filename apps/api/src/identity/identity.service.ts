@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from './password';
 import { TokenService } from './token.service';
 import { AuditService } from '../audit/audit.service';
 import { SYSTEM_ROLES } from './permissions';
+import { LoginThrottle } from './login-throttle';
 
 export interface LoginInput { tenantSlug: string; email: string; password: string }
 export interface CreateUserInput { email: string; displayName: string; password?: string; roleCodes?: string[] }
@@ -15,7 +16,7 @@ const publicUser = (u: User) => ({ id: u.id, tenantId: u.tenantId, email: u.emai
 
 @Injectable()
 export class IdentityService {
-  constructor(private readonly db: DbService, private readonly tokens: TokenService, private readonly audit: AuditService) {}
+  constructor(private readonly db: DbService, private readonly tokens: TokenService, private readonly audit: AuditService, private readonly throttle: LoginThrottle) {}
 
   /** Skup dozvola korisnika = unija dozvola svih dodijeljenih uloga (stanarskih i sistemskih). */
   async permissionsOf(tx: Tx, tenantId: string, userId: string): Promise<string[]> {
@@ -25,10 +26,11 @@ export class IdentityService {
     return [...new Set(rows.flatMap((r) => r.permissions))];
   }
 
-  async login(input: LoginInput): Promise<{ accessToken: string; user: ReturnType<typeof publicUser>; permissions: string[] }> {
+  async login(input: LoginInput, ip?: string): Promise<{ accessToken: string; user: ReturnType<typeof publicUser>; permissions: string[] }> {
+    this.throttle.assertAllowed(input.tenantSlug, input.email, ip);
     const tenant = await this.db.withoutTenant(async (tx) =>
       (await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.slug, input.tenantSlug), isNull(tenants.deletedAt))))[0]);
-    if (!tenant) throw new UnauthorizedException('Pogrešni podaci za prijavu');
+    if (!tenant) { this.throttle.failed(input.tenantSlug, input.email, ip); throw new UnauthorizedException('Pogrešni podaci za prijavu'); }
 
     // Neuspjeh se bilježi u ZASEBNOJ transakciji: iznimka bi poništila zapis u istoj transakciji.
     const outcome = await this.db.withTenant(tenant.id, async (tx) => {
@@ -43,9 +45,11 @@ export class IdentityService {
     });
     if (!outcome.ok) {
       await this.db.withTenant(tenant.id, (tx) =>
-        this.audit.record(tx, { tenantId: tenant.id, entity: 'user', entityId: outcome.userId, action: 'login.failed', actorType: 'system', diff: { meta: { email: input.email } } }));
+        this.audit.record(tx, { tenantId: tenant.id, entity: 'user', entityId: outcome.userId, action: 'login.failed', actorType: 'system', diff: { meta: { email: input.email, ip } } }));
+      this.throttle.failed(input.tenantSlug, input.email, ip);
       throw new UnauthorizedException('Pogrešni podaci za prijavu');
     }
+    this.throttle.succeeded(input.tenantSlug, input.email);
     const accessToken = await this.tokens.sign({ sub: outcome.user.id, tid: tenant.id, perms: outcome.permissions, sid: outcome.sid });
     return { accessToken, user: publicUser(outcome.user), permissions: outcome.permissions };
   }
