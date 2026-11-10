@@ -46,6 +46,8 @@ export interface ProgrammePackage {
   costCategories: CostCategory[];
   personnelRule?: {
     method?: 'dailyRate' | 'hourlyRate' | 'unitCost' | 'actualSalary';
+    categoryCode?: string;
+    hoursPerDay?: number;
     divisor?: number;
     maxUnitsPerYear?: number;
     timeRecordingRequired?: boolean;

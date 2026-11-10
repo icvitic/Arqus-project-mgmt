@@ -57,6 +57,20 @@
       "when": 1794305485998,
       "tag": "0007_implementation_budget_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794309256974,
+      "tag": "0008_finance",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794309257844,
+      "tag": "0009_finance_rls",
+      "breakpoints": true
     }
   ]
 }

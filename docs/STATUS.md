@@ -1,8 +1,9 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-10 · **Verzija:** v0.10.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-10 · **Verzija:** v0.11.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- WP1.8 (v0.11.0): tim, timesheetovi s izračunom troška osoblja iz paketa, troškovi, zahtjevi za nadoknadu (predaja, povrat, odluka, isplata), ugovoreno vs. ostvareno; nepromjenjivost prihvaćenih troškova u bazi. 78 testova. Backend jezgra provedbe za MVP je gotova.
 - WP1.7 (v0.10.0): struktura provedbe (WP, zadaci, isporuke, prekretnice, rizici) i proračun projekta s izračunom iz paketa; zaključavanje proračuna aktivacijom; ograničenja baze → 409. 62 testa.
 - WP1.6 (v0.9.0): organizacije, projekti, partneri, prijelazi statusa, izvještajna razdoblja iz paketa; kompozitni strani ključevi protiv miješanja stanara. 48 testova. PR #2 i #3 spojeni.
 - WP1.3 (v0.8.0): paketi programa u bazi (globalni/stanarski, verzije, objava), uvoz iz datoteka, nasljeđivanje za paket po pozivu, ESLint. 30 testova.
@@ -21,12 +22,12 @@
 - WP0.4 (v0.3.0): domenski model v1 – moduli, entiteti, životni ciklusi, invarijante (`docs/domena/domenski-model-v1.md`); JSON shema paketa programa + primjeri HE i NPOO (`docs/domena/paketi/`); ADR-0006.
 
 ## U tijeku
-- Ništa – WP1.7 završen.
+- Ništa – WP1.8 završen.
 
 ## Sljedeće
-1. WP1.8 – troškovi (evidencija uz kategoriju i dokaz), timesheetovi (mjesečni, satnica iz paketa), zahtjevi za nadoknadu (ZNS) po izvještajnom razdoblju; ugovoreno vs. ostvareno.
-2. Web sučelje: prijenos prototipa u React (prijava, popis i detalj projekta, struktura, proračun) – da prvi pilot radi bez API klijenta.
-3. WP1.2b – OIDC/MFA kad krene prvi pilot.
+1. Web sučelje (WP1.10, novo): prijava, popis i detalj projekta, struktura, proračun, timesheet, troškovi, ZNS – prijenos prototipa u React, da pilot radi bez API klijenta.
+2. WP1.4–1.5 – radar poziva i prijava (pretvorba prijave u projekt prema ADR-0006).
+3. WP1.9 – sigurnosni pregled, okruženje za pilot (stage), sigurnosne kopije; WP1.2b OIDC/MFA.
 
 ## Otvorena pitanja za Ivana
 - Globalni paketi HE i NPOO su `draft` jer pravila nisu provjerena prema službenim dokumentima, pa se HE projekti zasad ne mogu aktivirati. Da ih provjerim prema važećem HE Model Grant Agreementu i objavim (1–2 dohvaćanja dokumenata)?

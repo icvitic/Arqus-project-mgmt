@@ -27,8 +27,9 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [ ] **WP1.5** Prijava i proračun prijave, konzorcij
 - [x] **WP1.6** Projekt: registar organizacija, projekt vezan uz verziju paketa, partneri, prijelazi statusa, izvještajna razdoblja iz paketa (v0.9.0); pretvorba prijave u projekt dolazi s WP1.5
 - [x] **WP1.7** Tehnička provedba (WP, zadaci, isporuke, prekretnice, rizici) i proračun projekta s izračunom iz paketa (v0.10.0); portfelj → uz web sučelje
-- [ ] **WP1.8** Troškovi, timesheetovi i zahtjevi za nadoknadu (ZNS) – prebačeno iz WP2.1 (WP0.7)
+- [x] **WP1.8** Troškovi, timesheetovi i zahtjevi za nadoknadu (ZNS) – prebačeno iz WP2.1 (WP0.7) (v0.11.0)
 - [ ] **WP1.9** Sigurnosni pregled i pilot-instalacija
+- [ ] **WP1.10** Web sučelje za pilot: prijava, projekti, struktura, proračun, timesheetovi, troškovi, ZNS (React, iz prototipa WP0.5)
 
 ## Faza 2 – Komercijalna v1 (mj. 10–15)
 Uvjet za fazu 3: 10 kupaca koji plaćaju, 60.000 € ARR.

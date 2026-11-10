@@ -9,7 +9,7 @@
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --no-file-parallelism",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "node scripts/generate.mjs",
     "db:migrate": "node -r ./scripts/register.js scripts/migrate.ts",
     "db:seed": "node -r ./scripts/register.js scripts/seed.ts",
     "db:import-packages": "node -r ./scripts/register.js scripts/import-packages.ts"

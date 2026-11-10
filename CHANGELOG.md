@@ -4,6 +4,18 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-10
+### Dodano
+- WP1.8 tim i timesheetovi: `team_members` (godišnji trošak osoblja), mjesečni `timesheets` (nacrt → predan → odobren → zaključan) s unosom u minutama po danu i radnom paketu. Odobrenje stvara troškove osoblja po WP-u prema pravilu paketa (satnica ili dnevnica). Bez dozvole `timesheets:approve` korisnik uređuje samo vlastiti timesheet.
+- Troškovi (`expenses`): ručna evidencija s kategorijom iz paketa, WP-om, dobavljačem i oznakom dokaza; datum unutar trajanja projekta; trošak osoblja ne unosi se ručno kad paket traži evidenciju rada.
+- Zahtjevi za nadoknadu (`reimbursement_claims`) po izvještajnom razdoblju i partneru: nacrt s pregledom prihvatljivih troškova i izračunom, predaja (troškovi pridruženi, timesheetovi zaključani), odluka (odobren, djelomično, odbijen, vraćen na dopunu), isplata.
+- `GET /api/projects/:id/finance`: ugovoreno vs. ostvareno po kategoriji i partneru, pregled ZNS-ova.
+- Baza: okidač koji prihvaćene i odbijene troškove čini nepromjenjivima (invarijanta 6), CHECK da je trošak u zahtjevu točno kad nije „evidentiran”.
+- Shema paketa: `personnelRule.categoryCode` i `hoursPerDay` (HE `A.1`, NPOO `OS`), semantička provjera.
+- `@arqus/domain`: `personnelCostCents`, `timesheetIssues`, `minutesByWorkPackage`, `daysInMonth`.
+- `db:generate` automatski premješta UNIQUE ograničenja ispred stranih ključeva (problem se ponavljao u tri migracije).
+- Dozvole `timesheets:read/write/approve`. Testovi: ukupno 78 (28 domena, 50 API).
+
 ## [0.10.0] - 2026-11-10
 ### Dodano
 - WP1.7 provedba: tablice `work_packages`, `tasks`, `deliverables`, `milestones`, `risks` (migracije 0006/0007, RLS, kompozitni FK, CHECK ograničenja). REST pod `/api/projects/:id`: `structure` (ugniježđeno, oznake WP1/T2.1/D1.1/MS1, rokovi kao datumi), stvaranje i izmjena WP-ova, zadataka, isporuka, prekretnica i rizika; brisanje praznog WP-a.

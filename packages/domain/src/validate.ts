@@ -46,6 +46,11 @@ export function semanticIssues(pkg: ProgrammePackage): ValidationIssue[] {
       issues.push({ path: `/actionTypes/${a.code}`, message: 'nedostaje stopa financiranja za beneficiaryType "default"' });
     }
   });
+  const pc = pkg.personnelRule?.categoryCode;
+  if (pc) {
+    const c = all.find((x) => x.code === pc);
+    if (!c || c.kind === 'indirect' || (c.children && c.children.length)) issues.push({ path: '/personnelRule/categoryCode', message: `"${pc}" nije kategorija u koju se unose troškovi` });
+  }
   if (pkg.meta.validTo && pkg.meta.validTo < pkg.meta.validFrom) {
     issues.push({ path: '/meta/validTo', message: 'validTo je prije validFrom' });
   }

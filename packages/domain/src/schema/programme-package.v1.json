@@ -4,44 +4,108 @@
   "title": "Paket programa v1",
   "description": "Verzionirana pravila programa financiranja (ADR-0004). Nacrt – konačna shema u WP1.3.",
   "type": "object",
-  "required": ["meta", "actionTypes", "costCategories", "reporting"],
+  "required": [
+    "meta",
+    "actionTypes",
+    "costCategories",
+    "reporting"
+  ],
   "additionalProperties": false,
   "properties": {
     "meta": {
       "type": "object",
-      "required": ["id", "programme", "version", "validFrom", "language"],
+      "required": [
+        "id",
+        "programme",
+        "version",
+        "validFrom",
+        "language"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-        "extends": { "type": "string", "description": "id nadređenog paketa čija se pravila nasljeđuju" },
-        "programme": { "type": "string" },
-        "funder": { "type": "string" },
-        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
-        "status": { "type": "string", "enum": ["draft", "published", "deprecated"] },
-        "validFrom": { "type": "string", "format": "date" },
-        "validTo": { "type": "string", "format": "date" },
-        "language": { "type": "string" },
-        "sources": { "type": "array", "items": { "type": "string", "format": "uri" } },
-        "notes": { "type": "string" }
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "extends": {
+          "type": "string",
+          "description": "id nadređenog paketa čija se pravila nasljeđuju"
+        },
+        "programme": {
+          "type": "string"
+        },
+        "funder": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "published",
+            "deprecated"
+          ]
+        },
+        "validFrom": {
+          "type": "string",
+          "format": "date"
+        },
+        "validTo": {
+          "type": "string",
+          "format": "date"
+        },
+        "language": {
+          "type": "string"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
       }
     },
     "actionTypes": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["code", "name", "fundingRates"],
+        "required": [
+          "code",
+          "name",
+          "fundingRates"
+        ],
         "properties": {
-          "code": { "type": "string" },
-          "name": { "type": "string" },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
           "fundingRates": {
             "type": "array",
             "description": "stopa sufinanciranja (%) po vrsti korisnika; 'default' za sve ostale",
             "items": {
               "type": "object",
-              "required": ["beneficiaryType", "ratePercent"],
+              "required": [
+                "beneficiaryType",
+                "ratePercent"
+              ],
               "properties": {
-                "beneficiaryType": { "type": "string" },
-                "ratePercent": { "type": "number", "minimum": 0, "maximum": 100 }
+                "beneficiaryType": {
+                  "type": "string"
+                },
+                "ratePercent": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
               }
             }
           }
@@ -50,35 +114,88 @@
     },
     "costCategories": {
       "type": "array",
-      "items": { "$ref": "#/$defs/costCategory" }
+      "items": {
+        "$ref": "#/$defs/costCategory"
+      }
     },
     "personnelRule": {
       "type": "object",
       "properties": {
-        "method": { "type": "string", "enum": ["dailyRate", "hourlyRate", "unitCost", "actualSalary"] },
-        "divisor": { "type": "number", "description": "npr. 215 dana za dnevnicu" },
-        "maxUnitsPerYear": { "type": "number" },
-        "timeRecordingRequired": { "type": "boolean" },
-        "declarationAllowed": { "type": "boolean", "description": "izjava umjesto evidencije rada za osobe 100 % na projektu" }
+        "method": {
+          "type": "string",
+          "enum": [
+            "dailyRate",
+            "hourlyRate",
+            "unitCost",
+            "actualSalary"
+          ]
+        },
+        "divisor": {
+          "type": "number",
+          "description": "npr. 215 dana za dnevnicu"
+        },
+        "maxUnitsPerYear": {
+          "type": "number"
+        },
+        "timeRecordingRequired": {
+          "type": "boolean"
+        },
+        "declarationAllowed": {
+          "type": "boolean",
+          "description": "izjava umjesto evidencije rada za osobe 100 % na projektu"
+        },
+        "categoryCode": {
+          "type": "string",
+          "description": "šifra kategorije u koju se knjiži trošak osoblja izračunat iz timesheetova"
+        },
+        "hoursPerDay": {
+          "type": "number",
+          "description": "sati po danu za pretvorbu sati u dane (dailyRate), zadano 8"
+        }
       }
     },
     "reporting": {
       "type": "object",
-      "required": ["periodMonths", "submissionDeadlineDays"],
+      "required": [
+        "periodMonths",
+        "submissionDeadlineDays"
+      ],
       "properties": {
-        "periodMonths": { "type": "integer", "minimum": 1 },
-        "submissionDeadlineDays": { "type": "integer", "minimum": 0 },
-        "finalReportDeadlineDays": { "type": "integer" },
+        "periodMonths": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "submissionDeadlineDays": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "finalReportDeadlineDays": {
+          "type": "integer"
+        },
         "reportTypes": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["code", "name"],
+            "required": [
+              "code",
+              "name"
+            ],
             "properties": {
-              "code": { "type": "string" },
-              "name": { "type": "string" },
-              "template": { "type": "string" },
-              "sections": { "type": "array", "items": { "type": "string" } }
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "template": {
+                "type": "string"
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -88,38 +205,99 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["code", "name"],
+        "required": [
+          "code",
+          "name"
+        ],
         "properties": {
-          "code": { "type": "string" },
-          "name": { "type": "string" },
-          "pageLimit": { "type": "integer" },
-          "required": { "type": "boolean" },
-          "sections": { "type": "array", "items": { "type": "string" } }
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pageLimit": {
+            "type": "integer"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
-    "deliverableTypes": { "type": "array", "items": { "$ref": "#/$defs/codeName" } },
-    "disseminationLevels": { "type": "array", "items": { "$ref": "#/$defs/codeName" } },
+    "deliverableTypes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/codeName"
+      }
+    },
+    "disseminationLevels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/codeName"
+      }
+    },
     "consortiumRules": {
       "type": "object",
       "properties": {
-        "minPartners": { "type": "integer" },
-        "minCountries": { "type": "integer" },
-        "eligibleCountries": { "type": "array", "items": { "type": "string" } },
-        "eligibleOrganisationTypes": { "type": "array", "items": { "type": "string" } },
-        "notes": { "type": "string" }
+        "minPartners": {
+          "type": "integer"
+        },
+        "minCountries": {
+          "type": "integer"
+        },
+        "eligibleCountries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "eligibleOrganisationTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
       }
     },
     "validations": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "severity", "rule", "message"],
+        "required": [
+          "id",
+          "severity",
+          "rule",
+          "message"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "severity": { "type": "string", "enum": ["error", "warning", "info"] },
-          "rule": { "type": "string", "description": "deklarativni izraz nad proračunom/projektom (jezik izraza odabire se u WP1.3)" },
-          "message": { "type": "string" }
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ]
+          },
+          "rule": {
+            "type": "string",
+            "description": "deklarativni izraz nad proračunom/projektom (jezik izraza odabire se u WP1.3)"
+          },
+          "message": {
+            "type": "string"
+          }
         }
       }
     }
@@ -127,37 +305,99 @@
   "$defs": {
     "codeName": {
       "type": "object",
-      "required": ["code", "name"],
-      "properties": { "code": { "type": "string" }, "name": { "type": "string" } }
+      "required": [
+        "code",
+        "name"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
     },
     "costCategory": {
       "type": "object",
-      "required": ["code", "name", "kind"],
+      "required": [
+        "code",
+        "name",
+        "kind"
+      ],
       "properties": {
-        "code": { "type": "string" },
-        "name": { "type": "string" },
-        "kind": { "type": "string", "enum": ["direct", "indirect", "unit", "lumpSum"] },
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "indirect",
+            "unit",
+            "lumpSum"
+          ]
+        },
         "calculation": {
           "type": "object",
           "description": "za indirect/unit: formula i osnovica",
           "properties": {
-            "ratePercent": { "type": "number" },
-            "baseCategories": { "type": "array", "items": { "type": "string" }, "description": "šifre kategorija koje ulaze u osnovicu" },
-            "excludeCategories": { "type": "array", "items": { "type": "string" } },
-            "unitPrice": { "type": "integer", "description": "u centima" },
-            "unit": { "type": "string" }
+            "ratePercent": {
+              "type": "number"
+            },
+            "baseCategories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "šifre kategorija koje ulaze u osnovicu"
+            },
+            "excludeCategories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "unitPrice": {
+              "type": "integer",
+              "description": "u centima"
+            },
+            "unit": {
+              "type": "string"
+            }
           }
         },
         "constraints": {
           "type": "object",
           "properties": {
-            "maxPercentOfDirect": { "type": "number" },
-            "requiresJustification": { "type": "boolean" },
-            "requiresEvidence": { "type": "boolean" },
-            "vatEligible": { "type": "string", "enum": ["yes", "no", "ifNotRecoverable"] }
+            "maxPercentOfDirect": {
+              "type": "number"
+            },
+            "requiresJustification": {
+              "type": "boolean"
+            },
+            "requiresEvidence": {
+              "type": "boolean"
+            },
+            "vatEligible": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "ifNotRecoverable"
+              ]
+            }
           }
         },
-        "children": { "type": "array", "items": { "$ref": "#/$defs/costCategory" } }
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/costCategory"
+          }
+        }
       }
     }
   }
