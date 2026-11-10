@@ -75,3 +75,14 @@ export function generateReportingPeriods(startDate: string, durationMonths: numb
   }
   return out;
 }
+
+/** Rok isporuke/prekretnice „mjesec M” = zadnji dan M-tog mjeseca projekta (konvencija HE i većine programa). */
+export function monthEndDate(startDate: string, month: number): string {
+  return addDays(addMonths(startDate, month), -1);
+}
+
+/** Ocjena rizika = vjerojatnost × utjecaj (1–3 × 1–3); ≥ 6 visok, ≥ 3 srednji. */
+export function riskLevel(likelihood: number, impact: number): { score: number; level: 'low' | 'medium' | 'high' } {
+  const score = likelihood * impact;
+  return { score, level: score >= 6 ? 'high' : score >= 3 ? 'medium' : 'low' };
+}
