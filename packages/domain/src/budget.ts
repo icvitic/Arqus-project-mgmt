@@ -71,3 +71,45 @@ export function computePartnerBudget(
   const total = directTotal + indirectTotal;
   return { direct, indirect, directTotal, indirectTotal, total, ratePercent, requested: Math.round((total * ratePercent) / 100), warnings };
 }
+
+/* ---------- Proračun projekta (više partnera, više redaka po kategoriji, npr. po radnom paketu) ---------- */
+
+export interface BudgetLineInput { partnerId: string; categoryCode: string; amount: number; workPackageId?: string | null }
+export interface PartnerRef { id: string; beneficiaryType: string; name?: string }
+export interface ProjectBudgetResult {
+  partners: (PartnerBudgetResult & { partnerId: string; name?: string })[];
+  totals: { direct: number; indirect: number; total: number; requested: number };
+  warnings: string[];
+}
+
+/** Provjera redaka prije spremanja: poznat partner, kategorija u koju se smije unositi (list stabla, nije neizravna), iznos u centima. */
+export function budgetLineIssues(pkg: ProgrammePackage, lines: BudgetLineInput[], partnerIds: ReadonlySet<string>): string[] {
+  const enterable = new Set(flattenCategories(pkg.costCategories)
+    .filter((c) => c.kind !== 'indirect' && !(c.children && c.children.length)).map((c) => c.code));
+  const issues: string[] = [];
+  lines.forEach((l, i) => {
+    if (!partnerIds.has(l.partnerId)) issues.push(`redak ${i + 1}: partner ${l.partnerId} nije na projektu`);
+    if (!enterable.has(l.categoryCode)) issues.push(`redak ${i + 1}: u kategoriju "${l.categoryCode}" ne unose se iznosi (dopušteno: ${[...enterable].join(', ')})`);
+    if (!Number.isInteger(l.amount) || l.amount < 0) issues.push(`redak ${i + 1}: iznos mora biti nenegativan cijeli broj centi`);
+  });
+  return issues;
+}
+
+/** Proračun projekta: zbraja retke po partneru i kategoriji pa za svakog partnera primjenjuje pravila paketa. */
+export function computeProjectBudget(pkg: ProgrammePackage, actionCode: string, partners: PartnerRef[], lines: BudgetLineInput[]): ProjectBudgetResult {
+  const perPartner = new Map<string, BudgetLines>(partners.map((p) => [p.id, {}]));
+  for (const l of lines) {
+    const acc = perPartner.get(l.partnerId);
+    if (!acc) throw new Error(`Partner ${l.partnerId} nije na projektu`);
+    acc[l.categoryCode] = (acc[l.categoryCode] ?? 0) + l.amount;
+  }
+  const result: ProjectBudgetResult = { partners: [], totals: { direct: 0, indirect: 0, total: 0, requested: 0 }, warnings: [] };
+  for (const p of partners) {
+    const r = computePartnerBudget(pkg, actionCode, perPartner.get(p.id) ?? {}, p.beneficiaryType);
+    result.partners.push({ ...r, partnerId: p.id, name: p.name });
+    result.totals.direct += r.directTotal; result.totals.indirect += r.indirectTotal;
+    result.totals.total += r.total; result.totals.requested += r.requested;
+    result.warnings.push(...r.warnings.map((w) => (p.name ? `${p.name}: ${w}` : w)));
+  }
+  return result;
+}

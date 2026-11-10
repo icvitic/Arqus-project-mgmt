@@ -4,6 +4,15 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-10
+### Dodano
+- WP1.7 provedba: tablice `work_packages`, `tasks`, `deliverables`, `milestones`, `risks` (migracije 0006/0007, RLS, kompozitni FK, CHECK ograničenja). REST pod `/api/projects/:id`: `structure` (ugniježđeno, oznake WP1/T2.1/D1.1/MS1, rokovi kao datumi), stvaranje i izmjena WP-ova, zadataka, isporuka, prekretnica i rizika; brisanje praznog WP-a.
+- Pravila: mjeseci unutar trajanja projekta i WP-a, voditelj mora biti partner projekta, vrsta isporuke i razina diseminacije iz paketa, `submittedAt` pri predaji isporuke, razina rizika (vjerojatnost × utjecaj).
+- WP1.7 proračun: `project_budgets` (verzije, nacrt/zaključan) i `budget_lines` (partner × kategorija × WP, centi). `GET /api/projects/:id/budget` s izračunom po partneru i ukupno; `PUT .../budget/lines` (tablični unos). Aktivacija projekta zaključava proračun v1.
+- `@arqus/domain`: `computeProjectBudget`, `budgetLineIssues` (samo listovi stabla kategorija, bez neizravnih), `monthEndDate`, `riskLevel`.
+- Globalni filtar grešaka PostgreSQL ograničenja (jedinstvenost, strani ključ, CHECK) → 409 umjesto 500.
+- Testovi: ukupno 62 (22 domena, 40 API).
+
 ## [0.9.0] - 2026-11-09
 ### Dodano
 - WP1.6: tablice `organisations`, `projects`, `project_partners`, `reporting_periods` (migracije 0004/0005, RLS s FORCE). Kompozitni strani ključevi `(tenant_id, id)` sprječavaju vezu na retke drugog stanara i kad je id poznat (provjere stranih ključeva u PostgreSQL-u zaobilaze RLS).

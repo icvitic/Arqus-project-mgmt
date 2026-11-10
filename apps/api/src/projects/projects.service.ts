@@ -3,7 +3,7 @@ import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { generateReportingPeriods, transitionIssues, type ProjectStatus, type ProgrammePackage } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
-import { organisations, projectPartners, projects, reportingPeriods, users, type Organisation, type Project } from '../db/schema';
+import { organisations, projectBudgets, projectPartners, projects, reportingPeriods, users, type Organisation, type Project } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { OrganisationsService } from '../organisations/organisations.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
@@ -195,6 +195,8 @@ export class ProjectsService {
     if (p.status === 'contracting' && to === 'active') {
       const plan = generateReportingPeriods(p.startDate!, p.durationMonths!, pkg.reporting.periodMonths, pkg.reporting.submissionDeadlineDays);
       await tx.insert(reportingPeriods).values(plan.map((r) => ({ tenantId, projectId: id, ...r })));
+      // Ugovoreni proračun v1 zaključava se aktivacijom; kasnije verzije samo amandmanom.
+      await tx.update(projectBudgets).set({ status: 'locked', lockedAt: new Date(), updatedAt: new Date(), updatedBy: actorId ?? null }).where(and(eq(projectBudgets.projectId, id), eq(projectBudgets.status, 'draft')));
       set.activatedAt = new Date();
     }
     await tx.update(projects).set(set).where(eq(projects.id, id));

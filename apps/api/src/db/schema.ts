@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, boolean, bigserial, index, uniqueIndex, inet, integer, date, unique, foreignKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, jsonb, boolean, bigserial, bigint, index, uniqueIndex, inet, integer, date, unique, foreignKey, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 /** Zajednički stupci svakog agregata (domenski model, odj. 2). */
@@ -164,6 +164,7 @@ export const projectPartners = pgTable('project_partners', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   createdBy: uuid('created_by'),
 }, (t) => [
+  unique('project_partners_tenant_id_uq').on(t.tenantId, t.id),
   uniqueIndex('project_partners_uq').on(t.projectId, t.organisationId),
   foreignKey({ name: 'project_partners_project_fk', columns: [t.tenantId, t.projectId], foreignColumns: [projects.tenantId, projects.id] }).onDelete('cascade'),
   foreignKey({ name: 'project_partners_org_fk', columns: [t.tenantId, t.organisationId], foreignColumns: [organisations.tenantId, organisations.id] }),
@@ -183,6 +184,139 @@ export const reportingPeriods = pgTable('reporting_periods', {
   foreignKey({ name: 'reporting_periods_project_fk', columns: [t.tenantId, t.projectId], foreignColumns: [projects.tenantId, projects.id] }).onDelete('cascade'),
 ]);
 
+/* ---------- M6 Provedba: radni paketi, zadaci, isporuke, prekretnice, rizici ---------- */
+const projectFk = (name: string, t: { tenantId: unknown; projectId: unknown }) =>
+  foreignKey({ name, columns: [t.tenantId as never, t.projectId as never], foreignColumns: [projects.tenantId, projects.id] }).onDelete('cascade');
+const partnerFk = (name: string, t: { tenantId: unknown; leadPartnerId: unknown }) =>
+  foreignKey({ name, columns: [t.tenantId as never, t.leadPartnerId as never], foreignColumns: [projectPartners.tenantId, projectPartners.id] });
+
+export const workPackages = pgTable('work_packages', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  number: integer('number').notNull(),
+  title: text('title').notNull(),
+  leadPartnerId: uuid('lead_partner_id'),
+  startMonth: integer('start_month').notNull(),
+  endMonth: integer('end_month').notNull(),
+  objectives: text('objectives'),
+  ...audited,
+}, (t) => [
+  unique('work_packages_tenant_id_uq').on(t.tenantId, t.id),
+  uniqueIndex('work_packages_number_uq').on(t.projectId, t.number),
+  projectFk('work_packages_project_fk', t), partnerFk('work_packages_lead_fk', t),
+  check('work_packages_months_ck', sql`start_month >= 1 and end_month >= start_month`),
+]);
+
+const wpFk = (name: string, t: { tenantId: unknown; workPackageId: unknown }) =>
+  foreignKey({ name, columns: [t.tenantId as never, t.workPackageId as never], foreignColumns: [workPackages.tenantId, workPackages.id] });
+
+export type TaskStatus = 'planned' | 'in_progress' | 'done' | 'cancelled';
+export const tasks = pgTable('tasks', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  workPackageId: uuid('work_package_id').notNull(),
+  number: integer('number').notNull(),
+  title: text('title').notNull(),
+  leadPartnerId: uuid('lead_partner_id'),
+  startMonth: integer('start_month').notNull(),
+  endMonth: integer('end_month').notNull(),
+  status: text('status').$type<TaskStatus>().notNull().default('planned'),
+  ...audited,
+}, (t) => [
+  uniqueIndex('tasks_number_uq').on(t.workPackageId, t.number),
+  projectFk('tasks_project_fk', t), wpFk('tasks_wp_fk', t), partnerFk('tasks_lead_fk', t),
+  check('tasks_months_ck', sql`start_month >= 1 and end_month >= start_month`),
+]);
+
+export type DeliverableStatus = 'planned' | 'in_progress' | 'submitted' | 'accepted' | 'rejected';
+export const deliverables = pgTable('deliverables', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  workPackageId: uuid('work_package_id').notNull(),
+  number: integer('number').notNull(),
+  title: text('title').notNull(),
+  type: text('type').notNull(),
+  dissemination: text('dissemination').notNull(),
+  dueMonth: integer('due_month').notNull(),
+  leadPartnerId: uuid('lead_partner_id'),
+  status: text('status').$type<DeliverableStatus>().notNull().default('planned'),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  ...audited,
+}, (t) => [
+  uniqueIndex('deliverables_number_uq').on(t.workPackageId, t.number),
+  index('deliverables_due_idx').on(t.tenantId, t.dueMonth),
+  projectFk('deliverables_project_fk', t), wpFk('deliverables_wp_fk', t), partnerFk('deliverables_lead_fk', t),
+  check('deliverables_month_ck', sql`due_month >= 1`),
+]);
+
+export type MilestoneStatus = 'planned' | 'achieved' | 'missed';
+export const milestones = pgTable('milestones', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  number: integer('number').notNull(),
+  title: text('title').notNull(),
+  dueMonth: integer('due_month').notNull(),
+  verification: text('verification'),
+  status: text('status').$type<MilestoneStatus>().notNull().default('planned'),
+  ...audited,
+}, (t) => [uniqueIndex('milestones_number_uq').on(t.projectId, t.number), projectFk('milestones_project_fk', t), check('milestones_month_ck', sql`due_month >= 1`)]);
+
+export type RiskStatus = 'open' | 'mitigated' | 'occurred' | 'closed';
+export const risks = pgTable('risks', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  number: integer('number').notNull(),
+  description: text('description').notNull(),
+  likelihood: integer('likelihood').notNull(),
+  impact: integer('impact').notNull(),
+  mitigation: text('mitigation'),
+  ownerUserId: uuid('owner_user_id'),
+  status: text('status').$type<RiskStatus>().notNull().default('open'),
+  ...audited,
+}, (t) => [
+  uniqueIndex('risks_number_uq').on(t.projectId, t.number), projectFk('risks_project_fk', t),
+  foreignKey({ name: 'risks_owner_fk', columns: [t.tenantId, t.ownerUserId], foreignColumns: [users.tenantId, users.id] }),
+  check('risks_scale_ck', sql`likelihood between 1 and 3 and impact between 1 and 3`),
+]);
+
+/* ---------- M7 Proračun projekta (verzioniran; v1 se zaključava aktivacijom, kasnije verzije amandmanom) ---------- */
+export type BudgetStatus = 'draft' | 'locked';
+export const projectBudgets = pgTable('project_budgets', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  version: integer('version').notNull(),
+  status: text('status').$type<BudgetStatus>().notNull().default('draft'),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  ...audited,
+}, (t) => [unique('project_budgets_tenant_id_uq').on(t.tenantId, t.id), uniqueIndex('project_budgets_version_uq').on(t.projectId, t.version), projectFk('project_budgets_project_fk', t)]);
+
+export const budgetLines = pgTable('budget_lines', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  budgetId: uuid('budget_id').notNull(),
+  partnerId: uuid('partner_id').notNull(),
+  categoryCode: text('category_code').notNull(),
+  workPackageId: uuid('work_package_id'),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+}, (t) => [
+  index('budget_lines_budget_idx').on(t.budgetId),
+  foreignKey({ name: 'budget_lines_budget_fk', columns: [t.tenantId, t.budgetId], foreignColumns: [projectBudgets.tenantId, projectBudgets.id] }).onDelete('cascade'),
+  foreignKey({ name: 'budget_lines_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),
+  wpFk('budget_lines_wp_fk', t),
+  check('budget_lines_amount_ck', sql`amount_cents >= 0`),
+]);
+
+export type WorkPackage = typeof workPackages.$inferSelect;
+export type Deliverable = typeof deliverables.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type ProjectPartner = typeof projectPartners.$inferSelect;
