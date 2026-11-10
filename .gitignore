@@ -7,3 +7,4 @@ coverage/
 .env
 .env.local
 infra/.env
+infra/prod/.env

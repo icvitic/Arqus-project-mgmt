@@ -4,14 +4,15 @@
     "programme": "Nacionalni plan oporavka i otpornosti 2021.–2026.",
     "funder": "Republika Hrvatska / Mehanizam za oporavak i otpornost (RRF)",
     "version": "1.0.0",
-    "status": "draft",
+    "status": "published",
     "validFrom": "2021-01-01",
     "validTo": "2026-08-31",
     "language": "hr",
     "sources": [
-      "https://fondovieu.gov.hr/"
+      "https://fondovieu.gov.hr/",
+      "https://gospodarstvo.gov.hr/UserDocsImages//Uprava%20za%20EU/Javni%20pozivi/Potpore//Prilog%206.%20Metodologija%20obra%C4%8Duna%20tro%C5%A1kova%20prema%20PMF%20metodi_2.izmjena%20Poziva_tbd.pdf"
     ],
-    "notes": "ILUSTRATIVAN programski paket. U NPOO-u kategorije, stope i rokovi ovise o pojedinom pozivu (Upute za prijavitelje), pa se za svaki poziv izrađuje paket koji nasljeđuje ovaj (extends: npoo-2021-2026) i mijenja stope. Vrijednosti niže su tipične, nisu normativne."
+    "notes": "Programski okvir NPOO-a; pozivi ga nasljeđuju paketom po pozivu (extends) i navode stope iz Uputa za prijavitelje. Provjereno 2026-11-10: satnica = godišnji trošak osoblja / 1720, najviše 1720 sati godišnje po osobi (prilozi NPOO poziva MINGO, MZO). Neizravni 15 % troškova osoblja je zadana pojednostavljena stopa (CPR čl. 54(a)) – u NPOO pozivima NIJE potvrđena; paket po pozivu mora je potvrditi ili promijeniti. Ograničenje upravljanja 10 % i krajnji rok su tipične vrijednosti."
   },
   "actionTypes": [
     {
@@ -109,7 +110,8 @@
     "categoryCode": "OS",
     "divisor": 1720,
     "timeRecordingRequired": true,
-    "declarationAllowed": false
+    "declarationAllowed": false,
+    "maxUnitsPerYear": 1720
   },
   "reporting": {
     "periodMonths": 3,
@@ -193,6 +195,12 @@
       "severity": "warning",
       "rule": "expense.vatIncluded && beneficiary.vatRecoverable",
       "message": "PDV nije prihvatljiv trošak ako ga korisnik može odbiti."
+    },
+    {
+      "id": "npoo-indirect-default",
+      "severity": "info",
+      "rule": "package.extends == null",
+      "message": "Stopa neizravnih troškova (15 % osoblja) je zadana vrijednost programskog okvira – potvrdi je prema Uputama za prijavitelje poziva."
     }
   ]
 }

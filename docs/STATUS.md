@@ -1,8 +1,10 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-10 · **Verzija:** v0.12.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-10 · **Verzija:** v0.13.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- Odgovori Ivana (2026-11-10): pilot-institucija još ne postoji; EU pružatelj nije odabran; HE i NPOO paketi smiju se objaviti.
+- v0.13.0: paketi HE i NPOO provjereni i objavljeni; WP1.9 dio neovisan o pružatelju – Docker slika, produkcijski compose (HTTPS, kopije), sigurnosna zaglavlja, ograničenje prijava, ASVS L2 samoprocjena, upute za instalaciju. Slika testirana e2e testom.
 - WP1.10 (v0.12.0): web sučelje za pilot – projekti, organizacije, struktura, proračun, timesheetovi, troškovi, ZNS, ugovoreno/ostvareno; e2e provjera cijelog toka u pregledniku. Prvi pilot može raditi kroz preglednik.
 - WP1.8 (v0.11.0): tim, timesheetovi s izračunom troška osoblja iz paketa, troškovi, zahtjevi za nadoknadu (predaja, povrat, odluka, isplata), ugovoreno vs. ostvareno; nepromjenjivost prihvaćenih troškova u bazi. 78 testova. Backend jezgra provedbe za MVP je gotova.
 - WP1.7 (v0.10.0): struktura provedbe (WP, zadaci, isporuke, prekretnice, rizici) i proračun projekta s izračunom iz paketa; zaključavanje proračuna aktivacijom; ograničenja baze → 409. 62 testa.
@@ -23,18 +25,17 @@
 - WP0.4 (v0.3.0): domenski model v1 – moduli, entiteti, životni ciklusi, invarijante (`docs/domena/domenski-model-v1.md`); JSON shema paketa programa + primjeri HE i NPOO (`docs/domena/paketi/`); ADR-0006.
 
 ## U tijeku
-- Ništa – WP1.10 završen.
+- WP1.9 – čeka odabir pružatelja i pilot-institucije (instalacija za ~1 sat prema `docs/PILOT-INSTALACIJA.md`) i vanjski penetracijski test.
 
 ## Sljedeće
-1. WP1.9 – pilot-instalacija: Docker slika (API poslužuje i web), okruženje u EU oblaku, sigurnosne kopije, osnovni sigurnosni pregled (OWASP ASVS L2 popis), ograničenje pokušaja prijave.
-2. Objava provjerenih paketa HE i NPOO (čeka odgovor) i sučelje za pakete po pozivu.
-3. WP1.4–1.5 – radar poziva i prijava; WP1.2b OIDC/MFA.
+1. WP1.2b – sigurnosni prioriteti iz ASVS pregleda: politika lozinki, korisnici i uloge u sučelju, poništenje sesija, MFA (TOTP); `pnpm audit` u CI-ju.
+2. Sučelje za pakete po pozivu (stvaranje iz Uputa za prijavitelje, validacija, objava).
+3. WP1.4–1.5 – radar poziva i prijava (pretvorba u projekt prema ADR-0006).
 
 ## Otvorena pitanja za Ivana
-- Pilot: postoji li već institucija koja bi isprobala sustav? Za instalaciju (WP1.9) treba odabrati EU pružatelja (npr. Hetzner DE/FI, Scaleway FR, OVH FR) – imaš li preferenciju?
-- Globalni paketi HE i NPOO su `draft` jer pravila nisu provjerena prema službenim dokumentima, pa se HE projekti zasad ne mogu aktivirati. Da ih provjerim prema važećem HE Model Grant Agreementu i objavim (1–2 dohvaćanja dokumenata)?
+- Kad odabereš pružatelja i pilot-instituciju, instalacija ide prema `docs/PILOT-INSTALACIJA.md`; za vanjski penetracijski test treba budžet i izvođača.
 - Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?
-- Pošalji Upute za prijavitelje jednog PKK ili NPOO poziva (PDF/poveznica): mehanizam „paket po pozivu” (`extends`) je gotov, treba prvi stvarni sadržaj.
+- NPOO stopa neizravnih troškova (15 %) nije potvrđena u pozivima – Upute za prijavitelje jednog stvarnog poziva i dalje bi pomogle.
 - Identitet za pilote: koriste li ciljne institucije AAI@EduHr (sveučilišta) ili Microsoft 365? To određuje redoslijed u WP1.2b.
 - Potrošnja: Claude ne može očitati tvoj brojač; ako želiš nadzor, povremeno upiši postotak iz Settings → Usage u `docs/POTROSNJA.md` ili ga javi u poruci.
 - Konačan naziv proizvoda (radni: „ArQus Projekti”).

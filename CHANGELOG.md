@@ -4,6 +4,18 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-10
+### Dodano
+- WP1.9 (dio neovisan o pružatelju): `Dockerfile` (jedna slika, API poslužuje izgrađeno web sučelje, neprivilegirani korisnik, provjera zdravlja), `infra/prod/docker-compose.yml` (PostgreSQL 16, Caddy s automatskim HTTPS-om, servis za sigurnosne kopije svakih sat uz zadržavanje 14 dana), `infra/prod/backup.sh`, `.env.example`.
+- `cli.js init|migrate|import-packages|seed`: migracije, lozinka aplikacijske uloge iz `DB_APP_PASSWORD`, uvoz paketa, prvi stanar; u produkciji obvezne jake tajne.
+- Sigurnost: zaglavlja (CSP `default-src 'self'`, X-Frame-Options, nosniff, Referrer-Policy, HSTS u produkciji, `no-store` za API), ograničenje neuspjelih prijava (10 / 15 min po računu, 100 po IP-u → 429), ograničenje veličine tijela 1 MB, `/api/health/ready` s provjerom baze.
+- Dokumenti: `docs/PILOT-INSTALACIJA.md`, `docs/sigurnost/ASVS-L2.md` (samoprocjena s prioritetima), ADR-0009.
+### Promijenjeno
+- Paketi programa **objavljeni**: Horizon Europe (osnovica neizravnih A–D bez volontera A.5, podugovaranja, potpore trećima i interno fakturiranih usluga; dodana kategorija A.5) i NPOO (satnica / 1720 h, najviše 1720 h godišnje; stopa neizravnih 15 % označena kao zadana vrijednost koju poziv mora potvrditi). Izvori u `meta.sources`.
+- Uvoz paketa odbija izmjenu već objavljene verzije (treba povećati verziju).
+### Provjereno
+- Slika izgrađena i pokrenuta s PostgreSQL kontejnerom; e2e test sučelja prolazi nad produkcijskim kontejnerom (s CSP-om); kopija i obnova u novu bazu rade. Testovi: ukupno 85 (3 web, 28 domena, 54 API).
+
 ## [0.12.0] - 2026-11-10
 ### Dodano
 - WP1.10 web sučelje (`apps/web`, React 19 + Vite, bez UI biblioteka, svijetla i tamna tema): prijava; popis i izrada projekata (paket i vrsta akcije iz paketa); registar organizacija; detalj projekta s karticama Pregled (ugovor, partneri, promjena statusa s potvrdom, izvještajna razdoblja), Struktura rada (radni paketi, isporuke sa statusom, prekretnice, rizici), Proračun (tablični unos partner × kategorija, izračun iz paketa), Tim i timesheetovi (mjesečna mreža dan × radni paket, predaja, odobrenje, povrat), Troškovi, Zahtjevi za nadoknadu (otvaranje, predaja, odluka, isplata), Ugovoreno / ostvareno.

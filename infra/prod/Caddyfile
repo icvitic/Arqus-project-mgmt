@@ -1,0 +1,12 @@
+# Automatski HTTPS (Let's Encrypt) i obrnuti proxy prema aplikaciji.
+{
+	email {$ACME_EMAIL}
+}
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+	log {
+		output stdout
+		format json
+	}
+}

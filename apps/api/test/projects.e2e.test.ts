@@ -65,10 +65,18 @@ describe('Projekti (e2e)', () => {
     await http().post('/api/projects').set(auth(A)).send({ acronym: 'X2', title: 'Xxx', packageId: 'nema', actionType: 'RIA' }).expect(404);
   });
 
-  it('aktivacija HE projekta bez ugovora i s neobjavljenim (draft) paketom → 409 s razlozima', async () => {
+  it('aktivacija HE projekta bez ugovora i trajanja → 409 s razlozima (HE paket je objavljen)', async () => {
     const r = await http().post(`/api/projects/${heProject}/transition`).set(auth(A)).send({ to: 'active' }).expect(409);
     expect(r.body.issues.join(' ')).toMatch(/broj ugovora/);
-    expect(r.body.issues.join(' ')).toMatch(/nije objavljen/);
+    expect(r.body.issues.join(' ')).not.toMatch(/nije objavljen/);
+  });
+
+  it('projekt na neobjavljenom (nacrt) paketu se ne može aktivirati', async () => {
+    const draftId = `nacrt-${tag}`;
+    await http().post('/api/programme-packages').set(auth(A)).send({ meta: { id: draftId, extends: 'npoo-2021-2026', programme: 'Nacrt', version: '1.0.0', validFrom: '2026-10-01', language: 'hr' }, actionTypes: [], costCategories: [], reporting: { periodMonths: 6, submissionDeadlineDays: 30 } }).expect(201);
+    const pr = await http().post('/api/projects').set(auth(A)).send({ acronym: 'NACRT', title: 'Na nacrtu', packageId: draftId, actionType: 'BESPOVRATNA', contractNo: `N-${tag}`, startDate: '2027-01-01', durationMonths: 6 }).expect(201);
+    const r = await http().post(`/api/projects/${pr.body.id}/transition`).set(auth(A)).send({ to: 'active' }).expect(409);
+    expect(r.body.issues).toEqual([expect.stringMatching(/nije objavljen/)]);
   });
 
   it('NPOO projekt na objavljenom paketu po pozivu: aktivacija generira izvještajna razdoblja iz paketa', async () => {

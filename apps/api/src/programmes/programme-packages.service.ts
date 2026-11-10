@@ -118,6 +118,10 @@ export class ProgrammePackagesService {
       const existing = (await tx.select().from(programmePackages)
         .where(and(isNull(programmePackages.tenantId), eq(programmePackages.packageId, pkg.meta.id), eq(programmePackages.version, pkg.meta.version))))[0];
       if (existing && existing.checksum === checksum) { out.unchanged.push(file); continue; }
+      if (existing && existing.status === 'published') {
+        out.rejected.push({ file, issues: [{ path: '/meta/version', message: `verzija ${pkg.meta.version} je objavljena i ne mijenja se – povećaj verziju paketa` }] });
+        continue;
+      }
       const values = {
         programme: pkg.meta.programme, funder: pkg.meta.funder ?? null, status: (pkg.meta.status ?? 'published') as ProgrammePackageRow['status'],
         extendsId: pkg.meta.extends ?? null, validFrom: pkg.meta.validFrom, validTo: pkg.meta.validTo ?? null,

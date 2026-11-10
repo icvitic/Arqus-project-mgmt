@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Get, Post, BadRequestException, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { IdentityService, type LoginInput, type CreateUserInput } from './identity.service';
 import { Public, RequirePermission } from './auth.guard';
 import { DbService } from '../db/db.service';
@@ -9,9 +10,10 @@ export class IdentityController {
   constructor(private readonly identity: IdentityService, private readonly db: DbService, private readonly ctx: TenantContext) {}
 
   @Public() @Post('auth/login')
-  login(@Body() body: LoginInput) {
+  login(@Body() body: LoginInput, @Req() req: Request) {
     if (!body?.tenantSlug || !body?.email || !body?.password) throw new BadRequestException('tenantSlug, email i password su obvezni');
-    return this.identity.login(body);
+    if ([body.tenantSlug, body.email, body.password].some((v) => typeof v !== 'string' || v.length > 500)) throw new BadRequestException('Neispravni podaci za prijavu');
+    return this.identity.login(body, req.ip);
   }
 
   @Get('me')

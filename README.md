@@ -22,6 +22,8 @@ Proizvod je potpuno odvojen od FPZ Projektnog portala: novi kod, bez kopiranja k
 | [docs/domena/](docs/domena/) | domenski model i paketi programa (shema + primjeri) |
 | [prototip/](prototip/) | klikabilni prototip toka radar → prijava → projekt (WP0.5) |
 | [docs/RAZVOJ.md](docs/RAZVOJ.md) | lokalno pokretanje, struktura monorepa, pravila koda |
+| [docs/PILOT-INSTALACIJA.md](docs/PILOT-INSTALACIJA.md) | instalacija na poslužitelj u EU (Docker Compose, HTTPS, kopije) |
+| [docs/sigurnost/ASVS-L2.md](docs/sigurnost/ASVS-L2.md) | sigurnosna samoprocjena i prioriteti |
 | [docs/izvjestaji/](docs/izvjestaji/) | izvještaji o napretku po datumu |
 | [docs/AUTONOMNI-RAD.md](docs/AUTONOMNI-RAD.md) | pravila samostalnog rada i izvještavanja |
 | [docs/POTROSNJA.md](docs/POTROSNJA.md) | dnevnik potrošnje tokena po sesiji |
