@@ -56,3 +56,16 @@ export interface CallSummary {
 }
 export interface CallDetail extends CallSummary { history: { at: string; action: string; actor: string | null; after: Record<string, unknown> | null }[] }
 export interface UpcomingDeadline { callId: string; code: string; title: string; kind: string; label: string; at: string; days: number; decision: string | null }
+
+export interface ProposalSummary { id: string; acronym: string; title: string; status: string; role: string; callId: string | null; callCode: string | null; packageId: string; actionType: string; internalDeadline: string | null; members: number; projectId: string | null; requested: number | null }
+export interface ProposalMember { id: string; organisationId: string; name: string; country: string; isSelf: boolean; role: string; beneficiaryType: string; confirmed: boolean; orderNo: number }
+export interface ProposalWp { id: string; code: string; number: number; title: string; leadMemberId: string | null; startMonth: number; endMonth: number; personMonths: number }
+export interface Proposal {
+  id: string; acronym: string; title: string; status: string; role: string; actionType: string; durationMonths: number; internalDeadline: string | null; leadUserId: string | null;
+  package: { rowId: string; id: string; version: string }; call: { id: string; code: string; title: string; status: string } | null;
+  members: ProposalMember[]; workPackages: ProposalWp[];
+  budget: { version: number; locked: boolean; categories: Category[]; lines: { memberId: string; categoryCode: string; amount: number }[]; partners: PartnerBudget[]; totals: Budget['totals']; warnings: string[] };
+  readiness: { key: string; label: string; ok: boolean; detail?: string }[]; ready: boolean;
+  submission: { portal: string; reference: string; at: string; requested: number; total: number; budgetVersion: number } | null;
+  outcome: { result: string; score?: string; note?: string; at: string } | null; projectId: string | null;
+}
