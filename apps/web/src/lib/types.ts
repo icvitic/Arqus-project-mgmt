@@ -46,3 +46,13 @@ export interface RoleRow { code: string; name: string; scope: string; system: bo
 export function enterable(categories: Category[]): Category[] {
   return categories.flatMap((c) => (c.children && c.children.length ? enterable(c.children) : [c])).filter((c) => c.kind !== 'indirect');
 }
+
+export interface CallDeadline { kind: 'submission' | 'stage1' | 'stage2' | 'info_day' | 'other'; at: string; label?: string }
+export interface CallTracking { fitScores: Record<string, number> | null; fitTotal: number | null; fitComment: string | null; assessedAt: string | null; decision: 'go' | 'no_go' | 'watch' | null; rationale: string | null; decidedAt: string | null; internalDeadline: string | null; ownerUserId: string | null }
+export interface CallSummary {
+  id: string; scope: 'global' | 'tenant'; code: string; title: string; summary: string | null; programme: string; funder: string | null; packageId: string | null; actionTypes: string[];
+  budget: number | null; expectedGrants: number | null; opensAt: string | null; deadlines: CallDeadline[]; url: string | null; tags: string[];
+  status: 'announced' | 'open' | 'closed' | 'cancelled'; nextDeadline: CallDeadline | null; daysToNextDeadline: number | null; tracking: CallTracking | null;
+}
+export interface CallDetail extends CallSummary { history: { at: string; action: string; actor: string | null; after: Record<string, unknown> | null }[] }
+export interface UpcomingDeadline { callId: string; code: string; title: string; kind: string; label: string; at: string; days: number; decision: string | null }
