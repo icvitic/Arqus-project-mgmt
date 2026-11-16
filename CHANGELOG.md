@@ -4,6 +4,17 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-16
+### Dodano
+- WP1.12 uvoz poziva s portala EU Funding & Tenders (ADR-0011): javni SEDIA search API, najavljene i otvorene teme razdoblja 2021–2027, stranice po 100, ponovni pokušaj na 429/5xx, vremensko ograničenje.
+- Upsert globalnih poziva vlasničkom ulogom (`source = 'ft'`, `synced_at`; migracija 0018): ručno uneseni globalni pozivi se ne prepisuju, praćenje institucije ostaje, teme s isteklim rokovima i duplikati se preskaču.
+- `@arqus/domain`: `mapFtResult`, `selectFtCalls`, `brusselsWallToUtc` (rokovi „17:00 Brussels time” → UTC), `heActionTypes` (RIA/IA/CSA), popis okvirnih programa.
+- Pokretanje: `cli.js import-calls [--file …]` i periodički u aplikaciji (`FT_IMPORT_INTERVAL_HOURS`, u produkciji 24 h).
+- API radara: filtri `programme`, `scope`, `mine` (vlastiti i praćeni), `GET /api/calls/programmes`, `GET /api/calls/sources` (broj i zadnje osvježenje uvoza).
+- Web: filtri po programu i „vlastiti i praćeni”, pretraga s odgodom, prikaz najbližih 100 rokova uz „prikaži još”, oznaka F&T, izvor i poveznica na temu u detalju.
+- Provjereno na stvarnom portalu: 1.116 zapisa → 467 aktualnih poziva (365 Horizon Europe s paketom), 13 s; ponovni uvoz bez duplikata.
+- E2E (20 koraka): uzorak teme s portala, filtar programa i detalj poziva.
+
 ## [0.18.0] - 2026-11-16
 ### Dodano
 - WP1.11 dokumenti (M9, ADR-0010): tablice `documents` i `document_versions` (migracije 0016/0017, RLS; aplikacija nad verzijama ima samo `SELECT, INSERT`, dokumenti se brišu logički).

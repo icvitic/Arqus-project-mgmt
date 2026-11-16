@@ -11,7 +11,15 @@ export class CallsController {
   private run<T>(fn: (tx: Tx, tenantId: string, userId?: string) => Promise<T>) { const c = this.ctx.require(); return this.db.tx((tx) => fn(tx, c.tenantId, c.userId)); }
 
   @Get() @RequirePermission('calls:read')
-  list(@Query('status') status?: string, @Query('q') q?: string, @Query('tracked') tracked?: string) { return this.run((tx) => this.calls.list(tx, { status, q, tracked: tracked === 'true' })); }
+  list(@Query('status') status?: string, @Query('q') q?: string, @Query('tracked') tracked?: string, @Query('programme') programme?: string, @Query('scope') scope?: string, @Query('mine') mine?: string) {
+    return this.run((tx) => this.calls.list(tx, { status, q, tracked: tracked === 'true', programme, scope, mine: mine === 'true' }));
+  }
+
+  @Get('programmes') @RequirePermission('calls:read')
+  programmes() { return this.run((tx) => this.calls.programmes(tx)); }
+
+  @Get('sources') @RequirePermission('calls:read')
+  sources() { return this.run((tx) => this.calls.sources(tx)); }
 
   @Get('deadlines') @RequirePermission('calls:read')
   deadlines(@Query('days') days?: string) { return this.run((tx) => this.calls.deadlines(tx, Math.min(Math.max(Number(days) || 60, 1), 365))); }

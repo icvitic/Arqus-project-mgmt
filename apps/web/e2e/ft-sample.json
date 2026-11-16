@@ -1,0 +1,10 @@
+{
+  "totalResults": 1,
+  "results": [
+    { "metadata": {
+      "identifier": ["HORIZON-CL5-2030-E2E-01"], "callIdentifier": ["HORIZON-CL5-2030-E2E"], "title": ["Zero-emission urban logistics (e2e uzorak)"],
+      "frameworkProgramme": ["43108390"], "typesOfAction": ["HORIZON  Research and Innovation Actions"], "deadlineModel": ["single-stage"],
+      "startDate": ["2030-05-06T00:00:00.000+0000"], "deadlineDate": ["2030-09-17T17:00:00.000+0000"], "status": ["31094501"], "programmePeriod": ["2021 - 2027"]
+    } }
+  ]
+}

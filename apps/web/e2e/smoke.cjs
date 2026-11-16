@@ -82,6 +82,15 @@ const tag = Date.now().toString(36);
     await page.getByRole('cell', { name: new RegExp(`NPOO.E2E.${tag}`) }).first().waitFor();
     await shot('radar');
   });
+  await step('radar: globalni poziv s portala F&T', async () => {
+    await page.getByLabel('Program').selectOption('Horizon Europe');
+    await page.getByLabel('Pretraga poziva').fill('E2E-01');
+    await page.getByRole('cell', { name: /HORIZON-CL5-2030-E2E-01/ }).click();
+    await page.getByRole('heading', { name: /Zero-emission urban logistics/ }).waitFor();
+    await page.getByRole('link', { name: 'otvori na portalu' }).waitFor();
+    await page.getByText(/RIA/).first().waitFor();
+    await page.getByRole('link', { name: 'Radar poziva' }).first().click();
+  });
   await step('nova organizacija', async () => {
     await page.getByRole('link', { name: 'Organizacije' }).click();
     await page.getByLabel('Naziv').fill(`Politecnico di Milano ${tag}`);
