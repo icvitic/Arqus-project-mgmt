@@ -27,6 +27,8 @@ docker compose exec -e SEED_TENANT_SLUG=fpz -e SEED_TENANT_NAME="Naziv instituci
 ```
 Administrator se prijavljuje oznakom institucije, e-adresom i lozinkom, u izborniku **Korisnici** dodaje korisnike i uloge, a u **Moj račun** uključuje dvofaktorsku prijavu (preporučeno za sve administratore).
 
+Globalni pozivi s portala EU Funding & Tenders uvoze se automatski minutu nakon pokretanja, zatim svakih `FT_IMPORT_INTERVAL_HOURS` (zadano 24 h; ADR-0011). Ručno: `docker compose exec app node dist/db/cli.js import-calls`. Poslužitelj treba izlazni HTTPS prema `api.tech.ec.europa.eu`.
+
 ## 4. Sigurnosne kopije i obnova
 - Servis `backup` radi `pg_dump` svakih `BACKUP_INTERVAL_SECONDS` (zadano 3600 s → RPO 1 h) i briše kopije starije od `BACKUP_RETENTION_DAYS` (14). Kopije su u Docker volumenu `backups`. Dokumenti (volumen `documents`, ADR-0010) arhiviraju se jednom dnevno u isti volumen (`documents-YYYYMMDD.tar.gz`).
 - Izvan poslužitelja: dnevno sinkronizirati volumen u S3-kompatibilnu pohranu u EU drugog pružatelja (npr. `rclone sync`), šifrirano.

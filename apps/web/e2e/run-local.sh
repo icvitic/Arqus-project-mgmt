@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"; cd "$ROOT"
 : "${DATABASE_MIGRATE_URL:?postavi DATABASE_MIGRATE_URL}"; : "${DATABASE_URL:?postavi DATABASE_URL}"
 pnpm build >/dev/null
-(cd apps/api && node -r ./scripts/register.js scripts/migrate.ts && SEED_TENANT_SLUG=e2e SEED_TENANT_NAME="E2E institucija" SEED_ADMIN_EMAIL=admin@e2e.local SEED_ADMIN_PASSWORD=E2e-lozinka-123 node -r ./scripts/register.js scripts/seed.ts)
+(cd apps/api && node -r ./scripts/register.js scripts/migrate.ts && SEED_TENANT_SLUG=e2e SEED_TENANT_NAME="E2E institucija" SEED_ADMIN_EMAIL=admin@e2e.local SEED_ADMIN_PASSWORD=E2e-lozinka-123 node -r ./scripts/register.js scripts/seed.ts && node dist/db/cli.js import-calls --file ../web/e2e/ft-sample.json)
 # Zauzet port bi značio da test razgovara sa starim poslužiteljem – odbij start.
 for p in 3100 4173; do if (exec 3<>/dev/tcp/127.0.0.1/$p) 2>/dev/null; then echo "Port $p je zauzet (stari poslužitelj?) – zaustavi ga prije e2e testa." >&2; exit 1; fi; done
 # `exec` da PID bude sam proces poslužitelja (inače `kill` ugasi samo ljusku, a poslužitelj ostane).

@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, ilike, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { callStatus, daysUntil, fitScore, nextDeadline, type CallDeadline } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
@@ -25,7 +25,7 @@ const view = (c: CallRow, t?: Tracking | null, now = new Date()) => {
   const next = nextDeadline(deadlines, now);
   return {
     id: c.id, scope: c.tenantId ? 'tenant' as const : 'global' as const, code: c.code, title: c.title, summary: c.summary, programme: c.programme, funder: c.funder,
-    packageId: c.packageId, actionTypes: c.actionTypes, budget: c.budgetCents, expectedGrants: c.expectedGrants, opensAt: c.opensAt, deadlines, url: c.url, tags: c.tags,
+    packageId: c.packageId, actionTypes: c.actionTypes, budget: c.budgetCents, expectedGrants: c.expectedGrants, opensAt: c.opensAt, deadlines, url: c.url, tags: c.tags, source: c.source, syncedAt: c.syncedAt,
     status: callStatus({ opensAt: c.opensAt, deadlines, cancelled: c.cancelled }, now), nextDeadline: next, daysToNextDeadline: next ? daysUntil(next.at, now) : null,
     tracking: t ? {
       fitScores: t.fitScores, fitTotal: t.fitTotal, fitComment: t.fitComment, assessedAt: t.assessedAt, decision: t.decision, rationale: t.rationale,
@@ -40,16 +40,31 @@ export type CallView = ReturnType<typeof view>;
 export class CallsService {
   constructor(private readonly audit: AuditService) {}
 
-  async list(tx: Tx, filter: { status?: string; q?: string; tracked?: boolean } = {}) {
+  async list(tx: Tx, filter: { status?: string; q?: string; tracked?: boolean; programme?: string; scope?: string; mine?: boolean } = {}) {
     const rows = await tx.select({ c: calls, t: callTracking }).from(calls).leftJoin(callTracking, eq(callTracking.callId, calls.id))
-      .where(and(isNull(calls.deletedAt), filter.q ? or(ilike(calls.title, `%${filter.q}%`), ilike(calls.code, `%${filter.q}%`), ilike(calls.programme, `%${filter.q}%`)) : undefined))
+      .where(and(isNull(calls.deletedAt), filter.programme ? eq(calls.programme, filter.programme) : undefined,
+        filter.scope === 'global' ? isNull(calls.tenantId) : filter.scope === 'tenant' ? isNotNull(calls.tenantId) : undefined,
+        filter.q ? or(ilike(calls.title, `%${filter.q}%`), ilike(calls.code, `%${filter.q}%`), ilike(calls.programme, `%${filter.q}%`)) : undefined))
       .orderBy(asc(calls.code));
     let list = rows.map((r) => view(r.c, r.t));
     if (filter.status) list = list.filter((c) => c.status === filter.status);
     if (filter.tracked) list = list.filter((c) => c.tracking?.decision && c.tracking.decision !== 'no_go');
+    // „Moji”: vlastiti pozivi i globalni koje institucija prati (ocijenjeni ili s odlukom).
+    if (filter.mine) list = list.filter((c) => c.scope === 'tenant' || !!c.tracking);
     // Najprije pozivi s najbližim rokom, zatim bez rokova, zatvoreni na kraju.
     const rank = (c: CallView) => (c.status === 'closed' || c.status === 'cancelled' ? 2 : c.nextDeadline ? 0 : 1);
     return list.sort((a, b) => rank(a) - rank(b) || (a.nextDeadline && b.nextDeadline ? Date.parse(a.nextDeadline.at) - Date.parse(b.nextDeadline.at) : 0));
+  }
+
+  /** Programi s brojem poziva (za filtar radara). */
+  async programmes(tx: Tx) {
+    return tx.select({ programme: calls.programme, count: sql<number>`count(*)::int` }).from(calls).where(isNull(calls.deletedAt)).groupBy(calls.programme).orderBy(desc(sql`count(*)`));
+  }
+
+  /** Stanje uvoza globalnih poziva s portala F&T. */
+  async sources(tx: Tx) {
+    const [r] = await tx.select({ count: sql<number>`count(*)::int`, lastSync: sql<string | null>`max(${calls.syncedAt})` }).from(calls).where(and(isNull(calls.tenantId), eq(calls.source, 'ft'), isNull(calls.deletedAt)));
+    return { ft: { count: r?.count ?? 0, lastSync: r?.lastSync ?? null, portal: 'https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals' } };
   }
 
   private async row(tx: Tx, id: string) {

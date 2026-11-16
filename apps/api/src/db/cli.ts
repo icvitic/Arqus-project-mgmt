@@ -2,10 +2,14 @@
  * migrate – primjena migracija (vlasnička uloga DATABASE_MIGRATE_URL)
  * import-packages – uvoz/osvježavanje globalnih paketa programa (ARQUS_PACKAGES_DIR)
  * seed – prvi stanar i administrator (SEED_TENANT_SLUG, SEED_TENANT_NAME, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD)
- * init – migrate + import-packages (pri svakom pokretanju kontejnera; idempotentno) */
+ * init – migrate + import-packages (pri svakom pokretanju kontejnera; idempotentno)
+ * import-calls [--file a.json ...] – uvoz globalnih poziva s portala EU Funding & Tenders (ili iz spremljenih odgovora search API-ja) */
 import { Pool } from 'pg';
 import { runMigrations } from './migrate';
 import { importGlobalPackages, seedDemo } from './seed';
+import { readFileSync } from 'node:fs';
+import { fetchFtResults, importFtCalls } from '../calls/ft-import';
+import type { FtResult } from '@arqus/domain';
 
 async function main(cmd: string | undefined): Promise<void> {
   const url = process.env.DATABASE_MIGRATE_URL;
@@ -32,6 +36,12 @@ async function main(cmd: string | undefined): Promise<void> {
     const r = await seedDemo({ url, importPackages: false });
     console.log(`Stanar ${r.tenantSlug}, administrator ${r.adminEmail} (lozinka iz SEED_ADMIN_PASSWORD).`);
   }
-  if (!['migrate', 'import-packages', 'seed', 'init'].includes(cmd ?? '')) throw new Error('Naredba: migrate | import-packages | seed | init');
+  if (cmd === 'import-calls') {
+    const files = process.argv.slice(3).filter((a) => a !== '--file');
+    const results = files.length ? files.flatMap((f) => (JSON.parse(readFileSync(f, 'utf8')) as { results: FtResult[] }).results) : await fetchFtResults();
+    const r = await importFtCalls(url, results);
+    console.log(`F&T – dohvaćeno ${r.fetched}; novih ${r.inserted}, osvježeno ${r.updated}, ručnih zadržano ${r.keptManual}; preskočeno: duplikati ${r.skipped.duplicate}, istekli ${r.skipped.expired}, neispravni ${r.skipped.invalid}`);
+  }
+  if (!['migrate', 'import-packages', 'seed', 'init', 'import-calls'].includes(cmd ?? '')) throw new Error('Naredba: migrate | import-packages | seed | init | import-calls');
 }
 main(process.argv[2]).catch((e: unknown) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

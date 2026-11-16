@@ -463,8 +463,12 @@ export const calls = pgTable('calls', {
   url: text('url'),
   tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
   cancelled: boolean('cancelled').notNull().default(false),
+  /** Izvor globalnog poziva: ručni unos ili uvoz s portala EU Funding & Tenders (osvježava se, ručni se ne prepisuju). */
+  source: text('source').$type<'manual' | 'ft'>().notNull().default('manual'),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
   ...audited,
 }, (t) => [
+  check('calls_source_ck', sql`source in ('manual','ft')`),
   uniqueIndex('calls_tenant_code_uq').on(t.tenantId, t.code).where(sql`tenant_id is not null`),
   uniqueIndex('calls_global_code_uq').on(t.code).where(sql`tenant_id is null`),
 ]);

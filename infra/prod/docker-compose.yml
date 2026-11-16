@@ -26,6 +26,7 @@ services:
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?postavi MFA_ENCRYPTION_KEY}
       TRUST_PROXY: "uniquelocal"
       DOCUMENTS_DIR: /data/documents
+      FT_IMPORT_INTERVAL_HOURS: ${FT_IMPORT_INTERVAL_HOURS:-24}
     volumes: ["documents:/data/documents"]
     expose: ["3000"]
   caddy:

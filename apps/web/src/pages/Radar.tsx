@@ -1,10 +1,11 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { date, dateTime, eur, label, parseEur } from '../lib/format';
 import { go, useLoad } from '../lib/hooks';
 import type { CallDetail, CallSummary, Me, PackageDetail, PackageSummary, ProposalSummary, UpcomingDeadline, UserRow } from '../lib/types';
 import { ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
 
+const LIMIT = 100;
 const can = (me: Me, p: string) => me.permissions.includes('*') || me.permissions.includes(p);
 const KIND: Record<string, string> = { submission: 'rok predaje', stage1: '1. faza', stage2: '2. faza', info_day: 'info-dan', other: 'ostalo', internal: 'interni rok' };
 const CRITERIA = [['strategic', 'Strateško uklapanje'], ['capacity', 'Kapacitet tima'], ['probability', 'Vjerojatnost uspjeha'], ['financial', 'Financijski učinak']] as const;
@@ -23,7 +24,15 @@ export function Radar({ me, route }: { me: Me; route: string[] }) {
 function RadarList({ me }: { me: Me }) {
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
-  const calls = useLoad(() => api<CallSummary[]>('GET', `/calls?${new URLSearchParams({ ...(status ? { status } : {}), ...(q ? { q } : {}) })}`), [status, q]);
+  const [query, setQuery] = useState(''); // pretraga s odgodom da se ne šalje zahtjev na svaki znak
+  useEffect(() => { const t = setTimeout(() => setQuery(q.trim()), 300); return () => clearTimeout(t); }, [q]);
+  const [programme, setProgramme] = useState('');
+  const [mine, setMine] = useState(false);
+  const [limit, setLimit] = useState(LIMIT);
+  const calls = useLoad(() => api<CallSummary[]>('GET', `/calls?${new URLSearchParams({ ...(status ? { status } : {}), ...(query ? { q: query } : {}), ...(programme ? { programme } : {}), ...(mine ? { mine: 'true' } : {}) })}`), [status, query, programme, mine]);
+  useEffect(() => setLimit(LIMIT), [status, query, programme, mine]);
+  const programmes = useLoad(() => api<{ programme: string; count: number }[]>('GET', '/calls/programmes'), []);
+  const sources = useLoad(() => api<{ ft: { count: number; lastSync: string | null; portal: string } }>('GET', '/calls/sources'), []);
   const upcoming = useLoad(() => api<UpcomingDeadline[]>('GET', '/calls/deadlines?days=60'), []);
   return (
     <>
@@ -39,18 +48,22 @@ function RadarList({ me }: { me: Me }) {
       </div>
       <div className="actions" style={{ marginBottom: 12 }}>
         {can(me, 'calls:write') && <button className="primary" onClick={() => go('radar/novi')}>Novi poziv</button>}
+        <select aria-label="Prikaz poziva" value={mine ? 'mine' : 'all'} onChange={(e) => setMine(e.target.value === 'mine')}><option value="all">svi pozivi</option><option value="mine">vlastiti i praćeni</option></select>
+        <select aria-label="Program" value={programme} onChange={(e) => setProgramme(e.target.value)}><option value="">svi programi</option>{programmes.data?.map((p) => <option key={p.programme} value={p.programme}>{p.programme} ({p.count})</option>)}</select>
         <select aria-label="Status poziva" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">svi statusi</option>{['announced', 'open', 'closed', 'cancelled'].map((s) => <option key={s} value={s}>{label(s)}</option>)}</select>
         <input aria-label="Pretraga poziva" placeholder="Pretraži (oznaka, naslov, program)" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
+      {sources.data && sources.data.ft.count > 0 && <p className="muted">Globalni pozivi s portala <a href={sources.data.ft.portal} target="_blank" rel="noreferrer noopener">EU Funding &amp; Tenders</a>: {sources.data.ft.count}, zadnje osvježenje {dateTime(sources.data.ft.lastSync)}.</p>}
       <div className="card scroll">
         <ErrorBox error={calls.error} />
+        {calls.data && calls.data.length > limit && <p className="muted">Prikazano {limit} od {calls.data.length} poziva (najbliži rokovi prvi). Suzi pretragu ili <button onClick={() => setLimit(limit + LIMIT)}>prikaži još {Math.min(LIMIT, calls.data.length - limit)}</button></p>}
         {!calls.data ? <Loading /> : calls.data.length === 0 ? <p className="muted">Nema poziva.</p> : (
           <table>
             <thead><tr><th>Poziv</th><th>Program</th><th>Sljedeći rok</th><th className="num">Proračun</th><th>Status</th><th className="num">Prikladnost</th><th>Odluka</th></tr></thead>
-            <tbody>{calls.data.map((c) => (
+            <tbody>{calls.data.slice(0, limit).map((c) => (
               <tr key={c.id} className="row" tabIndex={0} onClick={() => go(`radar/${c.id}`)} onKeyDown={(e) => e.key === 'Enter' && go(`radar/${c.id}`)}>
                 <td><b>{c.code}</b><br /><span className="muted">{c.title}</span></td>
-                <td>{c.programme}{c.scope === 'global' && <> <span className="chip">globalni</span></>}</td>
+                <td>{c.programme}{c.scope === 'global' && <> <span className="chip" title={c.source === 'ft' ? 'uvezen s portala EU Funding & Tenders' : 'održava ArQus'}>{c.source === 'ft' ? 'F&T' : 'globalni'}</span></>}</td>
                 <td>{c.nextDeadline ? <>{dateTime(c.nextDeadline.at)} {daysChip(c.daysToNextDeadline)}<br /><span className="muted">{KIND[c.nextDeadline.kind]}</span></> : '–'}</td>
                 <td className="num">{c.budget !== null ? eur(c.budget) : '–'}{c.expectedGrants ? <><br /><span className="muted">~{c.expectedGrants} projekata</span></> : null}</td>
                 <td><Chip s={c.status} tone={statusTone[c.status]} /></td>
@@ -140,7 +153,7 @@ function CallView({ me, id }: { me: Me; id: string }) {
             <b>Proračun poziva</b><span>{c.budget !== null ? eur(c.budget) : '–'}{c.expectedGrants ? ` (~${c.expectedGrants} projekata, ~${eur(Math.round((c.budget ?? 0) / c.expectedGrants))} po projektu)` : ''}</span>
             <b>Vrste akcija</b><span>{c.actionTypes.join(', ') || '–'}</span>
             <b>Paket programa</b><span>{c.packageId ? <a href={`#/paketi/pregled/${encodeURIComponent(c.packageId)}`}>{c.packageId}</a> : '–'}</span>
-            <b>Izvor</b><span>{c.url ? <a href={c.url} target="_blank" rel="noreferrer noopener" style={{ wordBreak: 'break-all' }}>{c.url}</a> : '–'}</span>
+            <b>Izvor</b><span>{c.source === 'ft' && <>EU Funding &amp; Tenders, osvježeno {dateTime(c.syncedAt)} · </>}{c.url ? <a href={c.url} target="_blank" rel="noreferrer noopener" style={{ wordBreak: 'break-all' }}>{c.source === 'ft' ? 'otvori na portalu' : c.url}</a> : '–'}</span>
             <b>Oznake</b><span>{c.tags.map((x) => <span key={x} className="chip" style={{ marginRight: 4 }}>{x}</span>)}</span>
           </div>
           {c.summary && <p>{c.summary}</p>}

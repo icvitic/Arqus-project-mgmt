@@ -24,13 +24,14 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [~] **WP1.2b** Politika lozinki, sesije s opozivom, MFA (TOTP), upravljanje korisnicima i ulogama u sučelju, `pnpm audit` u CI-ju (v0.14.0); OIDC/SAML (AAI@EduHr, Microsoft Entra) i pozivnice e-poštom čekaju pilot-instituciju
 - [x] **WP1.3b** Sučelje za pakete po pozivu: popis, pregled razriješenih pravila, obrazac nasljeđivanja (stope, neizravni, osoblje, razdoblja, dodatne kategorije), JSON način, provjera, objava, nove verzije (v0.15.0)
 - [x] **WP1.3** Paketi programa u bazi: globalni + stanarski, verzije i status, uvoz iz `docs/domena/paketi`, validacija, nasljeđivanje (`extends`) za paket po pozivu, objava; ESLint (v0.8.0)
-- [x] **WP1.4** Radar poziva i go/no-go: pozivi (globalni i vlastiti) s rokovima i automatskim statusom, ocjena prikladnosti, odluka s obrazloženjem, interni rok i odgovorna osoba, povijest, nadolazeći rokovi (v0.16.0); uvoz s Funding & Tenders portala – zaseban korak
+- [x] **WP1.4** Radar poziva i go/no-go: pozivi (globalni i vlastiti) s rokovima i automatskim statusom, ocjena prikladnosti, odluka s obrazloženjem, interni rok i odgovorna osoba, povijest, nadolazeći rokovi (v0.16.0); uvoz s Funding & Tenders portala (v0.19.0)
 - [x] **WP1.5** Prijava i proračun prijave, konzorcij: iz odluke go, spremnost, predaja, ishod, ugovaranje u projekt s kopijom partnera, radnih paketa i proračuna (v0.17.0)
 - [x] **WP1.6** Projekt: registar organizacija, projekt vezan uz verziju paketa, partneri, prijelazi statusa, izvještajna razdoblja iz paketa (v0.9.0); pretvorba prijave u projekt dolazi s WP1.5
 - [x] **WP1.7** Tehnička provedba (WP, zadaci, isporuke, prekretnice, rizici) i proračun projekta s izračunom iz paketa (v0.10.0); portfelj → uz web sučelje
 - [x] **WP1.8** Troškovi, timesheetovi i zahtjevi za nadoknadu (ZNS) – prebačeno iz WP2.1 (WP0.7) (v0.11.0)
 - [~] **WP1.9** Sigurnosni pregled i pilot-instalacija – Docker slika, produkcijski compose (Caddy HTTPS, kopije svakih sat), sigurnosna zaglavlja, ograničenje prijava, ASVS L2 samoprocjena, upute (v0.13.0); čeka odabir pružatelja i pilot-institucije, penetracijski test
 - [x] **WP1.11** Dokumenti (M9): dokumenti s verzijama uz projekt, trošak (dokaz), isporuku, ZNS i prijavu; provjera vrste i SHA-256, zamrzavanje dokaza predajom ZNS-a, upozorenje za troškove bez dokaza, pohrana iza sučelja (lokalni volumen, S3 kasnije), dnevna kopija (v0.18.0); predlošci → WP2.6
+- [x] **WP1.12** Uvoz poziva s portala EU Funding & Tenders: javni search API, najavljene i otvorene teme 2021–2027, briselsko vrijeme rokova, paket i vrste akcije za Horizon Europe, periodički uvoz, filtri radara (v0.19.0); proračun teme i fondovieu → kasnije
 - [x] **WP1.10** Web sučelje za pilot: prijava, projekti, organizacije, struktura, proračun, timesheetovi, troškovi, ZNS, ugovoreno/ostvareno (React) + e2e provjera u pregledniku (v0.12.0)
 
 ## Faza 2 – Komercijalna v1 (mj. 10–15)
