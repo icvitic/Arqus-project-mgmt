@@ -28,13 +28,13 @@ docker compose exec -e SEED_TENANT_SLUG=fpz -e SEED_TENANT_NAME="Naziv instituci
 Administrator se prijavljuje oznakom institucije, e-adresom i lozinkom, u izborniku **Korisnici** dodaje korisnike i uloge, a u **Moj račun** uključuje dvofaktorsku prijavu (preporučeno za sve administratore).
 
 ## 4. Sigurnosne kopije i obnova
-- Servis `backup` radi `pg_dump` svakih `BACKUP_INTERVAL_SECONDS` (zadano 3600 s → RPO 1 h) i briše kopije starije od `BACKUP_RETENTION_DAYS` (14). Kopije su u Docker volumenu `backups`.
+- Servis `backup` radi `pg_dump` svakih `BACKUP_INTERVAL_SECONDS` (zadano 3600 s → RPO 1 h) i briše kopije starije od `BACKUP_RETENTION_DAYS` (14). Kopije su u Docker volumenu `backups`. Dokumenti (volumen `documents`, ADR-0010) arhiviraju se jednom dnevno u isti volumen (`documents-YYYYMMDD.tar.gz`).
 - Izvan poslužitelja: dnevno sinkronizirati volumen u S3-kompatibilnu pohranu u EU drugog pružatelja (npr. `rclone sync`), šifrirano.
 - Obnova (provjereno lokalno, v0.13.0):
 ```bash
 docker compose exec backup sh -c 'createdb -h db -U arqus arqus_obnova && pg_restore -h db -U arqus -d arqus_obnova /backups/<datoteka>.dump'
 ```
-Zatim u `.env` usmjeriti aplikaciju na obnovljenu bazu ili je preimenovati. Obnovu probati barem jednom mjesečno.
+Zatim u `.env` usmjeriti aplikaciju na obnovljenu bazu ili je preimenovati. Dokumenti: `docker compose run --rm -v arqus-pilot_documents:/d -v arqus-pilot_backups:/b app sh -c 'tar -xzf /b/documents-<datum>.tar.gz -C /d'`. Obnovu probati barem jednom mjesečno.
 
 ## 5. Nadogradnja
 ```bash

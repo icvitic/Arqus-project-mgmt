@@ -25,6 +25,8 @@ services:
       AUTH_TOKEN_TTL: ${AUTH_TOKEN_TTL:-8h}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?postavi MFA_ENCRYPTION_KEY}
       TRUST_PROXY: "uniquelocal"
+      DOCUMENTS_DIR: /data/documents
+    volumes: ["documents:/data/documents"]
     expose: ["3000"]
   caddy:
     image: caddy:2-alpine
@@ -41,6 +43,6 @@ services:
       PGPASSWORD: ${DB_OWNER_PASSWORD}
       RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-3600}
-    volumes: ["./backup.sh:/backup.sh:ro", "backups:/backups"]
+    volumes: ["./backup.sh:/backup.sh:ro", "backups:/backups", "documents:/documents:ro"]
     entrypoint: ["sh", "/backup.sh"]
-volumes: { pgdata: {}, caddydata: {}, caddyconfig: {}, backups: {} }
+volumes: { pgdata: {}, caddydata: {}, caddyconfig: {}, backups: {}, documents: {} }

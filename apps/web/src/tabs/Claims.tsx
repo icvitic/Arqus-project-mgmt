@@ -42,8 +42,9 @@ function ClaimCard({ claim: c, projectId, write, reload }: { claim: Claim; proje
         <div className="tile"><div className="v">{eur(c.approved)}</div><div className="l">odobreno · isplaćeno {eur(c.paid)}</div></div>
       </div>
       {c.note && <div className="warnbox">Napomena: {c.note}</div>}
+      {!!c.missingEvidence && <div className="warnbox">{c.missingEvidence} {c.missingEvidence === 1 ? 'ručno unesen trošak nema' : 'ručno unesenih troškova nema'} priložen dokaz. Priloži ih na kartici Troškovi prije predaje – nakon predaje dokazi su zamrznuti.</div>}
       <h3>{c.status === 'draft' ? 'Troškovi koji će ući u zahtjev' : 'Troškovi u zahtjevu'} ({c.expenses.length})</h3>
-      <table><tbody>{c.expenses.map((e) => <tr key={e.id}><td>{date(e.date)}</td><td>{e.categoryCode}</td><td>{e.description}</td><td className="num">{eur(e.amount)}</td><td><Chip s={e.status} /></td></tr>)}
+      <table><tbody>{c.expenses.map((e) => <tr key={e.id}><td>{date(e.date)}</td><td>{e.categoryCode}</td><td>{e.description}</td><td className="num">{eur(e.amount)}</td><td><Chip s={e.status} /></td><td>{e.source === 'manual' ? (e.documents ? `dokaz (${e.documents})` : <span className="chip warn">bez dokaza</span>) : <span className="muted">timesheet</span>}</td></tr>)}
         {c.expenses.length === 0 && <tr><td className="muted">Nema troškova u razdoblju.</td></tr>}</tbody></table>
       {write && (
         <div className="actions">

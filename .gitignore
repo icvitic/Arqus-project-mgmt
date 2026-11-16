@@ -8,3 +8,4 @@ coverage/
 .env.local
 infra/.env
 infra/prod/.env
+apps/api/data/

@@ -30,9 +30,9 @@ export interface Budget {
 }
 export interface TeamMember { id: string; fullName: string; userId: string | null; partnerId: string; role: string | null; annualCost: number | null; active: boolean }
 export interface Timesheet { status: string; entries: { day: number; minutes: number; workPackageId: string | null }[]; totalMinutes: number; warnings: string[] }
-export interface Expense { id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number; evidenceRef: string | null; source: string; status: string }
+export interface Expense { id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number; evidenceRef: string | null; source: string; status: string; documents: number }
 export interface Claim {
-  id: string; period: Period; status: string; expenses: { id: string; date: string; categoryCode: string; description: string; amount: number; status: string }[];
+  id: string; period: Period; status: string; expenses: { id: string; date: string; categoryCode: string; description: string; amount: number; status: string; source?: string; documents?: number }[]; missingEvidence?: number;
   totals: { direct: number; indirect: number; total: number; ratePercent: number; requested: number }; requested: number | null; approved: number | null; paid: number | null; note: string | null;
 }
 export interface FinanceOverview {
@@ -69,3 +69,7 @@ export interface Proposal {
   submission: { portal: string; reference: string; at: string; requested: number; total: number; budgetVersion: number } | null;
   outcome: { result: string; score?: string; note?: string; at: string } | null; projectId: string | null;
 }
+
+export interface DocVersion { version: number; fileName: string; mimeType: string; size: number; sha256: string; note?: string | null; createdAt: string; createdBy?: string | null }
+export interface DocumentSummary { id: string; title: string; kind: string; confidentiality: string; aiGenerated: boolean; entityType: string; entityId: string; projectId: string | null; proposalId: string | null; currentVersion: number; updatedAt: string; current: DocVersion }
+export interface DocumentDetail extends Omit<DocumentSummary, 'current'> { versions: DocVersion[] }

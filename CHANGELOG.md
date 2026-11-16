@@ -4,6 +4,17 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-16
+### Dodano
+- WP1.11 dokumenti (M9, ADR-0010): tablice `documents` i `document_versions` (migracije 0016/0017, RLS; aplikacija nad verzijama ima samo `SELECT, INSERT`, dokumenti se brišu logički).
+- REST `/api/documents`: učitavanje (multipart, najviše 25 MB) uz projekt, trošak, isporuku, ZNS ili prijavu; nove verzije (ista datoteka odbijena), popis po entitetu, projektu ili prijavi, detalj s poviješću verzija, izmjena metapodataka, logičko brisanje, preuzimanje trenutne ili bilo koje verzije.
+- Sigurnost: popis dopuštenih vrsta s provjerom potpisa sadržaja (HTML, SVG, izvršne odbijene), čišćenje naziva datoteke, ključ pohrane generira poslužitelj, preuzimanje uvijek kao privitak s `nosniff` i CSP `sandbox`, provjera SHA-256 pri preuzimanju, preuzimanja u reviziji.
+- Pravila: dokazi troška zamrzavaju se kad trošak uđe u ZNS; dokumenti zatvorenog projekta i zaključene prijave ne mijenjaju se. ZNS pokazuje ručno unesene troškove bez dokaza (`missingEvidence`), popis troškova broj dokaza.
+- `@arqus/domain`: `checkUpload`, `sanitizeFileName`, `formatBytes`, vrste dokumenata i oznake povjerljivosti.
+- Web: kartica **Dokumenti** na projektu (svi dokumenti projekta, verzije, preuzimanje), „Dokazi (n)” uz svaki trošak, upozorenje i stupac dokaza u ZNS-u, dokumenti na prijavi; oznaka AI sadržaja.
+- Infrastruktura: volumen `documents` u produkcijskom compose-u, dnevna arhiva dokumenata u servisu `backup`, upute za obnovu.
+- E2E (19 koraka): dokaz uz trošak, provjera dokaza u ZNS-u, ugovor na projektu s novom verzijom i preuzimanjem.
+
 ## [0.17.0] - 2026-11-16
 ### Dodano
 - WP1.5 prijave (M5, ADR-0006): tablice `proposals`, `proposal_members`, `proposal_work_packages`, `proposal_budget_lines` s kompozitnim FK-ovima po stanaru, migracije 0014/0015 s RLS-om.

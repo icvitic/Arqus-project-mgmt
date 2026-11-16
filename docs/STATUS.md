@@ -1,8 +1,9 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-16 · **Verzija:** v0.17.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-16 · **Verzija:** v0.18.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- WP1.11 (v0.18.0): dokumenti – dokazi uz troškove (zamrzavaju se predajom ZNS-a), ugovori i isporuke na projektu, dokumenti prijave; verzije s SHA-256, sigurna provjera i preuzimanje, dnevna kopija. Pilot ima sve za reviziju troškova na jednom mjestu.
 - WP1.5 (v0.17.0): prijave – iz odluke go na radaru, konzorcij s potvrdama, struktura rada, proračun po pravilima paketa (verzije, zaključavanje), provjera spremnosti, predaja, ishod i ugovaranje u projekt. Cijeli put poziv → prijava → projekt → ZNS radi u sučelju.
 - WP1.4 (v0.16.0): radar poziva – pozivi s rokovima i statusom, ocjena prikladnosti, odluka go/no-go s poviješću, nadolazeći rokovi; web stranica Radar poziva.
 - v0.15.0: sučelje za pakete po pozivu (obrazac nasljeđivanja, JSON način, provjera, objava, verzije); ispravak nasljeđivanja napomena i provjera; pouzdaniji e2e. Ured za projekte može sam dodavati NPOO/PKK pozive.
@@ -33,8 +34,7 @@
 
 ## Sljedeće
 1. Uvoz globalnih poziva s Funding & Tenders portala (javni API) i fondovieu – kao ArQus-ov servis za sve stanare.
-2. Dokumenti (M9): dokazi uz troškove i isporuke.
-3. Kad bude pilot-institucije: OIDC, instalacija, penetracijski test.
+2. Kad bude pilot-institucije: OIDC, instalacija, penetracijski test.
 
 ## Otvorena pitanja za Ivana
 - Kad odabereš pružatelja i pilot-instituciju, instalacija ide prema `docs/PILOT-INSTALACIJA.md`; za vanjski penetracijski test treba budžet i izvođača.
