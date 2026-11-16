@@ -27,7 +27,9 @@ export class TimesheetsService {
   async team(tx: Tx, projectId: string) {
     await loadProject(tx, projectId);
     const rows = await tx.select().from(teamMembers).where(eq(teamMembers.projectId, projectId)).orderBy(asc(teamMembers.fullName));
-    return rows.map(({ tenantId: _t, createdBy: _c, updatedBy: _u, deletedAt: _d, annualCostCents, ...r }) => ({ ...r, annualCost: annualCostCents }));
+    // Godišnji trošak osoblja (plaća) vidljiv je samo uz dozvolu personnel:read (ASVS V8).
+    const seeCost = hasPermission(this.ctx.require().permissions, 'personnel:read');
+    return rows.map(({ tenantId: _t, createdBy: _c, updatedBy: _u, deletedAt: _d, annualCostCents, ...r }) => ({ ...r, annualCost: seeCost ? annualCostCents : null }));
   }
 
   async addMember(tx: Tx, tenantId: string, projectId: string, input: z.infer<typeof memberInput>, actorId?: string) {

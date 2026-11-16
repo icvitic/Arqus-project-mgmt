@@ -33,9 +33,28 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash'),
   status: text('status').$type<UserStatus>().notNull().default('invited'),
   mfaEnabled: boolean('mfa_enabled').notNull().default(false),
+  mfaSecretEnc: text('mfa_secret_enc'),
+  mfaPendingEnc: text('mfa_pending_enc'),
+  mfaLastStep: bigint('mfa_last_step', { mode: 'number' }),
+  passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   ...audited,
 }, (t) => [uniqueIndex('users_tenant_email_uq').on(t.tenantId, t.email), unique('users_tenant_id_uq').on(t.tenantId, t.id)]);
+
+/** Sesija prijave (id = `sid` u JWT-u). Provjerava se pri svakom zahtjevu: opoziv i deaktivacija vrijede odmah (ASVS V3.3). */
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  ip: inet('ip'),
+  userAgent: text('user_agent'),
+}, (t) => [
+  index('sessions_user_idx').on(t.tenantId, t.userId),
+  foreignKey({ name: 'sessions_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }).onDelete('cascade'),
+]);
 
 /** Uloga: sistemska (tenant_id NULL, vidljiva svima, samo za čitanje) ili stanarska. */
 export const roles = pgTable('roles', {

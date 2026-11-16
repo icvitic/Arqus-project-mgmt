@@ -15,7 +15,7 @@ git clone https://github.com/icvitic/arqus-project-mgmt && cd arqus-project-mgmt
 ```bash
 cp .env.example .env
 ```
-Popuniti `.env`: `DOMAIN`, `ACME_EMAIL`, a tajne generirati s `openssl rand -base64 36` (`DB_OWNER_PASSWORD`, `DB_APP_PASSWORD`, `AUTH_JWT_SECRET`). Datoteka `.env` ne ide u git.
+Popuniti `.env`: `DOMAIN`, `ACME_EMAIL`, a tajne generirati s `openssl rand -base64 36` (`DB_OWNER_PASSWORD`, `DB_APP_PASSWORD`, `AUTH_JWT_SECRET`, `MFA_ENCRYPTION_KEY`). Datoteka `.env` ne ide u git.
 ```bash
 docker compose up -d --build
 ```
@@ -25,7 +25,7 @@ Pri svakom pokretanju aplikacija primijeni migracije, postavi lozinku aplikacijs
 ```bash
 docker compose exec -e SEED_TENANT_SLUG=fpz -e SEED_TENANT_NAME="Naziv institucije" -e SEED_ADMIN_EMAIL=admin@institucija.hr -e SEED_ADMIN_PASSWORD='<najmanje 12 znakova>' app node dist/db/cli.js seed
 ```
-Administrator se prijavljuje oznakom institucije, e-adresom i lozinkom te dodaje korisnike kroz API (`POST /api/users`); sučelje za korisnike dolazi s WP1.2b.
+Administrator se prijavljuje oznakom institucije, e-adresom i lozinkom, u izborniku **Korisnici** dodaje korisnike i uloge, a u **Moj račun** uključuje dvofaktorsku prijavu (preporučeno za sve administratore).
 
 ## 4. Sigurnosne kopije i obnova
 - Servis `backup` radi `pg_dump` svakih `BACKUP_INTERVAL_SECONDS` (zadano 3600 s → RPO 1 h) i briše kopije starije od `BACKUP_RETENTION_DAYS` (14). Kopije su u Docker volumenu `backups`.

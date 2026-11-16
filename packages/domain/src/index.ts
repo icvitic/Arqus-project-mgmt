@@ -4,3 +4,4 @@ export * from './budget.js';
 export * from './merge.js';
 export * from './project.js';
 export * from './finance.js';
+export * from './password-policy.js';

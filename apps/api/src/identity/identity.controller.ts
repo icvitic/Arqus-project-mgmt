@@ -1,31 +1,75 @@
-import { Body, Controller, Get, Post, BadRequestException, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { IdentityService, type LoginInput, type CreateUserInput } from './identity.service';
+import { z } from 'zod';
+import { IdentityService } from './identity.service';
 import { Public, RequirePermission } from './auth.guard';
 import { DbService } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
+import { parseBody } from '../common/validation';
+
+const str = (max: number) => z.string().min(1).max(max);
+const loginInput = z.object({ tenantSlug: str(100), email: str(320), password: str(500), code: z.string().max(10).optional() });
+const createUserInput = z.object({ email: z.string().email().max(320), displayName: z.string().trim().min(2).max(200), password: z.string().max(500).optional(), roleCodes: z.array(z.string().max(60)).max(20).optional() });
+const updateUserInput = z.object({ displayName: z.string().trim().min(2).max(200).optional(), status: z.enum(['active', 'disabled']).optional(), roleCodes: z.array(z.string().max(60)).max(20).optional() }).strict();
+const passwordInput = z.object({ currentPassword: str(500), newPassword: str(500) });
+const codeInput = z.object({ code: z.string().regex(/^\d{6}$/, 'kod ima 6 znamenki') });
+const resetInput = z.object({ newPassword: str(500) });
 
 @Controller()
 export class IdentityController {
   constructor(private readonly identity: IdentityService, private readonly db: DbService, private readonly ctx: TenantContext) {}
 
   @Public() @Post('auth/login')
-  login(@Body() body: LoginInput, @Req() req: Request) {
-    if (!body?.tenantSlug || !body?.email || !body?.password) throw new BadRequestException('tenantSlug, email i password su obvezni');
-    if ([body.tenantSlug, body.email, body.password].some((v) => typeof v !== 'string' || v.length > 500)) throw new BadRequestException('Neispravni podaci za prijavu');
-    return this.identity.login(body, req.ip);
+  login(@Body() body: unknown, @Req() req: Request) {
+    const input = parseBody(loginInput, body);
+    return this.identity.login(input, { ip: req.ip, userAgent: req.headers['user-agent'] });
   }
+
+  @Post('auth/logout')
+  logout() { const c = this.ctx.require(); return this.db.tx((tx) => this.identity.logout(tx, c.userId!, c.sessionId!)); }
 
   @Get('me')
   me() { const c = this.ctx.require(); return this.db.tx((tx) => this.identity.me(tx, c.tenantId, c.userId!)); }
 
+  @Post('me/password')
+  changePassword(@Body() body: unknown) {
+    const i = parseBody(passwordInput, body); const c = this.ctx.require();
+    return this.db.tx((tx) => this.identity.changePassword(tx, c.tenantId, c.userId!, c.sessionId!, i.currentPassword, i.newPassword));
+  }
+
+  @Post('me/mfa/setup')
+  mfaSetup() { const c = this.ctx.require(); return this.db.tx((tx) => this.identity.mfaSetup(tx, c.userId!)); }
+
+  @Post('me/mfa/enable')
+  mfaEnable(@Body() body: unknown) { const { code } = parseBody(codeInput, body); const c = this.ctx.require(); return this.db.tx((tx) => this.identity.mfaEnable(tx, c.userId!, c.sessionId!, code)); }
+
+  @Post('me/mfa/disable')
+  mfaDisable(@Body() body: unknown) { const { code } = parseBody(codeInput, body); const c = this.ctx.require(); return this.db.tx((tx) => this.identity.mfaDisable(tx, c.userId!, code)); }
+
   @Get('users') @RequirePermission('users:read')
   users() { return this.db.tx((tx) => this.identity.listUsers(tx)); }
 
+  @Get('roles') @RequirePermission('roles:read')
+  roles() { return this.db.tx((tx) => this.identity.listRoles(tx)); }
+
   @Post('users') @RequirePermission('users:write')
-  createUser(@Body() body: CreateUserInput) {
-    if (!body?.email || !body?.displayName) throw new BadRequestException('email i displayName su obvezni');
-    const c = this.ctx.require();
-    return this.db.tx((tx) => this.identity.createUser(tx, c.tenantId, body, c.userId));
+  createUser(@Body() body: unknown) {
+    const i = parseBody(createUserInput, body); const c = this.ctx.require();
+    return this.db.tx((tx) => this.identity.createUser(tx, c.tenantId, i, c.userId));
   }
+
+  @Patch('users/:id') @RequirePermission('users:write')
+  updateUser(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const i = parseBody(updateUserInput, body); const c = this.ctx.require();
+    return this.db.tx((tx) => this.identity.updateUser(tx, c.tenantId, id, i, c.userId!));
+  }
+
+  @Post('users/:id/reset-password') @RequirePermission('users:write')
+  resetPassword(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const { newPassword } = parseBody(resetInput, body); const c = this.ctx.require();
+    return this.db.tx((tx) => this.identity.resetPassword(tx, c.tenantId, id, newPassword, c.userId!));
+  }
+
+  @Post('users/:id/reset-mfa') @RequirePermission('users:write')
+  resetMfa(@Param('id', ParseUUIDPipe) id: string) { const c = this.ctx.require(); return this.db.tx((tx) => this.identity.resetMfa(tx, id, c.userId!)); }
 }

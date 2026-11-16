@@ -71,6 +71,20 @@
       "when": 1794309257844,
       "tag": "0009_finance_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794812378806,
+      "tag": "0010_accounts_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794812379953,
+      "tag": "0011_sessions_rls",
+      "breakpoints": true
     }
   ]
 }
