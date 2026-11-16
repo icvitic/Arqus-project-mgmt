@@ -8,6 +8,7 @@ import { ProjectDetail } from './pages/ProjectDetail';
 import { Organisations } from './pages/Organisations';
 import { Users } from './pages/Users';
 import { Account } from './pages/Account';
+import { Packages } from './pages/Packages';
 import { Loading } from './ui';
 
 export function App() {
@@ -33,6 +34,7 @@ export function App() {
         <nav>
           <a href="#/projekti" className={page === 'projekti' ? 'active' : ''}>Projekti</a>
           <a href="#/organizacije" className={page === 'organizacije' ? 'active' : ''}>Organizacije</a>
+          <a href="#/paketi" className={page === 'paketi' ? 'active' : ''}>Paketi programa</a>
           {(me.permissions.includes('*') || me.permissions.includes('users:read')) && <a href="#/korisnici" className={page === 'korisnici' ? 'active' : ''}>Korisnici</a>}
         </nav>
         <div className="spacer" />
@@ -42,6 +44,7 @@ export function App() {
       <main>
         {page === 'organizacije' ? <Organisations me={me} />
           : page === 'korisnici' ? <Users me={me} />
+          : page === 'paketi' ? <Packages me={me} route={route} />
           : page === 'racun' ? <Account me={me} reloadMe={loadMe} />
           : id ? <ProjectDetail id={id} tab={tab ?? 'pregled'} me={me} />
           : <Projects me={me} />}

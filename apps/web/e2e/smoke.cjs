@@ -13,23 +13,12 @@ function totp(secretB32, offset = 0) {
   return String((((h[o] & 127) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3]) % 1e6).padStart(6, '0');
 }
 const WEB = process.env.WEB_URL ?? 'http://localhost:4173';
-const API = process.env.ARQUS_API_URL ?? 'http://localhost:3100';
 const SLUG = process.env.E2E_TENANT ?? 'e2e'; const EMAIL = process.env.E2E_EMAIL ?? 'admin@e2e.local'; const PW = process.env.E2E_PASSWORD ?? 'E2e-lozinka-123';
 const SHOTS = process.env.E2E_SHOTS; // mapa za snimke zaslona (neobavezno)
 const tag = Date.now().toString(36);
 
-async function apiCall(method, path, body, tok) {
-  const r = await fetch(`${API}/api${path}`, { method, headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  if (!r.ok) throw new Error(`${method} ${path} → ${r.status} ${await r.text()}`);
-  return r.json();
-}
-
 (async () => {
-  // Priprema preko API-ja: objavljen paket po pozivu (upravljanje paketima nije dio sučelja WP1.10).
-  const { accessToken } = await apiCall('POST', '/auth/login', { tenantSlug: SLUG, email: EMAIL, password: PW });
   const pkgId = `npoo-e2e-${tag}`;
-  const pkg = await apiCall('POST', '/programme-packages', { meta: { id: pkgId, extends: 'npoo-2021-2026', programme: `NPOO e2e poziv ${tag}`, version: '1.0.0', validFrom: '2026-10-01', language: 'hr' }, actionTypes: [], costCategories: [], reporting: { periodMonths: 6, submissionDeadlineDays: 30 } }, accessToken);
-  await apiCall('POST', `/programme-packages/${pkg.id}/publish`, undefined, accessToken);
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
@@ -53,6 +42,22 @@ async function apiCall(method, path, body, tok) {
     await page.getByLabel('Lozinka').fill(PW);
     await page.getByRole('button', { name: 'Prijava' }).click();
     await page.getByRole('heading', { name: 'Projekti' }).waitFor();
+  });
+  await step('paket po pozivu (sučelje)', async () => {
+    await page.getByRole('link', { name: 'Paketi programa' }).click();
+    await page.getByRole('button', { name: 'Novi paket po pozivu' }).click();
+    await page.getByLabel('Programski paket (roditelj)').selectOption('npoo-2021-2026');
+    await page.getByLabel('Identifikator poziva').fill(`NPOO.E2E.${tag}`);
+    await page.getByLabel('Naziv', { exact: true }).fill(`NPOO e2e poziv ${tag}`);
+    await page.getByLabel('Vrijedi od').fill('2026-10-01');
+    await page.getByLabel('Izvještajno razdoblje (mj.)').fill('6');
+    await page.getByRole('button', { name: 'Provjeri paket' }).click();
+    await page.getByText('paket je valjan').waitFor();
+    await page.getByRole('button', { name: 'Spremi nacrt' }).click();
+    await page.getByRole('heading', { name: new RegExp(`NPOO e2e poziv ${tag}`) }).waitFor();
+    await page.getByRole('button', { name: 'Objavi' }).click();
+    await page.locator('h1 .chip', { hasText: 'objavljen' }).waitFor();
+    await shot('paket');
   });
   await step('nova organizacija', async () => {
     await page.getByRole('link', { name: 'Organizacije' }).click();

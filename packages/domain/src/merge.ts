@@ -4,12 +4,14 @@ import type { ProgrammePackage, CostCategory } from './programme-package.js';
  * Nasljeđivanje paketa (`meta.extends`): paket po pozivu nasljeđuje programski paket i mijenja samo razlike.
  * Pravila: skalarni i objektni dijelovi se zamjenjuju ako su zadani; nizovi s `code` (kategorije, vrste akcija,
  * šifrarnici) spajaju se po šifri (dijete zamjenjuje/dodaje stavku, ne briše); `validations` po `id`.
+ * Ne nasljeđuju se: `meta.notes` (napomena opisuje točno taj paket) i provjere s pravilom `package.extends == null`
+ * (vrijede samo za korijenski paket); izvori djeteta navode se prije izvora roditelja.
  */
 export function mergePackages(base: ProgrammePackage, child: ProgrammePackage): ProgrammePackage {
   return {
     ...base,
     ...child,
-    meta: { ...base.meta, ...child.meta, sources: [...(base.meta.sources ?? []), ...(child.meta.sources ?? [])] },
+    meta: { ...base.meta, ...child.meta, notes: child.meta.notes, sources: [...new Set([...(child.meta.sources ?? []), ...(base.meta.sources ?? [])])] },
     actionTypes: mergeByKey(base.actionTypes, child.actionTypes, 'code'),
     costCategories: mergeCategories(base.costCategories, child.costCategories),
     personnelRule: child.personnelRule ? { ...base.personnelRule, ...child.personnelRule } : base.personnelRule,
@@ -18,7 +20,7 @@ export function mergePackages(base: ProgrammePackage, child: ProgrammePackage): 
     deliverableTypes: child.deliverableTypes ? mergeByKey(base.deliverableTypes ?? [], child.deliverableTypes, 'code') : base.deliverableTypes,
     disseminationLevels: child.disseminationLevels ? mergeByKey(base.disseminationLevels ?? [], child.disseminationLevels, 'code') : base.disseminationLevels,
     consortiumRules: child.consortiumRules ? { ...base.consortiumRules, ...child.consortiumRules } : base.consortiumRules,
-    validations: child.validations ? mergeByKey(base.validations ?? [], child.validations, 'id') : base.validations,
+    validations: mergeByKey((base.validations ?? []).filter((v) => v.rule.replace(/\s/g, '') !== 'package.extends==null'), child.validations, 'id'),
   };
 }
 

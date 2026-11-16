@@ -33,6 +33,9 @@ describe('nasljeđivanje paketa (extends)', () => {
     expect(r.costCategories.some((c) => c.code === 'IST')).toBe(true);
     expect(r.reporting.periodMonths).toBe(6);
     expect(r.reporting.finalReportDeadlineDays).toBe(npoo.reporting.finalReportDeadlineDays);
+    expect(r.meta.notes).toBeUndefined(); // napomena programskog okvira ne prelazi na poziv
+    expect(r.validations?.some((v) => v.id === 'npoo-indirect-default')).toBe(false);
+    expect(r.validations?.some((v) => v.id === 'npoo-up-share')).toBe(true);
     const v = validateProgrammePackage(r);
     expect(v.ok, JSON.stringify(v)).toBe(true);
     expect(computePartnerBudget(r, 'BESPOVRATNA', { OS: 10_000_000, IST: 500_000 }).indirect['NT']).toBe(700_000);

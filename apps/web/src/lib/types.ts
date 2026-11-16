@@ -1,10 +1,16 @@
 export interface Me { user: { id: string; email: string; displayName: string; mfaEnabled: boolean }; tenant: { id: string; slug: string; name: string } | null; permissions: string[] }
-export interface PackageSummary { id: string; packageId: string; version: string; programme: string; status: string; scope: 'global' | 'tenant' }
-export interface Category { code: string; name: string; kind: string; children?: Category[] }
-export interface PackageDetail {
-  meta: { id: string; programme: string; version: string }; actionTypes: { code: string; name: string }[]; costCategories: Category[];
-  deliverableTypes?: { code: string; name: string }[]; disseminationLevels?: { code: string; name: string }[]; _row: PackageSummary;
+export interface PackageSummary { id: string; packageId: string; version: string; programme: string; funder: string | null; status: string; scope: 'global' | 'tenant'; extendsId: string | null; validFrom: string; validTo: string | null; publishedAt: string | null }
+export interface Category { code: string; name: string; kind: string; calculation?: { ratePercent?: number; baseCategories?: string[]; excludeCategories?: string[] }; children?: Category[] }
+export interface ActionType { code: string; name: string; fundingRates: { beneficiaryType: string; ratePercent: number }[] }
+export interface PackageContent {
+  meta: { id: string; extends?: string; programme: string; funder?: string; version: string; status?: string; validFrom: string; validTo?: string; language: string; sources?: string[]; notes?: string };
+  actionTypes: ActionType[]; costCategories: Category[];
+  personnelRule?: { method?: string; divisor?: number; categoryCode?: string; maxUnitsPerYear?: number; timeRecordingRequired?: boolean };
+  reporting: { periodMonths: number; submissionDeadlineDays: number; finalReportDeadlineDays?: number };
+  deliverableTypes?: { code: string; name: string }[]; disseminationLevels?: { code: string; name: string }[];
+  validations?: { id: string; severity: string; rule: string; message: string }[];
 }
+export interface PackageDetail extends PackageContent { _row: PackageSummary }
 export interface Organisation { id: string; name: string; country: string; type: string; nonProfit: boolean; isSelf: boolean; identifiers: { pic?: string; oib?: string } }
 export interface ProjectSummary { id: string; acronym: string; title: string; status: string; role: string; actionType: string; package: { id: string; version: string }; contractNo: string | null; startDate: string | null; durationMonths: number | null; partnerCount: number }
 export interface Partner { id: string; organisationId: string; name: string; country: string; isSelf: boolean; role: string; beneficiaryType: string; orderNo: number }

@@ -4,6 +4,15 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-16
+### Dodano
+- Web: stranica **Paketi programa** – popis globalnih i vlastitih paketa, pregled razriješenih pravila (kategorije sa stablom i izračunom neizravnih, stope po vrsti korisnika, izvještavanje, trošak osoblja, provjere, izvori, verzije), obrazac **Novi paket po pozivu** (roditelj, identifikator poziva → oznaka, stope financiranja, stopa i osnovica neizravnih troškova, metoda i djelitelj troška osoblja, izvještajno razdoblje, dodatne kategorije, poveznica na Upute), napredni JSON način, provjera s prikazom razriješenih pravila, spremanje nacrta, objava, nova verzija, brisanje nacrta.
+- API: `GET /api/programme-packages/rows/:rowId` (izvorni sadržaj za novu verziju), `DELETE /api/programme-packages/rows/:rowId` (samo nacrt); ured za projekte dobiva dozvolu `packages:write`.
+- E2E: paket po pozivu stvara se i objavljuje kroz sučelje (15 koraka).
+### Ispravljeno
+- Nasljeđivanje paketa: napomena roditelja više se ne prenosi na paket po pozivu, izvori poziva navode se prvi, a provjere s pravilom `package.extends == null` vrijede samo za korijenski paket.
+- `run-local.sh`: poslužitelji iz prethodnog e2e pokretanja ostajali su aktivni (gašena je ljuska, ne proces), pa je novo pokretanje moglo testirati stari API; sada `exec` i provjera zauzetosti porta.
+
 ## [0.14.0] - 2026-11-16
 ### Sigurnost
 - Nadograđeni `drizzle-orm` 0.45.2 (SQL injection preko identifikatora, GHSA) i `zod` 4.6.6 (iscrpljivanje memorije) – obje visoke ranjivosti; `pnpm audit --prod --audit-level high` sada ruši CI.

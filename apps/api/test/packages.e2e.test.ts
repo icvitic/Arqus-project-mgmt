@@ -19,6 +19,7 @@ describe('Paketi programa u bazi (e2e)', () => {
     reporting: { periodMonths: 6, submissionDeadlineDays: 30 },
   };
   const http = () => request(app.getHttpServer());
+  const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
   const login = async (slug: string, pw: string) => (await http().post('/api/auth/login').send({ tenantSlug: slug, email: `a@${slug}.hr`, password: pw }).expect(201)).body.accessToken as string;
 
   beforeAll(async () => {
@@ -61,6 +62,23 @@ describe('Paketi programa u bazi (e2e)', () => {
     const listB = await http().get('/api/programme-packages').set('Authorization', `Bearer ${tokenB}`).expect(200);
     expect(listB.body.every((p: { scope: string }) => p.scope === 'global')).toBe(true);
     await http().post(`/api/programme-packages/${created.body.id}/publish`).set('Authorization', `Bearer ${tokenB}`).expect(404);
+  });
+
+  it('izvorni sadržaj retka, brisanje nacrta (objavljeni 409), ured za projekte smije uređivati pakete', async () => {
+    const list = (await http().get('/api/programme-packages').set(auth(tokenA)).expect(200)).body;
+    const pub = list.find((p: { packageId: string }) => p.packageId === pozivId);
+    const raw = (await http().get(`/api/programme-packages/rows/${pub.id}`).set(auth(tokenA)).expect(200)).body;
+    expect(raw.content.meta.extends).toBe('npoo-2021-2026');
+    expect(raw.content.costCategories).toHaveLength(1); // nerazriješen: samo razlike
+    await http().delete(`/api/programme-packages/rows/${pub.id}`).set(auth(tokenA)).expect(409);
+    const v2 = await http().post('/api/programme-packages').set(auth(tokenA)).send({ ...poziv, meta: { ...poziv.meta, version: '1.1.0' } }).expect(201);
+    await http().get(`/api/programme-packages/rows/${v2.body.id}`).set(auth(tokenB)).expect(404);
+    await http().delete(`/api/programme-packages/rows/${v2.body.id}`).set(auth(tokenB)).expect(404);
+    await http().delete(`/api/programme-packages/rows/${v2.body.id}`).set(auth(tokenA)).expect(200);
+    const office = await http().post('/api/users').set(auth(tokenA)).send({ email: `ured@${slugA}.hr`, displayName: 'Ured za projekte', password: 'zelena-kava-u-podne-27', roleCodes: ['project-office'] }).expect(201);
+    const t = (await http().post('/api/auth/login').send({ tenantSlug: slugA, email: `ured@${slugA}.hr`, password: 'zelena-kava-u-podne-27' }).expect(201)).body.accessToken;
+    await http().post('/api/programme-packages').set(auth(t)).send({ ...poziv, meta: { ...poziv.meta, version: '1.2.0' } }).expect(201);
+    expect(office.body.roles).toEqual(['project-office']);
   });
 
   it('neispravan paket → 400 s popisom problema', async () => {
