@@ -15,6 +15,7 @@ Težina: **L** = samo pisanje/uređivanje dokumenata iz postojećeg znanja; **M*
 | 2026-11-09 | 2 (ručno) | WP0.3 dio 2, v0.2.0 | 4 / 6 | 0 | M | |
 | 2026-11-09 | 3 (ručno) | WP0.4 domenski model, v0.3.0 | 0 / 0 | 0 | L | |
 | 2026-11-09 | 3 (nastavak) | skripta verzija + preglednik, test u pregledniku, v0.3.1 | 0 / 0 | 0 | M | |
+| 2026-11-16 | 5 (nastavak 2) | WP1.4 radar poziva (API, web, e2e); v0.16.0 | 0 / 0 | 0 | H | |
 | 2026-11-16 | 5 (nastavak) | sučelje za pakete po pozivu, ispravak nasljeđivanja, e2e; v0.15.0 | 0 / 0 | 0 | H | |
 | 2026-11-16 | 5 (ručno) | WP1.2b sesije, MFA, politika lozinki, korisnici u sučelju; nadogradnja ovisnosti; v0.14.0 | 0 / 0 | 0 | H | |
 | 2026-11-10 | 4 (nastavak 3) | objava paketa HE/NPOO; WP1.9 Docker, compose, sigurnost, upute; e2e nad kontejnerom; v0.13.0 | 2 / 4 (3 neuspjela: 403, 503, 429) | 0 | H | |

@@ -1,8 +1,9 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-16 · **Verzija:** v0.15.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-16 · **Verzija:** v0.16.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- WP1.4 (v0.16.0): radar poziva – pozivi s rokovima i statusom, ocjena prikladnosti, odluka go/no-go s poviješću, nadolazeći rokovi; web stranica Radar poziva.
 - v0.15.0: sučelje za pakete po pozivu (obrazac nasljeđivanja, JSON način, provjera, objava, verzije); ispravak nasljeđivanja napomena i provjera; pouzdaniji e2e. Ured za projekte može sam dodavati NPOO/PKK pozive.
 - WP1.2b (v0.14.0): politika lozinki, sesije s opozivom, MFA (TOTP), korisnici i uloge u sučelju, zaštita podataka o plaćama, `pnpm audit` u CI-ju; nadograđeni drizzle-orm i zod zbog visokih ranjivosti. 100 testova + e2e (14 koraka).
 - Odgovori Ivana (2026-11-10): pilot-institucija još ne postoji; EU pružatelj nije odabran; HE i NPOO paketi smiju se objaviti.
@@ -30,9 +31,9 @@
 - WP1.9 – čeka odabir pružatelja i pilot-institucije (instalacija za ~1 sat prema `docs/PILOT-INSTALACIJA.md`) i vanjski penetracijski test.
 
 ## Sljedeće
-1. WP1.4 – radar poziva: pozivi (globalni i vlastiti), rokovi, ocjena prikladnosti, odluka go/no-go.
-2. WP1.5 – prijava: konzorcij, struktura rada i proračun prijave po paketu, predaja, ishod, ugovaranje u projekt (ADR-0006).
-3. Dokumenti (M9): dokazi uz troškove i isporuke (S3/MinIO).
+1. WP1.5 – prijava: iz odluke go otvara se prijava na paketu poziva; konzorcij, struktura rada i proračun prijave, provjera spremnosti, predaja, ishod, ugovaranje u projekt (ADR-0006).
+2. Uvoz globalnih poziva s Funding & Tenders portala (javni API) i fondovieu – kao ArQus-ov servis za sve stanare.
+3. Dokumenti (M9): dokazi uz troškove i isporuke.
 4. Kad bude pilot-institucije: OIDC, instalacija, penetracijski test.
 
 ## Otvorena pitanja za Ivana

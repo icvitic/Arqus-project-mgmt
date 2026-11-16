@@ -22,6 +22,14 @@ export const date = (iso: string | null | undefined): string => {
   return `${d}. ${m}. ${y}.`;
 };
 
+/** ISO vrijeme → "22. 04. 2027. 17:00" u lokalnoj zoni preglednika. */
+export const dateTime = (iso: string | null | undefined): string => {
+  if (!iso) return '–';
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}. ${p(d.getMonth() + 1)}. ${d.getFullYear()}. ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 /** Sati u obliku "7,5" ili "7.5" → minute; prazno → 0; neispravno → null. */
 export function parseHours(input: string): number | null {
   const s = input.trim().replace(',', '.');
@@ -41,6 +49,6 @@ export const TRANSITIONS: Record<string, string[]> = {
 export const GENERIC_STATUS: Record<string, string> = {
   draft: 'nacrt', submitted: 'predan', approved: 'odobren', locked: 'zaključan', none: 'nema', partially_approved: 'djelomično odobren', rejected: 'odbijen',
   planned: 'planirano', in_progress: 'u izradi', accepted: 'prihvaćeno', done: 'gotovo', cancelled: 'otkazano', achieved: 'ostvareno', missed: 'propušteno',
-  open: 'otvoren', mitigated: 'ublažen', occurred: 'nastupio', recorded: 'evidentiran', claimed: 'u zahtjevu', invited: 'pozvan', disabled: 'deaktiviran', published: 'objavljen', deprecated: 'zastario',
+  open: 'otvoren', mitigated: 'ublažen', occurred: 'nastupio', recorded: 'evidentiran', claimed: 'u zahtjevu', invited: 'pozvan', disabled: 'deaktiviran', published: 'objavljen', deprecated: 'zastario', announced: 'najavljen', go: 'go', no_go: 'no-go', watch: 'pratimo',
 };
 export const label = (s: string): string => PROJECT_STATUS[s] ?? GENERIC_STATUS[s] ?? s;

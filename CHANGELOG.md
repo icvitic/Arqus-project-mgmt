@@ -4,6 +4,15 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-16
+### Dodano
+- WP1.4 radar poziva: tablice `calls` (globalni `tenant_id NULL` vidljivi svima, vlastiti po stanaru; rokovi s vremenskom zonom) i `call_tracking` (po stanaru: ocjena prikladnosti, odluka, interni rok, odgovorna osoba), migracije 0012/0013 s RLS-om.
+- REST `/api/calls`: popis s filtrima (status, pretraga, praćeni) i poretkom po najbližem roku, detalj s poviješću ocjena i odluka (iz revizije), unos i izmjena vlastitog poziva (globalni se ne mijenja), `PUT /:id/assessment`, `PUT /:id/decision`, `GET /deadlines?days=` (rokovi praćenih poziva i interni rokovi).
+- Pravila: status (najavljen/otvoren/zatvoren/otkazan) iz otvaranja i rokova predaje (dvofazni pozivi, info-dan ne zatvara poziv); ocjena 1–5 po četiri kriterija → postotak i preporuka (≥ 70 % go, ≥ 50 % razmotriti); go i no-go traže obrazloženje; go nije moguć na zatvorenom ili otkazanom pozivu.
+- `@arqus/domain`: `callStatus`, `nextDeadline`, `daysUntil` (kalendarski dani), `fitScore`.
+- Web: stranica **Radar poziva** – nadolazeći rokovi s odbrojavanjem, popis s filtrima, obrazac za novi poziv (lokalno vrijeme → ISO s zonom), detalj s ocjenom (klizači i preporuka uživo), odlukom i poviješću.
+- E2E (16 koraka): novi poziv, ocjena 75 %, odluka go, poziv u nadolazećim rokovima.
+
 ## [0.15.0] - 2026-11-16
 ### Dodano
 - Web: stranica **Paketi programa** – popis globalnih i vlastitih paketa, pregled razriješenih pravila (kategorije sa stablom i izračunom neizravnih, stope po vrsti korisnika, izvještavanje, trošak osoblja, provjere, izvori, verzije), obrazac **Novi paket po pozivu** (roditelj, identifikator poziva → oznaka, stope financiranja, stopa i osnovica neizravnih troškova, metoda i djelitelj troška osoblja, izvještajno razdoblje, dodatne kategorije, poveznica na Upute), napredni JSON način, provjera s prikazom razriješenih pravila, spremanje nacrta, objava, nova verzija, brisanje nacrta.

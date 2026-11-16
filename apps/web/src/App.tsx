@@ -9,6 +9,7 @@ import { Organisations } from './pages/Organisations';
 import { Users } from './pages/Users';
 import { Account } from './pages/Account';
 import { Packages } from './pages/Packages';
+import { Radar } from './pages/Radar';
 import { Loading } from './ui';
 
 export function App() {
@@ -32,6 +33,7 @@ export function App() {
       <header className="top">
         <div className="brand">ArQus Projekti<small>{me.tenant?.name}</small></div>
         <nav>
+          <a href="#/radar" className={page === 'radar' ? 'active' : ''}>Radar poziva</a>
           <a href="#/projekti" className={page === 'projekti' ? 'active' : ''}>Projekti</a>
           <a href="#/organizacije" className={page === 'organizacije' ? 'active' : ''}>Organizacije</a>
           <a href="#/paketi" className={page === 'paketi' ? 'active' : ''}>Paketi programa</a>
@@ -45,6 +47,7 @@ export function App() {
         {page === 'organizacije' ? <Organisations me={me} />
           : page === 'korisnici' ? <Users me={me} />
           : page === 'paketi' ? <Packages me={me} route={route} />
+          : page === 'radar' ? <Radar me={me} route={route} />
           : page === 'racun' ? <Account me={me} reloadMe={loadMe} />
           : id ? <ProjectDetail id={id} tab={tab ?? 'pregled'} me={me} />
           : <Projects me={me} />}

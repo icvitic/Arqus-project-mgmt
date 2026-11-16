@@ -444,6 +444,56 @@ export const expenses = pgTable('expenses', {
   check('expenses_claim_status_ck', sql`(status = 'recorded') = (claim_id is null)`),
 ]);
 
+/* ---------- M3 Radar poziva ---------- */
+/** Poziv: globalni (tenant_id NULL, uvoz iz javnih izvora) ili vlastiti stanara (ručni unos). Rokovi u JSON-u (vrsta, vrijeme s vremenskom zonom). */
+export const calls = pgTable('calls', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').references(() => tenants.id),
+  code: text('code').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary'),
+  programme: text('programme').notNull(),
+  funder: text('funder'),
+  packageId: text('package_id'),
+  actionTypes: text('action_types').array().notNull().default(sql`'{}'::text[]`),
+  budgetCents: bigint('budget_cents', { mode: 'number' }),
+  expectedGrants: integer('expected_grants'),
+  opensAt: date('opens_at', { mode: 'string' }),
+  deadlines: jsonb('deadlines').$type<{ kind: string; at: string; label?: string }[]>().notNull().default([]),
+  url: text('url'),
+  tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
+  cancelled: boolean('cancelled').notNull().default(false),
+  ...audited,
+}, (t) => [
+  uniqueIndex('calls_tenant_code_uq').on(t.tenantId, t.code).where(sql`tenant_id is not null`),
+  uniqueIndex('calls_global_code_uq').on(t.code).where(sql`tenant_id is null`),
+]);
+
+/** Praćenje poziva u instituciji: ocjena prikladnosti, odluka go/no-go, interni rok, odgovorna osoba. Povijest promjena u reviziji. */
+export type CallDecision = 'go' | 'no_go' | 'watch';
+export const callTracking = pgTable('call_tracking', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  callId: uuid('call_id').notNull().references(() => calls.id, { onDelete: 'cascade' }),
+  fitScores: jsonb('fit_scores').$type<Record<string, number>>(),
+  fitTotal: integer('fit_total'),
+  fitComment: text('fit_comment'),
+  assessedBy: uuid('assessed_by'),
+  assessedAt: timestamp('assessed_at', { withTimezone: true }),
+  decision: text('decision').$type<CallDecision>(),
+  rationale: text('rationale'),
+  decidedBy: uuid('decided_by'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  internalDeadline: date('internal_deadline', { mode: 'string' }),
+  ownerUserId: uuid('owner_user_id'),
+  ...audited,
+}, (t) => [
+  uniqueIndex('call_tracking_uq').on(t.tenantId, t.callId),
+  foreignKey({ name: 'call_tracking_owner_fk', columns: [t.tenantId, t.ownerUserId], foreignColumns: [users.tenantId, users.id] }),
+  check('call_tracking_fit_ck', sql`fit_total is null or fit_total between 0 and 100`),
+]);
+
+export type CallRow = typeof calls.$inferSelect;
 export type WorkPackage = typeof workPackages.$inferSelect;
 export type Deliverable = typeof deliverables.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;
