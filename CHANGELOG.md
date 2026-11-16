@@ -4,6 +4,15 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-16
+### Dodano
+- WP1.5 prijave (M5, ADR-0006): tablice `proposals`, `proposal_members`, `proposal_work_packages`, `proposal_budget_lines` s kompozitnim FK-ovima po stanaru, migracije 0014/0015 s RLS-om.
+- REST `/api/proposals`: popis, detalj (konzorcij, radni paketi, proračun izračunat iz paketa, spremnost), nova prijava, `POST /api/calls/:id/proposal` (samo nakon odluke go; paket i vrsta akcije iz poziva; jedna aktivna prijava po pozivu), članovi (vlastita organizacija automatski, potvrda sudjelovanja), radni paketi unutar trajanja, proračun član × kategorija s provjerom paketa, zaključavanje i otključavanje (nova verzija), prijelazi statusa, predaja (samo iz interne provjere i uz ispunjenu spremnost; snimka proračuna), ishod (financirana / rezervna lista / odbijena), ugovaranje.
+- Ugovaranje: financirana prijava stvara projekt s partnerima, radnim paketima i proračunom v1 (nacrt) kopiranim iz prijave; projekt pamti izvornu prijavu, prijava ostaje arhiv predane verzije.
+- `@arqus/domain`: statusi i prijelazi prijave, `proposalReadiness` (konzorcij prema pravilima paketa, potvrde, radni paket, proračun unesen i zaključan, voditelj, poziv otvoren).
+- Web: stranica **Prijave** – popis, nova prijava, detalj s fazama, spremnošću, tijekom (predaja, ishod, ugovaranje), konzorcijem, strukturom rada i tablicom proračuna; na radaru gumb „Otvori prijavu” nakon odluke go (ili poveznica na postojeću prijavu).
+- E2E (16 koraka): projekt više ne nastaje izravno – prijava se otvara iz radara, puni, predaje, dobiva ishod i ugovara u projekt, a zatim slijede aktivacija, timesheet, trošak i ZNS.
+
 ## [0.16.0] - 2026-11-16
 ### Dodano
 - WP1.4 radar poziva: tablice `calls` (globalni `tenant_id NULL` vidljivi svima, vlastiti po stanaru; rokovi s vremenskom zonom) i `call_tracking` (po stanaru: ocjena prikladnosti, odluka, interni rok, odgovorna osoba), migracije 0012/0013 s RLS-om.

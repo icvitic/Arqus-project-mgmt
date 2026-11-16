@@ -494,6 +494,92 @@ export const callTracking = pgTable('call_tracking', {
 ]);
 
 export type CallRow = typeof calls.$inferSelect;
+
+/* ---------- M5 Prijava (ADR-0006: zaseban agregat; ugovaranje kopira u projekt) ---------- */
+export type ProposalStatusCol = 'idea' | 'preparation' | 'internal_review' | 'submitted' | 'in_evaluation' | 'funded' | 'reserve' | 'rejected' | 'withdrawn' | 'contracted';
+export const proposals = pgTable('proposals', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  callId: uuid('call_id').references(() => calls.id),
+  packageRowId: uuid('package_row_id').notNull().references(() => programmePackages.id),
+  packageId: text('package_id').notNull(),
+  packageVersion: text('package_version').notNull(),
+  actionType: text('action_type').notNull(),
+  acronym: text('acronym').notNull(),
+  title: text('title').notNull(),
+  role: text('role').$type<'coordinator' | 'partner'>().notNull().default('coordinator'),
+  leadUserId: uuid('lead_user_id'),
+  status: text('status').$type<ProposalStatusCol>().notNull().default('idea'),
+  durationMonths: integer('duration_months').notNull().default(36),
+  internalDeadline: date('internal_deadline', { mode: 'string' }),
+  budgetVersion: integer('budget_version').notNull().default(1),
+  budgetLocked: boolean('budget_locked').notNull().default(false),
+  submission: jsonb('submission').$type<Record<string, unknown>>(),
+  outcome: jsonb('outcome').$type<{ result: string; score?: string; note?: string; at: string }>(),
+  projectId: uuid('project_id'),
+  ...audited,
+}, (t) => [
+  unique('proposals_tenant_id_uq').on(t.tenantId, t.id),
+  index('proposals_status_idx').on(t.tenantId, t.status),
+  foreignKey({ name: 'proposals_lead_fk', columns: [t.tenantId, t.leadUserId], foreignColumns: [users.tenantId, users.id] }),
+  foreignKey({ name: 'proposals_project_fk', columns: [t.tenantId, t.projectId], foreignColumns: [projects.tenantId, projects.id] }),
+  check('proposals_duration_ck', sql`duration_months between 1 and 120`),
+]);
+
+const proposalFk = (name: string, t: { tenantId: unknown; proposalId: unknown }) =>
+  foreignKey({ name, columns: [t.tenantId as never, t.proposalId as never], foreignColumns: [proposals.tenantId, proposals.id] }).onDelete('cascade');
+
+export const proposalMembers = pgTable('proposal_members', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  proposalId: uuid('proposal_id').notNull(),
+  organisationId: uuid('organisation_id').notNull(),
+  role: text('role').$type<'coordinator' | 'partner' | 'associated' | 'third_party'>().notNull().default('partner'),
+  beneficiaryType: text('beneficiary_type').notNull().default('default'),
+  confirmed: boolean('confirmed').notNull().default(false),
+  orderNo: integer('order_no').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+}, (t) => [
+  unique('proposal_members_tenant_id_uq').on(t.tenantId, t.id),
+  uniqueIndex('proposal_members_uq').on(t.proposalId, t.organisationId),
+  proposalFk('proposal_members_proposal_fk', t),
+  foreignKey({ name: 'proposal_members_org_fk', columns: [t.tenantId, t.organisationId], foreignColumns: [organisations.tenantId, organisations.id] }),
+]);
+
+export const proposalWorkPackages = pgTable('proposal_work_packages', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  proposalId: uuid('proposal_id').notNull(),
+  number: integer('number').notNull(),
+  title: text('title').notNull(),
+  leadMemberId: uuid('lead_member_id'),
+  startMonth: integer('start_month').notNull(),
+  endMonth: integer('end_month').notNull(),
+  personMonths: integer('person_months').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('proposal_wp_number_uq').on(t.proposalId, t.number),
+  proposalFk('proposal_wp_proposal_fk', t),
+  foreignKey({ name: 'proposal_wp_lead_fk', columns: [t.tenantId, t.leadMemberId], foreignColumns: [proposalMembers.tenantId, proposalMembers.id] }),
+  check('proposal_wp_months_ck', sql`start_month >= 1 and end_month >= start_month and person_months >= 0`),
+]);
+
+export const proposalBudgetLines = pgTable('proposal_budget_lines', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  proposalId: uuid('proposal_id').notNull(),
+  memberId: uuid('member_id').notNull(),
+  categoryCode: text('category_code').notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('proposal_budget_lines_idx').on(t.proposalId),
+  proposalFk('proposal_budget_proposal_fk', t),
+  foreignKey({ name: 'proposal_budget_member_fk', columns: [t.tenantId, t.memberId], foreignColumns: [proposalMembers.tenantId, proposalMembers.id] }).onDelete('cascade'),
+  check('proposal_budget_amount_ck', sql`amount_cents >= 0`),
+]);
+export type Proposal = typeof proposals.$inferSelect;
 export type WorkPackage = typeof workPackages.$inferSelect;
 export type Deliverable = typeof deliverables.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;

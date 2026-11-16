@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { api } from '../lib/api';
 import { date, dateTime, eur, label, parseEur } from '../lib/format';
 import { go, useLoad } from '../lib/hooks';
-import type { CallDetail, CallSummary, Me, PackageSummary, UpcomingDeadline, UserRow } from '../lib/types';
+import type { CallDetail, CallSummary, Me, PackageDetail, PackageSummary, ProposalSummary, UpcomingDeadline, UserRow } from '../lib/types';
 import { ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
 
 const can = (me: Me, p: string) => me.permissions.includes('*') || me.permissions.includes(p);
@@ -173,7 +173,7 @@ function CallView({ me, id }: { me: Me; id: string }) {
               <Field label="Odgovorna osoba"><select value={d.ownerUserId} onChange={(e) => setDec({ ...d, ownerUserId: e.target.value })}><option value="">–</option>{users.data?.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}</select></Field>
             </ActionForm>
           ) : <p className="muted">Odluku donosi ured za projekte.</p>}
-          {t?.decision === 'go' && <p className="muted">Prijava na poziv otvara se u modulu Prijave (WP1.5).</p>}
+          {t?.decision === 'go' && <OpenProposal me={me} call={c} />}
         </div>
         <div className="card scroll"><h2>Povijest</h2>
           {c.history.length === 0 ? <p className="muted">Još nema ocjena ni odluka.</p> : (
@@ -185,5 +185,25 @@ function CallView({ me, id }: { me: Me; id: string }) {
         </div>
       </div>
     </>
+  );
+}
+
+function OpenProposal({ me, call }: { me: Me; call: CallDetail }) {
+  const list = useLoad(() => (can(me, 'proposals:read') ? api<ProposalSummary[]>('GET', '/proposals') : Promise.resolve([] as ProposalSummary[])), [call.id]);
+  const [f, setF] = useState({ acronym: '', title: call.title, durationMonths: '36', actionType: call.actionTypes[0] ?? '' });
+  const pkg = useLoad(() => (call.packageId && call.actionTypes.length === 0 ? api<PackageDetail>('GET', `/programme-packages/${encodeURIComponent(call.packageId)}`) : Promise.resolve(null)), [call.packageId]);
+  const actions = call.actionTypes.length ? call.actionTypes : pkg.data?.actionTypes.map((a) => a.code) ?? [];
+  const existing = list.data?.filter((p) => p.callId === call.id && !['withdrawn', 'rejected'].includes(p.status)) ?? [];
+  if (!list.data) return null;
+  if (existing[0]) return <p>Prijava: <a href={`#/prijave/${existing[0].id}`}><b>{existing[0].acronym}</b></a> <Chip s={existing[0].status} /></p>;
+  if (!can(me, 'proposals:write')) return null;
+  if (!call.packageId) return <p className="muted">Za otvaranje prijave iz poziva pozivu dodijeli paket programa.</p>;
+  return (
+    <ActionForm submit="Otvori prijavu" onSubmit={async () => { const p = await api<{ id: string }>('POST', `/calls/${call.id}/proposal`, { acronym: f.acronym, title: f.title, durationMonths: Number(f.durationMonths), actionType: f.actionType }); go(`prijave/${p.id}`); }}>
+      <Field label="Akronim prijave"><input value={f.acronym} onChange={(e) => setF({ ...f, acronym: e.target.value })} required /></Field>
+      <Field label="Naslov prijave"><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required /></Field>
+      <Field label="Vrsta akcije"><select value={f.actionType} onChange={(e) => setF({ ...f, actionType: e.target.value })} required><option value="">– odaberi –</option>{actions.map((a) => <option key={a} value={a}>{a}</option>)}</select></Field>
+      <Field label="Trajanje (mjeseci)"><input type="number" min={1} max={120} value={f.durationMonths} onChange={(e) => setF({ ...f, durationMonths: e.target.value })} /></Field>
+    </ActionForm>
   );
 }

@@ -1,5 +1,5 @@
 /* E2E provjera web sučelja na pravom API-ju (Playwright). Pokretanje: apps/web/e2e/run-local.sh
- * Tok: prijava → organizacija → projekt → partner → radni paket → proračun → aktivacija → tim i timesheet (predaja, odobrenje)
+ * Tok: prijava → paket → radar (go) → organizacija → prijava na poziv (konzorcij, RP, proračun, predaja, ishod) → ugovaranje u projekt → aktivacija → tim i timesheet (predaja, odobrenje)
  *      → trošak → ZNS (otvaranje, predaja) → ugovoreno/ostvareno. Bilježi greške konzole i neuspjele zahtjeve. */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
@@ -89,36 +89,50 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Dodaj' }).click();
     await page.getByRole('cell', { name: `Politecnico di Milano ${tag}` }).waitFor();
   });
-  await step('novi projekt', async () => {
-    await page.getByRole('link', { name: 'Projekti' }).click();
-    await page.getByRole('button', { name: 'Novi projekt' }).click();
-    await page.getByLabel('Akronim').fill(`E2E${tag}`.slice(0, 20));
-    await page.getByLabel('Naslov').fill('Projekt iz e2e testa');
-    await page.getByLabel('Paket programa').selectOption(pkgId);
+  await step('prijava iz radara (odluka go)', async () => {
+    await page.getByRole('link', { name: 'Radar poziva' }).click();
+    await page.getByRole('cell', { name: new RegExp(`NPOO.E2E.${tag}`) }).first().click();
+    await page.getByLabel('Akronim prijave').fill(`E2E${tag}`.slice(0, 20));
+    await page.getByLabel('Naslov prijave').fill('Projekt iz e2e testa');
     await page.getByLabel('Vrsta akcije').selectOption('BESPOVRATNA');
-    await page.getByLabel('Broj ugovora').fill(`UG-${tag}`);
-    await page.getByLabel('Početak').fill('2027-01-01');
     await page.getByLabel('Trajanje (mjeseci)').fill('12');
-    await page.getByRole('button', { name: 'Stvori projekt' }).click();
-    await page.getByRole('tab', { name: 'Pregled' }).waitFor();
+    await page.getByRole('button', { name: 'Otvori prijavu' }).click();
+    await page.getByRole('heading', { name: 'Spremnost za predaju' }).waitFor();
   });
-  await step('partner', async () => {
+  await step('prijava: konzorcij i struktura rada', async () => {
     await page.getByLabel('Organizacija').selectOption({ label: `Politecnico di Milano ${tag} (IT)` });
-    await page.getByRole('button', { name: 'Dodaj partnera' }).click();
-    await page.getByRole('heading', { name: 'Partneri (2)' }).waitFor();
-  });
-  await step('radni paket', async () => {
-    await page.getByRole('tab', { name: 'Struktura rada' }).click();
-    await page.getByLabel('Naziv').first().fill('Istraživanje');
+    await page.getByRole('button', { name: 'Dodaj člana' }).click();
+    await page.getByRole('button', { name: 'Potvrdi', exact: true }).click();
+    await page.getByText('potvrđeno').nth(1).waitFor();
+    await page.getByLabel('Naslov radnog paketa').fill('Istraživanje');
     await page.getByRole('button', { name: 'Dodaj radni paket' }).click();
-    await page.getByRole('heading', { name: /WP1 Istraživanje/ }).waitFor();
+    await page.getByRole('cell', { name: 'WP1', exact: true }).waitFor();
   });
-  await step('proračun (neizravni iz paketa)', async () => {
-    await page.getByRole('tab', { name: 'Proračun' }).click();
-    const row = page.locator('tbody tr').first();
-    await row.locator('input[aria-label$=" OS"]').fill('20.000');
-    await row.locator('input[aria-label$=" VU"]').fill('10000,00');
+  await step('prijava: proračun i spremnost', async () => {
+    await page.locator('input[aria-label$=" OS"]').first().fill('20.000');
+    await page.locator('input[aria-label$=" VU"]').first().fill('10000,00');
     await page.getByRole('button', { name: 'Spremi proračun' }).click();
+    await page.locator('tfoot').getByText(/33\.000,00/).first().waitFor();
+    await page.getByRole('button', { name: 'Zaključaj proračun' }).click();
+    await page.getByText('spremna', { exact: true }).waitFor();
+    await shot('prijava');
+  });
+  await step('prijava: predaja, ishod, ugovaranje u projekt', async () => {
+    await page.getByRole('button', { name: 'Započni pripremu' }).click();
+    await page.getByRole('button', { name: 'Pošalji na internu provjeru' }).click();
+    await page.getByLabel('Referentni broj prijave').fill(`REF-${tag}`);
+    await page.getByRole('button', { name: 'Evidentiraj predaju' }).click();
+    await page.locator('h1 .chip', { hasText: 'predan' }).waitFor();
+    await page.getByRole('button', { name: 'U evaluaciji' }).click();
+    await page.getByLabel('Ishod evaluacije').selectOption('funded');
+    await page.getByRole('button', { name: 'Upiši ishod' }).click();
+    await page.locator('h1 .chip', { hasText: 'financirana' }).waitFor();
+    await page.getByLabel('Broj ugovora').fill(`UG-${tag}`);
+    await page.getByLabel('Početak projekta').fill('2027-01-01');
+    await page.getByRole('button', { name: 'Ugovori u projekt' }).click();
+    await page.getByRole('tab', { name: 'Pregled' }).waitFor();
+    await page.getByRole('heading', { name: 'Partneri (2)' }).waitFor();
+    await page.getByRole('tab', { name: 'Proračun' }).click();
     await page.locator('tfoot').getByText(/33\.000,00/).first().waitFor();
     await shot('proracun');
   });

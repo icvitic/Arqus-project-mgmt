@@ -25,7 +25,7 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [x] **WP1.3b** Sučelje za pakete po pozivu: popis, pregled razriješenih pravila, obrazac nasljeđivanja (stope, neizravni, osoblje, razdoblja, dodatne kategorije), JSON način, provjera, objava, nove verzije (v0.15.0)
 - [x] **WP1.3** Paketi programa u bazi: globalni + stanarski, verzije i status, uvoz iz `docs/domena/paketi`, validacija, nasljeđivanje (`extends`) za paket po pozivu, objava; ESLint (v0.8.0)
 - [x] **WP1.4** Radar poziva i go/no-go: pozivi (globalni i vlastiti) s rokovima i automatskim statusom, ocjena prikladnosti, odluka s obrazloženjem, interni rok i odgovorna osoba, povijest, nadolazeći rokovi (v0.16.0); uvoz s Funding & Tenders portala – zaseban korak
-- [ ] **WP1.5** Prijava i proračun prijave, konzorcij
+- [x] **WP1.5** Prijava i proračun prijave, konzorcij: iz odluke go, spremnost, predaja, ishod, ugovaranje u projekt s kopijom partnera, radnih paketa i proračuna (v0.17.0)
 - [x] **WP1.6** Projekt: registar organizacija, projekt vezan uz verziju paketa, partneri, prijelazi statusa, izvještajna razdoblja iz paketa (v0.9.0); pretvorba prijave u projekt dolazi s WP1.5
 - [x] **WP1.7** Tehnička provedba (WP, zadaci, isporuke, prekretnice, rizici) i proračun projekta s izračunom iz paketa (v0.10.0); portfelj → uz web sučelje
 - [x] **WP1.8** Troškovi, timesheetovi i zahtjevi za nadoknadu (ZNS) – prebačeno iz WP2.1 (WP0.7) (v0.11.0)
