@@ -40,7 +40,7 @@ pnpm typecheck && pnpm lint && pnpm test
 
 ## Web sučelje
 `pnpm dev` diže API (3000) i web (5173, proxy `/api`). Prijava: oznaka institucije `demo`, `admin@demo.local` / `Demo-lozinka-1` (nakon `db:seed`).
-Za pilot je potreban objavljen paket programa (vidi otvoreno pitanje u STATUS-u); stanarski paket po pozivu stvara se kroz `POST /api/programme-packages` + `/publish`.
+Pakete po pozivu ured za projekte stvara u izborniku **Paketi programa → Novi paket po pozivu** (nasljeđuje programski paket, provjera prije spremanja, objava).
 
 ## E2E provjera u pregledniku
 ```bash

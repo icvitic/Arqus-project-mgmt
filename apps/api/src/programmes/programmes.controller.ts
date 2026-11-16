@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ProgrammePackagesService } from './programme-packages.service';
 import { RequirePermission } from '../identity/auth.guard';
 import { DbService } from '../db/db.service';
@@ -19,6 +19,12 @@ export class ProgrammesController {
 
   @Post(':rowId/publish') @RequirePermission('packages:write')
   publish(@Param('rowId') rowId: string) { const c = this.ctx.require(); return this.db.tx((tx) => this.packages.publish(tx, c.tenantId, rowId, c.userId)); }
+
+  @Get('rows/:rowId') @RequirePermission('packages:read')
+  raw(@Param('rowId', ParseUUIDPipe) rowId: string) { return this.db.tx((tx) => this.packages.raw(tx, rowId)); }
+
+  @Delete('rows/:rowId') @RequirePermission('packages:write')
+  remove(@Param('rowId', ParseUUIDPipe) rowId: string) { const c = this.ctx.require(); return this.db.tx((tx) => this.packages.removeDraft(tx, c.tenantId, rowId)); }
 
   @Get(':packageId') @RequirePermission('packages:read')
   get(@Param('packageId') packageId: string, @Query('version') version?: string) { return this.db.tx((tx) => this.packages.get(tx, packageId, version)); }

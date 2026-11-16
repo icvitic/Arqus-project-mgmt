@@ -96,6 +96,23 @@ export class ProgrammePackagesService {
     return summary(row);
   }
 
+  /** Izvorni (nerazriješeni) sadržaj retka – za izradu nove verzije paketa po pozivu. */
+  async raw(tx: Tx, rowId: string) {
+    const row = (await tx.select().from(programmePackages).where(and(eq(programmePackages.id, rowId), isNull(programmePackages.deletedAt))))[0];
+    if (!row) throw new NotFoundException('Paket ne postoji');
+    return { row: summary(row), content: row.content };
+  }
+
+  /** Brisanje nacrta stanarskog paketa (objavljeni su nepromjenjivi; nacrt vezan uz projekt → 409 iz ograničenja baze). */
+  async removeDraft(tx: Tx, tenantId: string, rowId: string) {
+    const row = (await tx.select().from(programmePackages).where(and(eq(programmePackages.id, rowId), eq(programmePackages.tenantId, tenantId))))[0];
+    if (!row) throw new NotFoundException('Paket ne postoji ili nije stanarski');
+    if (row.status !== 'draft') throw new ConflictException('Briše se samo nacrt; objavljena verzija je nepromjenjiva');
+    await tx.delete(programmePackages).where(eq(programmePackages.id, rowId));
+    await this.audit.record(tx, { entity: 'programme_package', entityId: rowId, action: 'delete', diff: { before: summary(row) } });
+    return { deleted: true };
+  }
+
   /** Objava: nacrt → objavljen (nepromjenjiv). Prijave i projekti smiju koristiti samo objavljene verzije. */
   async publish(tx: Tx, tenantId: string, rowId: string, actorId?: string): Promise<PackageSummary> {
     const row = (await tx.select().from(programmePackages).where(and(eq(programmePackages.id, rowId), eq(programmePackages.tenantId, tenantId))))[0];
