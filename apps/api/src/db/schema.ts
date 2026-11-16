@@ -579,6 +579,50 @@ export const proposalBudgetLines = pgTable('proposal_budget_lines', {
   foreignKey({ name: 'proposal_budget_member_fk', columns: [t.tenantId, t.memberId], foreignColumns: [proposalMembers.tenantId, proposalMembers.id] }).onDelete('cascade'),
   check('proposal_budget_amount_ck', sql`amount_cents >= 0`),
 ]);
+
+/** M9 Dokumenti: logički dokument vezan uz entitet projekta ili prijave; verzije su nepromjenjive (samo INSERT za aplikaciju). */
+export const documents = pgTable('documents', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id'),
+  proposalId: uuid('proposal_id'),
+  entityType: text('entity_type').$type<'project' | 'expense' | 'deliverable' | 'claim' | 'proposal'>().notNull(),
+  entityId: uuid('entity_id').notNull(),
+  title: text('title').notNull(),
+  kind: text('kind').notNull().default('other'),
+  confidentiality: text('confidentiality').$type<'public' | 'internal' | 'confidential'>().notNull().default('internal'),
+  aiGenerated: boolean('ai_generated').notNull().default(false),
+  currentVersion: integer('current_version').notNull().default(1),
+  ...audited,
+}, (t) => [
+  unique('documents_tenant_id_uq').on(t.tenantId, t.id),
+  index('documents_entity_idx').on(t.entityType, t.entityId),
+  index('documents_project_idx').on(t.projectId),
+  foreignKey({ name: 'documents_project_fk', columns: [t.tenantId, t.projectId], foreignColumns: [projects.tenantId, projects.id] }).onDelete('cascade'),
+  foreignKey({ name: 'documents_proposal_fk', columns: [t.tenantId, t.proposalId], foreignColumns: [proposals.tenantId, proposals.id] }).onDelete('cascade'),
+  check('documents_owner_ck', sql`(project_id is not null) <> (proposal_id is not null)`),
+  check('documents_conf_ck', sql`confidentiality in ('public','internal','confidential')`),
+]);
+
+export const documentVersions = pgTable('document_versions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  documentId: uuid('document_id').notNull(),
+  version: integer('version').notNull(),
+  storageKey: text('storage_key').notNull(),
+  fileName: text('file_name').notNull(),
+  mimeType: text('mime_type').notNull(),
+  sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+  sha256: text('sha256').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+}, (t) => [
+  uniqueIndex('document_versions_doc_ver_uq').on(t.documentId, t.version),
+  foreignKey({ name: 'document_versions_doc_fk', columns: [t.tenantId, t.documentId], foreignColumns: [documents.tenantId, documents.id] }).onDelete('cascade'),
+  check('document_versions_size_ck', sql`size_bytes > 0`),
+]);
+export type DocumentRow = typeof documents.$inferSelect;
 export type Proposal = typeof proposals.$inferSelect;
 export type WorkPackage = typeof workPackages.$inferSelect;
 export type Deliverable = typeof deliverables.$inferSelect;

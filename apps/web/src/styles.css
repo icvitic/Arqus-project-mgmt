@@ -43,3 +43,4 @@ input.cell{width:92px;text-align:right}input.h{width:44px;text-align:center;padd
 @media(max-width:520px){.g2,.g4{grid-template-columns:1fr}}
 .stepper{display:flex;flex-wrap:wrap;gap:4px;list-style:none;padding:0;margin:0 0 14px}.stepper li{padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-size:13px;color:var(--muted)}.stepper li.done{color:var(--fg);border-color:var(--ok)}.stepper li.cur{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
 .checklist{list-style:none;padding:0;margin:0}.checklist li{padding:3px 0}.checklist li.ok{color:var(--ok)}.checklist li.bad{color:var(--bad)}
+.sub-panel{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin:4px 0}

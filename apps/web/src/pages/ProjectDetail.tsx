@@ -9,8 +9,9 @@ import { TimesheetsTab } from '../tabs/Timesheets';
 import { ExpensesTab } from '../tabs/Expenses';
 import { ClaimsTab } from '../tabs/Claims';
 import { FinanceTab } from '../tabs/Finance';
+import { DocumentsTab } from '../tabs/Documents';
 
-const TABS: [string, string][] = [['pregled', 'Pregled'], ['struktura', 'Struktura rada'], ['proracun', 'Proračun'], ['tim', 'Tim i timesheetovi'], ['troskovi', 'Troškovi'], ['zns', 'Zahtjevi za nadoknadu'], ['financije', 'Ugovoreno / ostvareno']];
+const TABS: [string, string][] = [['pregled', 'Pregled'], ['struktura', 'Struktura rada'], ['proracun', 'Proračun'], ['tim', 'Tim i timesheetovi'], ['troskovi', 'Troškovi'], ['zns', 'Zahtjevi za nadoknadu'], ['financije', 'Ugovoreno / ostvareno'], ['dokumenti', 'Dokumenti']];
 
 export interface TabProps { project: Project; pkg: PackageDetail; me: Me; reloadProject: () => Promise<void> }
 export const can = (me: Me, p: string) => me.permissions.includes('*') || me.permissions.includes(p);
@@ -29,7 +30,7 @@ export function ProjectDetail({ id, tab, me }: { id: string; tab: string; me: Me
       <p className="sub">{p.title} · {pkg.data.meta.programme} v{p.package.version} · {p.actionType}</p>
       <div className="tabs" role="tablist">{TABS.map(([k, l]) => <a key={k} role="tab" aria-selected={tab === k} href={`#/projekti/${id}/${k}`} className={tab === k ? 'active' : ''}>{l}</a>)}</div>
       {tab === 'struktura' ? <StructureTab {...props} /> : tab === 'proracun' ? <BudgetTab {...props} /> : tab === 'tim' ? <TimesheetsTab {...props} />
-        : tab === 'troskovi' ? <ExpensesTab {...props} /> : tab === 'zns' ? <ClaimsTab {...props} /> : tab === 'financije' ? <FinanceTab {...props} /> : <Overview {...props} />}
+        : tab === 'troskovi' ? <ExpensesTab {...props} /> : tab === 'zns' ? <ClaimsTab {...props} /> : tab === 'financije' ? <FinanceTab {...props} /> : tab === 'dokumenti' ? <DocumentsTab {...props} /> : <Overview {...props} />}
     </>
   );
 }

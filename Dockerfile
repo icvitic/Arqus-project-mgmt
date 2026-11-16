@@ -19,6 +19,8 @@ COPY --from=build /src/apps/api/drizzle ./drizzle
 COPY --from=build /src/apps/web/dist /app/web
 COPY --from=build /src/docs/domena/paketi /app/paketi
 COPY --from=build /src/VERSION /app/VERSION
+# direktorij dokumenata (volumen preuzima vlasništvo iz slike)
+RUN mkdir -p /data/documents && chown node:node /data/documents && chmod 700 /data/documents
 # neprivilegirani korisnik iz službene slike; PID 1 / signali: `init: true` u compose ili `docker run --init`
 USER node
 EXPOSE 3000

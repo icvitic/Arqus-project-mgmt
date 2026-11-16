@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, ne, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ne, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { budgetLineIssues, computeProjectBudget, flattenCategories } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
@@ -17,9 +17,11 @@ export const expenseInput = z.object({
 });
 export const expensePatch = expenseInput.omit({ partnerId: true }).partial().strict();
 
-const view = (e: typeof expenses.$inferSelect) => ({
+/** Broj aktivnih dokumenata (dokaza) uz trošak; RLS vrijedi i u podupitu. */
+export const evidenceCount = sql<number>`(select count(*)::int from documents d where d.entity_type = 'expense' and d.entity_id = "expenses"."id" and d.deleted_at is null)`;
+const view = (e: typeof expenses.$inferSelect, documents = 0) => ({
   id: e.id, partnerId: e.partnerId, categoryCode: e.categoryCode, workPackageId: e.workPackageId, date: e.date, description: e.description,
-  supplier: e.supplier, amount: e.amountCents, evidenceRef: e.evidenceRef, source: e.source, timesheetId: e.timesheetId, claimId: e.claimId, status: e.status,
+  supplier: e.supplier, amount: e.amountCents, evidenceRef: e.evidenceRef, source: e.source, timesheetId: e.timesheetId, claimId: e.claimId, status: e.status, documents,
 });
 
 /** Evidencija troškova (invarijante 3 i 6) i pregled ugovoreno vs. ostvareno. */
@@ -41,13 +43,13 @@ export class ExpensesService {
   async list(tx: Tx, projectId: string, filter: { status?: string; period?: number } = {}) {
     await loadProject(tx, projectId);
     const conds: (SQL | undefined)[] = [eq(expenses.projectId, projectId), filter.status ? eq(expenses.status, filter.status as never) : undefined];
-    let rows = await tx.select().from(expenses).where(and(...conds)).orderBy(desc(expenses.date), asc(expenses.createdAt));
+    let rows = (await tx.select({ e: expenses, docs: evidenceCount }).from(expenses).where(and(...conds)).orderBy(desc(expenses.date), asc(expenses.createdAt))).map((r) => Object.assign(r.e, { docs: r.docs }));
     if (filter.period) {
       const rp = (await tx.select().from(reportingPeriods).where(and(eq(reportingPeriods.projectId, projectId), eq(reportingPeriods.number, filter.period))))[0];
       if (!rp) throw new NotFoundException(`Razdoblje RP${filter.period} ne postoji`);
       rows = rows.filter((e) => e.date >= rp.startDate && e.date <= rp.endDate);
     }
-    return rows.map(view);
+    return rows.map((e) => view(e, e.docs));
   }
 
   async create(tx: Tx, tenantId: string, projectId: string, input: z.infer<typeof expenseInput>, actorId?: string) {

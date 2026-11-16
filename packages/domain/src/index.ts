@@ -7,3 +7,4 @@ export * from './finance.js';
 export * from './password-policy.js';
 export * from './call.js';
 export * from './proposal.js';
+export * from './documents.js';

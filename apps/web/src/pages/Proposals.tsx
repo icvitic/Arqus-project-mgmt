@@ -4,6 +4,7 @@ import { centsToInput, date, dateTime, eur, label, parseEur } from '../lib/forma
 import { go, useLoad } from '../lib/hooks';
 import { enterable, type Me, type Organisation, type PackageDetail, type PackageSummary, type Proposal, type ProposalSummary, type UserRow } from '../lib/types';
 import { ActionButton, ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
+import { DocumentList } from '../tabs/Documents';
 
 const can = (me: Me, p: string) => me.permissions.includes('*') || me.permissions.includes(p);
 const STEPS = ['idea', 'preparation', 'internal_review', 'submitted', 'in_evaluation', 'funded', 'contracted'];
@@ -100,6 +101,9 @@ function ProposalView({ me, id }: { me: Me; id: string }) {
       <Consortium d={d} editable={editable} set={set} />
       <WorkPlan d={d} editable={editable} set={set} />
       <BudgetGrid d={d} editable={editable} set={set} />
+      <div className="card scroll"><h2>Dokumenti prijave</h2>
+        <DocumentList target={{ entityType: 'proposal', entityId: d.id }} defaultKind="proposal" canWrite={can(me, 'documents:write') && !['contracted', 'withdrawn', 'rejected'].includes(d.status)} />
+      </div>
     </>
   );
 }
