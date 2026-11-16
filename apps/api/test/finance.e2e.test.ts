@@ -46,6 +46,9 @@ describe('Financije: timesheetovi, troškovi, ZNS (e2e)', () => {
     await http().post(`/api/projects/${pid}/transition`).set(auth(A)).send({ to: 'active' }).expect(201);
     const team = await http().get(`/api/projects/${pid}/team`).set(auth(A)).expect(200);
     expect(team.body).toHaveLength(2);
+    expect(team.body.find((t: { id: string }) => t.id === ivana).annualCost).toBe(3_440_000);
+    const asWorker = await http().get(`/api/projects/${pid}/team`).set(auth(worker)).expect(200);
+    expect(asWorker.body.every((t: { annualCost: number | null }) => t.annualCost === null)).toBe(true); // plaće samo uz personnel:read
   });
 
   it('timesheet: djelatnica uređuje svoj, ne tuđi; greške 400, upozorenja vraćena; izvan trajanja 400', async () => {

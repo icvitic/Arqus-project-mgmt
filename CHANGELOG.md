@@ -4,6 +4,21 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-16
+### Sigurnost
+- Nadograđeni `drizzle-orm` 0.45.2 (SQL injection preko identifikatora, GHSA) i `zod` 4.6.6 (iscrpljivanje memorije) – obje visoke ranjivosti; `pnpm audit --prod --audit-level high` sada ruši CI.
+### Dodano
+- WP1.2b: politika lozinki (`passwordIssues` u domeni: ≥ 12 znakova, česte riječi, ponavljanja, nizovi, osobni podaci) pri stvaranju korisnika, resetu i promjeni lozinke.
+- Sesije u bazi (`sessions`, migracije 0010/0011): provjera pri svakom zahtjevu, odjava (`POST /api/auth/logout`) opoziva sesiju; deaktivacija, reset lozinke i MFA opozivaju sve sesije korisnika; dozvole se čitaju svježe pa promjena uloga vrijedi odmah.
+- MFA (TOTP, RFC 6238): `POST /api/me/mfa/setup|enable|disable`, prijava traži kod (`mfaRequired`), tajna šifrirana AES-256-GCM (`MFA_ENCRYPTION_KEY`), zaštita od ponovne upotrebe koda.
+- Administracija: `PATCH /api/users/:id` (ime, stanje, uloge), `POST /api/users/:id/reset-password`, `POST /api/users/:id/reset-mfa`, `GET /api/roles`; zaštita od samodeaktivacije i uklanjanja zadnjeg administratora.
+- Vlastiti račun: `POST /api/me/password` (opoziva ostale sesije).
+- Dozvola `personnel:read`: godišnji trošak osoblja vidljiv samo uredu za projekte, financijama i administratoru.
+- Web: prijava s MFA kodom, stranica **Korisnici** (dodavanje, uloge, deaktivacija, nova lozinka, reset MFA), **Moj račun** (promjena lozinke, postavljanje MFA), odjava na poslužitelju.
+- E2E u pregledniku proširen: administrator stvara korisnika, korisnik postavlja MFA i prijavljuje se s kodom; test sada ruši svaki neočekivani HTTP 4xx/5xx.
+### Ispravljeno
+- Nakon prijave drugog korisnika sučelje je na trenutak učitavalo zadnju stranicu prethodnog korisnika (403) – pronađeno e2e testom.
+
 ## [0.13.0] - 2026-11-10
 ### Dodano
 - WP1.9 (dio neovisan o pružatelju): `Dockerfile` (jedna slika, API poslužuje izgrađeno web sučelje, neprivilegirani korisnik, provjera zdravlja), `infra/prod/docker-compose.yml` (PostgreSQL 16, Caddy s automatskim HTTPS-om, servis za sigurnosne kopije svakih sat uz zadržavanje 14 dana), `infra/prod/backup.sh`, `.env.example`.

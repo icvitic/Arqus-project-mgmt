@@ -2,6 +2,16 @@
  * Tok: prijava → organizacija → projekt → partner → radni paket → proračun → aktivacija → tim i timesheet (predaja, odobrenje)
  *      → trošak → ZNS (otvaranje, predaja) → ugovoreno/ostvareno. Bilježi greške konzole i neuspjele zahtjeve. */
 const { chromium } = require('playwright');
+const { createHmac } = require('node:crypto');
+// TOTP (RFC 6238) za korak MFA u testu.
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function totp(secretB32, offset = 0) {
+  let bits = 0, value = 0; const bytes = [];
+  for (const ch of secretB32.replace(/=+$/, '')) { value = (value << 5) | B32.indexOf(ch); bits += 5; if (bits >= 8) { bytes.push((value >>> (bits - 8)) & 255); bits -= 8; } }
+  const msg = Buffer.alloc(8); msg.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000) + offset));
+  const h = createHmac('sha1', Buffer.from(bytes)).update(msg).digest(); const o = h[h.length - 1] & 15;
+  return String((((h[o] & 127) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3]) % 1e6).padStart(6, '0');
+}
 const WEB = process.env.WEB_URL ?? 'http://localhost:4173';
 const API = process.env.ARQUS_API_URL ?? 'http://localhost:3100';
 const SLUG = process.env.E2E_TENANT ?? 'e2e'; const EMAIL = process.env.E2E_EMAIL ?? 'admin@e2e.local'; const PW = process.env.E2E_PASSWORD ?? 'E2e-lozinka-123';
@@ -24,9 +34,10 @@ async function apiCall(method, path, body, tok) {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const problems = [];
-  page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
+  page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) problems.push(`console: ${m.text()}`); });
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-  page.on('response', (r) => { if (r.url().includes('/api/') && r.status() >= 500) problems.push(`HTTP ${r.status()} ${r.url()}`); });
+  // Neočekivani HTTP odgovori; 401 na prijavi s MFA je očekivan (traži se kod).
+  page.on('response', (r) => { if (r.url().includes('/api/') && r.status() >= 400 && !(r.status() === 401 && r.url().endsWith('/api/auth/login'))) problems.push(`HTTP ${r.status()} ${r.request().method()} ${r.url()}`); });
   page.on('dialog', (d) => d.accept());
   const step = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
@@ -126,6 +137,39 @@ async function apiCall(method, path, body, tok) {
     await page.getByRole('tab', { name: 'Ugovoreno / ostvareno' }).click();
     await page.getByText('iskorištenost proračuna').waitFor();
     await shot('financije');
+  });
+  const newEmail = `ana.${tag}@e2e.local`; const newPw = `plava-staza-${tag}-uz-more`;
+  await step('novi korisnik (administrator)', async () => {
+    await page.getByRole('link', { name: 'Korisnici' }).click();
+    await page.getByLabel('Ime i prezime').fill('Ana Novak');
+    await page.getByLabel('E-adresa').fill(newEmail);
+    await page.getByLabel('Privremena lozinka').fill(newPw);
+    await page.getByRole('button', { name: 'Dodaj korisnika' }).click();
+    await page.getByRole('cell', { name: new RegExp(newEmail.replace('.', '\\.')) }).waitFor();
+  });
+  const relogin = async (email, pw) => {
+    await page.getByRole('button', { name: 'Odjava' }).click();
+    await page.getByText('Prijava u sustav za upravljanje projektima.').waitFor();
+    await page.getByLabel('E-adresa').fill(email);
+    await page.getByLabel('Lozinka').fill(pw);
+    await page.getByRole('button', { name: 'Prijava' }).click();
+  };
+  let secret = '';
+  await step('prijava novog korisnika i postavljanje MFA', async () => {
+    await relogin(newEmail, newPw);
+    await page.getByRole('link', { name: /Ana Novak/ }).click();
+    await page.getByRole('button', { name: 'Postavi MFA' }).click();
+    secret = (await page.locator('code').first().textContent()).trim();
+    await page.getByLabel('Kod iz aplikacije').fill(totp(secret));
+    await page.getByRole('button', { name: 'Uključi MFA' }).click();
+    await page.getByText('MFA je uključen').waitFor();
+    await shot('moj-racun');
+  });
+  await step('prijava s MFA kodom', async () => {
+    await relogin(newEmail, newPw);
+    await page.getByLabel('Kod iz aplikacije za autentikaciju').fill(totp(secret, 1));
+    await page.getByRole('button', { name: 'Potvrdi kod' }).click();
+    await page.getByRole('heading', { name: 'Projekti' }).waitFor();
   });
   await browser.close();
   if (problems.length) { console.error('\nProblemi:\n' + problems.join('\n')); process.exit(1); }

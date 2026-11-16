@@ -2,7 +2,7 @@
 const KEY = 'arqus.token';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public issues: string[] = []) { super(message); }
+  constructor(public status: number, message: string, public issues: string[] = [], public data: unknown = null) { super(message); }
 }
 
 export const token = {
@@ -31,7 +31,7 @@ export async function api<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   if (!res.ok) {
     if (res.status === 401 && path !== '/auth/login') onUnauthorized();
     const msg = (data as { message?: unknown })?.message;
-    throw new ApiError(res.status, typeof msg === 'string' ? msg : Array.isArray(msg) ? msg.join(', ') : `Greška ${res.status}`, issuesOf(data));
+    throw new ApiError(res.status, typeof msg === 'string' ? msg : Array.isArray(msg) ? msg.join(', ') : `Greška ${res.status}`, issuesOf(data), data);
   }
   return data as T;
 }

@@ -25,7 +25,7 @@ export function TimesheetsTab({ project: p, me }: TabProps) {
         <ErrorBox error={team.error} />
         {!team.data ? <Loading /> : (
           <table><thead><tr><th>Ime</th><th>Uloga</th><th>Korisnik</th><th className="num">Godišnji trošak</th></tr></thead>
-            <tbody>{team.data.map((t) => <tr key={t.id}><td>{t.fullName}</td><td>{t.role ?? '–'}</td><td>{t.userId ? (users.data?.find((u) => u.id === t.userId)?.email ?? 'da') : '–'}</td><td className="num">{eur(t.annualCost)}</td></tr>)}
+            <tbody>{team.data.map((t) => <tr key={t.id}><td>{t.fullName}</td><td>{t.role ?? '–'}</td><td>{t.userId ? (users.data?.find((u) => u.id === t.userId)?.email ?? 'da') : '–'}</td><td className="num">{t.annualCost === null ? <span className="muted" title="vidljivo uz dozvolu za troškove osoblja">skriveno</span> : eur(t.annualCost)}</td></tr>)}
               {team.data.length === 0 && <tr><td colSpan={4} className="muted">Još nema članova tima.</td></tr>}</tbody></table>
         )}
         {can(me, 'finance:write') && (

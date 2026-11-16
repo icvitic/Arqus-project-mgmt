@@ -23,6 +23,7 @@ services:
       DB_APP_PASSWORD: ${DB_APP_PASSWORD}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?postavi AUTH_JWT_SECRET (najmanje 32 znaka)}
       AUTH_TOKEN_TTL: ${AUTH_TOKEN_TTL:-8h}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?postavi MFA_ENCRYPTION_KEY}
       TRUST_PROXY: "uniquelocal"
     expose: ["3000"]
   caddy:
