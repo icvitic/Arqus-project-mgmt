@@ -11,3 +11,4 @@ export * from './documents.js';
 export * from './ft-import.js';
 export * from './portfolio.js';
 export * from './claims.js';
+export * from './claim-savings.js';

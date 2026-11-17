@@ -11,6 +11,7 @@ import { assertPartnerOnProject, loadProject } from '../common/project-access';
 import { canOnProject } from '../common/access';
 import { ensureTeamMemberAccess } from '../identity/project-grants';
 import { assertSpendable, projectEnd, selfPartner } from './finance-common';
+import { loadTimesheetRecords, renderTimesheetRecord } from './timesheet-record';
 
 export const memberInput = z.object({
   fullName: z.string().trim().min(2).max(200), userId: z.string().uuid().optional(), partnerId: z.string().uuid().optional(),
@@ -95,6 +96,15 @@ export class TimesheetsService {
       teamMemberId: m.id, fullName: m.fullName, month, id: ts?.id ?? null, status: ts?.status ?? 'none', submittedAt: ts?.submittedAt ?? null, approvedAt: ts?.approvedAt ?? null,
       entries: list, totalMinutes: list.reduce((a, e) => a + e.minutes, 0), warnings: timesheetIssues(month, list).warnings,
     };
+  }
+
+  /** Mjesečna evidencija rada za ispis i potpis (isti dokument kao u paketu ZNS-a, WP1.16b); bez timesheeta – prazna evidencija. */
+  async record(tx: Tx, projectId: string, memberId: string, month: string): Promise<string> {
+    const p = await loadProject(tx, projectId);
+    await this.member(tx, projectId, memberId);
+    const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
+    const [r] = await loadTimesheetRecords(tx, p, pkg.meta.programme, [{ memberId, month }]);
+    return renderTimesheetRecord(r!);
   }
 
   async save(tx: Tx, tenantId: string, projectId: string, memberId: string, month: string, input: z.infer<typeof timesheetInput>, actorId?: string) {

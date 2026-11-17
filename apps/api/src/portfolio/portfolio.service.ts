@@ -1,18 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import {
-  annualProductiveHours, budgetPercent, computeProjectBudget, daysBetween, deadlineCounts, isoToday, lastMonths, mergeDeadlines, monthEndDate,
+  annualProductiveHours, budgetPercent, claimSavings, computeProjectBudget, preparationMeasures, daysBetween, deadlineCounts, isoToday, lastMonths, mergeDeadlines, monthEndDate,
   PIPELINE_STATUSES, personWorkload, progressSignal, successRate, timeProgress, DAILY_HOURS_LIMIT, PROGRESS_THRESHOLD_PP,
   type CallDeadline, type DeadlineInput, type ProgrammePackage, type TeamMemberRef, type WorkDay,
 } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
 import {
   budgetLines, callTracking, calls, deliverables, expenses, milestones, organisations, programmePackages, projectBudgets, projectPartners, projects,
-  proposalBudgetLines, proposalMembers, proposals, reportingPeriods, teamMembers, timesheetEntries, timesheets, workPackages,
+  proposalBudgetLines, proposalMembers, proposals, reimbursementClaims, reportingPeriods, teamMembers, tenants, timesheetEntries, timesheets, workPackages,
 } from '../db/schema';
+import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { TenantContext } from '../common/tenant-context';
 import { canInTenant, canOnProject, projectsWith } from '../common/access';
+import { notSelectedInDraft, strandedExpense } from '../finance/finance-common';
 
 /** Projekt „u provedbi” (aktivni projekti u brojkama portfelja; troškovi se smiju evidentirati). */
 const RUNNING = ['active', 'suspended', 'closing'];
@@ -34,7 +36,50 @@ type Lines = { partnerId: string; categoryCode: string; amount: number }[];
  */
 @Injectable()
 export class PortfolioService {
-  constructor(private readonly packages: ProgrammePackagesService, private readonly ctx: TenantContext) {}
+  constructor(private readonly packages: ProgrammePackagesService, private readonly ctx: TenantContext, private readonly audit: AuditService) {}
+
+  /** Polazna mjera institucije: sati pripreme jednog ZNS-a prije ArQusa (`tenants.settings.claimBaselineHours`). */
+  private async baseline(tx: Tx): Promise<number | null> {
+    const t = (await tx.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.ctx.require().tenantId)))[0];
+    const v = t?.settings?.claimBaselineHours;
+    return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  /**
+   * „Ušteda na ZNS-u” (WP1.16b): za predane zahtjeve svih projekata institucije prosjek prijavljenih sati pripreme prema
+   * polaznoj mjeri, uz automatske mjere (dani do predaje, povrati, broj troškova, dokaza i timesheetova). Samo uz
+   * `portfolio:read` institucije (ruta) – izvještaj obuhvaća sve projekte. Izračun: `claimSavings` u @arqus/domain.
+   */
+  async claimSavings(tx: Tx) {
+    const ctx = this.ctx.require();
+    const baselineHours = await this.baseline(tx);
+    const rows = await tx.select({
+      id: reimbursementClaims.id, projectId: projects.id, acronym: projects.acronym, period: reportingPeriods.number, periodStart: reportingPeriods.startDate, periodEnd: reportingPeriods.endDate,
+      status: reimbursementClaims.status, createdAt: reimbursementClaims.createdAt, submittedAt: reimbursementClaims.submittedAt, minutes: reimbursementClaims.preparationMinutes,
+      expenses: sql<number>`(select count(*)::int from expenses e where e.claim_id = "reimbursement_claims"."id")`,
+      earlier: sql<number>`(select count(*)::int from expenses e where e.claim_id = "reimbursement_claims"."id" and e.date < "reporting_periods"."start_date")`,
+      timesheets: sql<number>`(select count(distinct e.timesheet_id)::int from expenses e where e.claim_id = "reimbursement_claims"."id")`,
+      evidence: sql<number>`(select count(*)::int from documents d join expenses e on e.id = d.entity_id where d.entity_type = 'expense' and d.deleted_at is null and e.claim_id = "reimbursement_claims"."id")`,
+    }).from(reimbursementClaims).innerJoin(reportingPeriods, eq(reportingPeriods.id, reimbursementClaims.reportingPeriodId)).innerJoin(projects, eq(projects.id, reimbursementClaims.projectId))
+      .where(and(ne(reimbursementClaims.status, 'draft'), isNotNull(reimbursementClaims.submittedAt), isNull(projects.deletedAt)))
+      .orderBy(desc(reimbursementClaims.submittedAt));
+    const returns = await this.audit.countByEntity(tx, 'claim', rows.map((r) => r.id), 'decision.returned');
+    const claims = rows.map((r) => {
+      const measures = preparationMeasures({ periodEnd: r.periodEnd, openedAt: r.createdAt.toISOString(), submittedAt: r.submittedAt!.toISOString(), returns: returns.get(r.id) ?? 0, expenses: r.expenses, evidenceFiles: r.evidence, timesheets: r.timesheets, earlierExpenses: r.earlier });
+      return { id: r.id, projectId: r.projectId, acronym: r.acronym, period: r.period, status: r.status, submittedAt: r.submittedAt, reportedHours: r.minutes === null ? null : Math.round((r.minutes / 60) * 100) / 100, reportedMinutes: r.minutes, measures };
+    });
+    return { ...claimSavings(baselineHours, claims), canEditBaseline: canInTenant(ctx, 'tenant:write'), claims: claims.map(({ reportedMinutes: _m, ...c }) => c) };
+  }
+
+  /** Upis polazne mjere (sati po ZNS-u prije ArQusa) – postavka institucije, `tenant:write` (ured za projekte, administrator). */
+  async setBaseline(tx: Tx, hours: number | null, actorId?: string) {
+    const ctx = this.ctx.require();
+    const before = await this.baseline(tx);
+    if (hours === null) await tx.execute(sql`update tenants set settings = settings - 'claimBaselineHours', updated_at = now() where id = ${ctx.tenantId}`);
+    else await tx.execute(sql`update tenants set settings = settings || ${JSON.stringify({ claimBaselineHours: hours })}::jsonb, updated_at = now() where id = ${ctx.tenantId}`);
+    await this.audit.record(tx, { entity: 'tenant', entityId: ctx.tenantId, action: 'settings.update', diff: { before: { claimBaselineHours: before }, after: { claimBaselineHours: hours }, meta: { actorId } } });
+    return this.claimSavings(tx);
+  }
 
   async overview(tx: Tx, opts: { days: number; now?: Date }) {
     const ctx = this.ctx.require();
@@ -99,6 +144,8 @@ export class PortfolioService {
         and not exists (select 1 from documents d where d.entity_type = 'expense' and d.entity_id = e.id and d.deleted_at is null))`,
       noVisibleEvidence: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and e.source = 'manual' and e.status <> 'rejected'
         and not exists (select 1 from documents d where d.entity_type = 'expense' and d.entity_id = e.id and d.deleted_at is null and d.confidentiality <> 'confidential'))`,
+      // WP1.16b: nepredani troškovi iz ranijih razdoblja (razdoblje već predano, trošak nije odabran ni u jednom nacrtu).
+      stranded: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and ${strandedExpense('e')} and ${notSelectedInDraft('e')})`,
     }).from(projects).where(inArray(projects.id, ids)) : [];
 
     const deadlines: Deadline[] = [];
@@ -160,6 +207,7 @@ export class PortfolioService {
           timesheetsToApprove: seesTimesheets(p.id) ? (c?.toApprove ?? 0) : null,
           expensesWithoutEvidence: seesFinance(p.id) ? ((seesConfidential(p.id) ? c?.noEvidence : c?.noVisibleEvidence) ?? 0) : null,
           unclaimedPeriods: seesFinance(p.id) ? rps.filter((r) => !r.submitted && r.endDate < today).length : null,
+          strandedExpenses: seesFinance(p.id) ? (c?.stranded ?? 0) : null,
         } : null,
       };
     }).sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.acronym.localeCompare(b.acronym, 'hr'));

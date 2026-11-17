@@ -4,6 +4,21 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-17
+### Dodano
+- WP1.16b **ZNS paket za predaju** (`docs/domena/zns-pravila.md`): `GET /api/projects/:id/claims/:cid/export` – jedan ZIP za svaki status (nacrt označen kao NACRT u svakoj generiranoj datoteci): `troskovi.xlsx` (Sažetak po kategorijama paketa s traženim / priznatim / nepriznatim, svi troškovi, troškovi osoblja po osobi i mjesecu s podjelom po radnom paketu), `evidencije-rada/` (mjesečna evidencija za potpis po osobi i mjesecu, jedna stranica A4), `dokazi/` (trenutna verzija, SHA-256 provjeren pri izvozu – neslaganje prekida izvoz), `kontrolna-lista.html` (stanje pri predaji), `sadrzaj.csv` (manifest s veličinama i SHA-256). Strujanje bez otvorene transakcije, granica 500 MiB dokaza, povjerljivi dokazi samo uz `documents:confidential`, svaki izvoz u reviziji.
+- Vlastiti ZIP pisač (deflate i CRC-32 iz Node `zlib`) i XLSX pisač (SpreadsheetML) bez novih ovisnosti, s testovima prema neovisnom čitaču, Python `zipfile`/`openpyxl` i `unzip -t`.
+- Ispis mjesečne evidencije rada iz kartice „Tim i timesheetovi” (`GET …/team/:mid/timesheets/:month/record`, isti dokument kao u paketu).
+- **Troškovi iz ranijih razdoblja**: nepredani trošak datiran u razdoblju čiji je ZNS već predan nacrt kasnijeg razdoblja nudi zasebno i uključuje samo izričitim odabirom (`PUT …/claims/:cid/earlier-expenses`); stavka u popisu za provjeru; oznaka u zahtjevu i paketu; signal na kartici Ugovoreno / ostvareno i u portfelju.
+- **Mjerenje pripreme ZNS-a**: automatske mjere na predanom zahtjevu (dani od kraja razdoblja i od otvaranja nacrta do predaje, povrati na dopunu, troškovi, dokazi, timesheetovi); neobavezni „sati utrošeni na pripremu” pri predaji ili naknadno (`PUT …/claims/:cid/preparation-hours`); polazna mjera institucije (`PUT /api/portfolio/claim-savings/baseline`); izvještaj **„Ušteda na ZNS-u”** na portfelju (`GET /api/portfolio/claim-savings`). Izračun u `packages/domain/src/claim-savings.ts` s testovima.
+- Demo: polazna mjera 30 h i 18 h pripreme ZNS-a 1 ZELENI-LAB → ušteda 40 %; kasno evidentiran račun za RP1 (troškovi iz ranijih razdoblja u nacrtu ZNS-a 2).
+- Migracija 0022 (`earlier_expense_ids`, `preparation_minutes` na zahtjevu).
+
+### Promijenjeno
+- Ured za projekte dobiva `tenant:write` (postavke institucije).
+- Snimka predaje sprema cijeli popis za provjeru (kontrolna lista u paketu).
+- `downloadFile` u sučelju uzima naziv datoteke iz odgovora poslužitelja i prikazuje poruku poslužitelja kod greške.
+
 ## [0.23.0] - 2026-11-17
 ### Dodano
 - WP1.16a **ZNS – ispravnost** (`docs/domena/zns-pravila.md`). Domena (`packages/domain/src/claims.ts`): popis za provjeru prije predaje, odluka po trošku s izračunom priznatog iznosa (isti izračun kao zahtjev), provjera isplate, definicije ostvareno / priznato / nepriznato – s testovima rubnih slučajeva (17).

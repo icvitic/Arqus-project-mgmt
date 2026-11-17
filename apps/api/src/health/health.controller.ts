@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Public } from '../identity/auth.guard';
 
-function readVersion(): string {
+/** Verzija aplikacije (APP_VERSION ili datoteka VERSION) – zdravlje i manifest paketa ZNS-a. */
+export function readVersion(): string {
   if (process.env.APP_VERSION) return process.env.APP_VERSION;
   for (const p of [join(__dirname, '..', '..', '..', '..', 'VERSION'), join(process.cwd(), 'VERSION'), join(process.cwd(), '..', 'VERSION'), join(process.cwd(), '..', '..', 'VERSION')]) {
     try { return readFileSync(p, 'utf-8').trim(); } catch { /* sljedeća lokacija */ }

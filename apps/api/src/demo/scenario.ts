@@ -24,6 +24,9 @@ export const DEMO_USERS: DemoUser[] = [
 export const demoEmail = (local: string, slug: string): string => `${local}@${slug}.local`;
 export const DEMO_TENANT_NAME = 'Pokazno sveučilište';
 export const DEMO_DEFAULT_PASSWORD = 'Plavi-Jadran-2026';
+/** WP1.16b: polazna mjera (sati po ZNS-u prije ArQusa) i prijavljeni sati pripreme ZNS-a 1 ZELENI-LAB → ušteda 40 %. */
+export const DEMO_BASELINE_HOURS = 30;
+export const DEMO_PREPARATION_HOURS = 18;
 
 type Row = { id: string } & Record<string, unknown>;
 type Api = DemoApi;
@@ -231,7 +234,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   for (const e of rp1) rp1Ids.push((await expense(npoo, e, { api: finance, file: `${e.evidenceRef.replace(/[^A-Za-z0-9-]/g, '-')}.pdf` })).id);
   // ZNS za RP1 (razdoblje je završilo): predaja → odluka po trošku (elaborat umanjen, putovanje odbijeno) → isplaćen priznati iznos.
   const claim1 = await finance.post<Row>(`/projects/${npoo}/claims`, { period: 1 });
-  await finance.post(`/projects/${npoo}/claims/${claim1.id}/submit`, {});
+  // WP1.16b: financije pri predaji upisuju sate utrošene na pripremu (osnova izvještaja „Ušteda na ZNS-u” na portfelju).
+  await finance.post(`/projects/${npoo}/claims/${claim1.id}/submit`, { preparationHours: DEMO_PREPARATION_HOURS });
   const reducedTo = 1_050_000;
   const decided = await finance.post<{ approved: number; requested: number }>(`/projects/${npoo}/claims/${claim1.id}/decision`, {
     decision: 'decided', decisionDate: todayIso,
@@ -243,6 +247,11 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   });
   await finance.post(`/projects/${npoo}/claims/${claim1.id}/payment`, { paidAmount: decided.approved, paidAt: todayIso });
   await upload(pm2, 'claim', claim1.id, 'ZNS-1-odluka.pdf', 'Odluka posredničkog tijela o ZNS-u 1', 'correspondence', [`Zatraženo: ${eur(decided.requested)}`, `Odobreno: ${eur(decided.approved)}`, `Elaborat energetskog pregleda umanjen na ${eur(reducedTo)}`, 'Nepriznat trošak: studijsko putovanje (865,00 EUR)']);
+  // WP1.16b: račun za RP1 stigao i evidentiran nakon predaje ZNS-a 1 – nepredan trošak iz ranijeg razdoblja (portfelj ga broji,
+  // nacrt ZNS-a 2 ga nudi kao „trošak iz ranijih razdoblja” koji priprematelj izričito uključuje).
+  await expense(npoo, { categoryCode: 'VU', date: dayOf(npooStart, 6, 18), description: 'Najam termovizijske kamere za pilot-mjerenje', supplier: 'Termo-vizija d.o.o.', amount: 64_000, evidenceRef: 'R-598/2026' }, { api: finance, file: 'R-598-2026.pdf' });
+  // Polazna mjera institucije (ured za projekte): koliko je jedan ZNS trajao prije ArQusa.
+  await office.put('/portfolio/claim-savings/baseline', { hours: DEMO_BASELINE_HOURS });
   // RP2 završio prošli mjesec: dva troška (brošure bez dokaza) i nacrt ZNS-a s otvorenim stavkama (timesheet čeka odobrenje, trošak bez dokaza).
   await expense(npoo, { categoryCode: 'VU', date: dayOf(npooStart, 7, 15), description: 'Kalibracija mjernih senzora', supplier: 'Mjerna tehnika d.o.o.', amount: 320_000, evidenceRef: 'R-655/2026' }, { api: finance, file: 'R-655-2026.pdf' });
   await expense(npoo, { categoryCode: 'PV', date: dayOf(npooStart, 8, 6), description: 'Tisak brošura za info-dan', supplier: 'Tiskara Primorje d.o.o.', amount: 118_000, evidenceRef: 'R-702/2026' });

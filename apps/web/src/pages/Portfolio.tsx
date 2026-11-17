@@ -2,8 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { api } from '../lib/api';
 import { date, dateTime, eur, hours, label, monthLabel, plural } from '../lib/format';
 import { go, useLoad } from '../lib/hooks';
-import type { Me, Portfolio as Data, PortfolioDeadline, PortfolioPerson, PortfolioProject } from '../lib/types';
-import { Chip, ErrorBox, Loading } from '../ui';
+import type { ClaimSavings, Me, Portfolio as Data, PortfolioDeadline, PortfolioPerson, PortfolioProject } from '../lib/types';
+import { ActionButton, Chip, ErrorBox, Field, Loading } from '../ui';
 import { can } from '../lib/access';
 
 const KIND: Record<string, string> = {
@@ -33,6 +33,7 @@ export function Portfolio({ me }: { me: Me }) {
       {s.projects === 0 && !d.pipeline?.proposals.length ? <Empty me={me} full={d.access.full} /> : (
         <>
           <Figures d={d} />
+          {can(me, 'portfolio:read') && <Savings />}
           <Projects d={d} />
           <Deadlines d={d} days={days} setDays={setDays} />
           {d.people && <People people={d.people} />}
@@ -80,6 +81,67 @@ function Figures({ d }: { d: Data }) {
   );
 }
 
+const num = (n: number | null | undefined, d = 1) => (n === null || n === undefined ? '–' : n.toLocaleString('hr-HR', { maximumFractionDigits: d }));
+
+/**
+ * „Ušteda na ZNS-u” (WP1.16b): prosjek prijavljenih sati pripreme predanih ZNS-ova prema polaznoj mjeri institucije
+ * (sati po ZNS-u prije ArQusa), uz automatske mjere. Cilj iz uvjeta za fazu 2: ušteda ≥ 30 %.
+ */
+function Savings() {
+  const r = useLoad(() => api<ClaimSavings>('GET', '/portfolio/claim-savings'), []);
+  const [edit, setEdit] = useState(false);
+  const [value, setValue] = useState('');
+  if (r.error) return <div className="card"><h2>Ušteda na ZNS-u</h2><ErrorBox error={r.error} /></div>;
+  if (!r.data) return null;
+  const s = r.data; const a = s.automatic;
+  const parsed = Number(value.trim().replace(',', '.'));
+  const valid = value.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && parsed <= 10000;
+  return (
+    <div className="card" aria-label="Ušteda na ZNS-u">
+      <div className="card-head">
+        <h2>Ušteda na ZNS-u</h2>
+        <span className="muted">cilj: ušteda ≥ {s.targetPercent} % vremena pripreme</span>
+      </div>
+      {s.status === 'ok' ? (
+        <div className="tiles">
+          <Tile v={`${num(s.savingPercent)} %`} l="ušteda vremena pripreme" tone={s.meetsTarget ? undefined : 'alert-tile'}>{s.meetsTarget ? `iznad cilja od ${s.targetPercent} %` : `ispod cilja od ${s.targetPercent} %`}</Tile>
+          <Tile v={`${num(s.averageHours, 2)} h`} l="prosječno po ZNS-u (prijavljeno)">prije ArQusa {num(s.baselineHours, 2)} h · razlika {num(s.savingHours, 2)} h</Tile>
+          <Tile v={s.reportedClaims} l={`${plural(s.reportedClaims, 'ZNS', 'ZNS-a', 'ZNS-ova')} s upisanim satima`}>od {s.submittedClaims} {plural(s.submittedClaims, 'predanog', 'predana', 'predanih')}</Tile>
+        </div>
+      ) : (
+        <div className="warnbox">
+          {s.missing.includes('baseline') && <p style={{ margin: 0 }}><b>Nedostaje polazna mjera:</b> koliko je sati prosječno trajala priprema jednog ZNS-a prije ArQusa (procjena ureda za projekte i financija; upisuje se jednom).</p>}
+          {s.missing.includes('hours') && <p style={{ margin: s.missing.length > 1 ? '6px 0 0' : 0 }}><b>Nema prijavljenih sati:</b> pri predaji ZNS-a upiši „sati utrošeni na pripremu” (ili ih naknadno upiši u „Mjerenje pripreme” na predanom zahtjevu).</p>}
+          {s.status === 'no_baseline' && s.reportedClaims > 0 && <p className="muted" style={{ margin: '6px 0 0' }}>Prijavljeno zasad: prosječno {num(s.averageHours, 2)} h na {s.reportedClaims} {plural(s.reportedClaims, 'ZNS', 'ZNS-a', 'ZNS-ova')}.</p>}
+        </div>
+      )}
+      {a && <p className="muted">Automatski izmjereno na {a.claims} {plural(a.claims, 'predanom', 'predana', 'predanih')} ZNS-{a.claims === 1 ? 'u' : 'ova'}: predaja prosječno {num(a.averageDaysAfterPeriodEnd)} d nakon kraja razdoblja, {num(a.averageDaysInPreparation)} d od otvaranja nacrta; {a.returns} {plural(a.returns, 'povrat', 'povrata', 'povrata')} na dopunu; prosječno {num(a.averageExpenses)} troškova, {num(a.averageEvidenceFiles)} dokaza i {num(a.averageTimesheets)} timesheetova po zahtjevu.</p>}
+      {s.claims.length > 0 && (
+        <details><summary>Zahtjevi u izračunu ({s.claims.length})</summary>
+          <div className="scroll">
+            <table>
+              <thead><tr><th>ZNS</th><th>Predan</th><th className="num">Sati pripreme</th><th className="num">Dana nakon razdoblja</th><th className="num">Dana u pripremi</th><th className="num">Povrati</th><th className="num">Troškovi / dokazi / timesheetovi</th></tr></thead>
+              <tbody>{s.claims.map((c) => (
+                <tr key={c.id}><td><a href={`#/projekti/${c.projectId}/zns`}>{c.acronym} RP{c.period}</a></td><td>{date(c.submittedAt)}</td><td className="num">{c.reportedHours === null ? <span className="muted">nije upisano</span> : num(c.reportedHours, 2)}</td>
+                  <td className="num">{c.measures.daysAfterPeriodEnd}</td><td className="num">{c.measures.daysInPreparation}</td><td className="num">{c.measures.returns}</td><td className="num">{c.measures.expenses} / {c.measures.evidenceFiles} / {c.measures.timesheets}</td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </details>
+      )}
+      {s.canEditBaseline && !edit && <div className="actions"><button onClick={() => { setValue(s.baselineHours === null ? '' : String(s.baselineHours).replace('.', ',')); setEdit(true); }}>{s.baselineHours === null ? 'Upiši polaznu mjeru' : `Polazna mjera: ${num(s.baselineHours, 2)} h – promijeni`}</button></div>}
+      {s.canEditBaseline && edit && (
+        <div className="actions">
+          <Field label="Sati po ZNS-u prije ArQusa"><input aria-label="Sati po ZNS-u prije ArQusa" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="npr. 30" /></Field>
+          <ActionButton kind="primary" disabled={!valid} onClick={async () => { r.setData(await api<ClaimSavings>('PUT', '/portfolio/claim-savings/baseline', { hours: parsed })); setEdit(false); }}>Spremi</ActionButton>
+          <button onClick={() => setEdit(false)}>Odustani</button>
+        </div>
+      )}
+      {!s.canEditBaseline && s.baselineHours === null && <p className="muted">Polaznu mjeru upisuje ured za projekte ili administrator.</p>}
+    </div>
+  );
+}
+
 const SIGNAL: Record<string, [string, string]> = { lagging: ['warn', 'potrošnja kasni'], ahead: ['bad', 'potrošnja ispred vremena'] };
 
 function Progress({ p, threshold }: { p: PortfolioProject; threshold: number }) {
@@ -105,6 +167,7 @@ function AttentionChips({ p }: { p: PortfolioProject }) {
     [a.timesheetsToApprove, plural(a.timesheetsToApprove ?? 0, 'timesheet čeka odobrenje', 'timesheeta čekaju odobrenje', 'timesheetova čeka odobrenje'), 'tim', 'warn'],
     [a.expensesWithoutEvidence, plural(a.expensesWithoutEvidence ?? 0, 'trošak bez dokaza', 'troška bez dokaza', 'troškova bez dokaza'), 'troskovi', 'warn'],
     [a.unclaimedPeriods, plural(a.unclaimedPeriods ?? 0, 'razdoblje bez predanog ZNS-a', 'razdoblja bez predanog ZNS-a', 'razdoblja bez predanog ZNS-a'), 'zns', 'bad'],
+    [a.strandedExpenses, plural(a.strandedExpenses ?? 0, 'nepredan trošak iz ranijeg razdoblja', 'nepredana troška iz ranijih razdoblja', 'nepredanih troškova iz ranijih razdoblja'), 'zns', 'warn'],
   ];
   const shown = chips.filter(([n]) => n);
   if (!shown.length) return <span className="chip ok">sve u redu</span>;

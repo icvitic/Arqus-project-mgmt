@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { auditEntries } from '../db/schema';
 import type { Tx } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
@@ -22,5 +23,13 @@ export class AuditService {
       actorType: input.actorType ?? (c?.userId ? 'user' : 'system'), actorId: input.actorId ?? c?.userId ?? null,
       ip: c?.ip ?? null, sessionId: c?.sessionId ?? null,
     });
+  }
+
+  /** Broj zapisa iste radnje po entitetu (npr. povrati ZNS-a na dopunu) – za mjerenje pripreme (WP1.16b). */
+  async countByEntity(tx: Tx, entity: string, entityIds: string[], action: string): Promise<Map<string, number>> {
+    if (!entityIds.length) return new Map();
+    const rows = await tx.select({ id: auditEntries.entityId, n: sql<number>`count(*)::int` }).from(auditEntries)
+      .where(and(eq(auditEntries.entity, entity), eq(auditEntries.action, action), inArray(auditEntries.entityId, entityIds))).groupBy(auditEntries.entityId);
+    return new Map(rows.map((r) => [r.id ?? '', r.n]));
   }
 }

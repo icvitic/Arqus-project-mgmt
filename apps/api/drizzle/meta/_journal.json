@@ -155,6 +155,13 @@
       "when": 1794922179535,
       "tag": "0021_claim_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794925932460,
+      "tag": "0022_zns_paket",
+      "breakpoints": true
     }
   ]
 }

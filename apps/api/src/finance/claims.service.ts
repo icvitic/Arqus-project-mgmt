@@ -1,18 +1,18 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
-  categoryNames, claimChecklist, claimDecision, claimTotals, computePartnerBudget, isoToday, monthsInPeriod, paymentIssues,
+  categoryNames, claimChecklist, claimDecision, claimTotals, computePartnerBudget, hoursToMinutes, isoToday, monthsInPeriod, paymentIssues, preparationMeasures,
   type ClaimChecklist, type ProgrammePackage,
 } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
 import {
-  budgetLines, expenses, projectBudgets, projectPartners, reimbursementClaims, reportingPeriods, teamMembers, timesheetEntries, timesheets, workPackages,
+  budgetLines, documents, expenses, projectBudgets, projectPartners, reimbursementClaims, reportingPeriods, teamMembers, timesheetEntries, timesheets, workPackages,
 } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { assertPartnerOnProject, loadProject } from '../common/project-access';
-import { selfPartner } from './finance-common';
+import { selfPartner, strandedExpense } from './finance-common';
 import { evidenceCount, seesConfidential } from './expenses.service';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -22,7 +22,13 @@ export const claimInput = z.object({ period: z.number().int().min(1), partnerId:
 export const submitInput = z.object({
   earlyReason: note.optional(),
   acknowledgeWithoutEvidence: z.array(z.string().uuid()).max(5000).optional(),
+  /** WP1.16b: sati utrošeni na pripremu ovog zahtjeva (neobavezno, za izvještaj o uštedi). */
+  preparationHours: z.number().min(0).max(10_000).nullable().optional(),
 }).strict();
+/** WP1.16b: izričit odabir troškova iz ranijih razdoblja u nacrtu (zamjenjuje dosadašnji odabir). */
+export const earlierInput = z.object({ expenseIds: z.array(z.string().uuid()).max(5000) }).strict();
+/** WP1.16b: naknadni upis ili ispravak sati pripreme predanog zahtjeva. */
+export const preparationInput = z.object({ hours: z.number().min(0).max(10_000).nullable() }).strict();
 const expenseDecision = z.object({ id: z.string().uuid(), recognised: z.number().int().min(0), reason: z.string().trim().max(1000).nullable().optional() }).strict();
 const decided = {
   /** Datum odluke financijera; zadano danas. */
@@ -68,11 +74,36 @@ export class ClaimsService {
     return { pkg, actionType: p.actionType, beneficiaryType: partner.bt };
   }
 
-  /** Troškovi koji ulaze u zahtjev: u nacrtu prihvatljivi (evidentirani, partner, datum u razdoblju, nisu u drugom zahtjevu), inače pridruženi. */
+  /**
+   * Troškovi koji ulaze u zahtjev: u nacrtu prihvatljivi (evidentirani, partner, datum u razdoblju, nisu u drugom zahtjevu)
+   * i izričito odabrani troškovi iz ranijih razdoblja (WP1.16b); nakon predaje pridruženi troškovi.
+   */
   private async claimExpenses(tx: Tx, c: ClaimRow, rp: PeriodRow): Promise<ExpenseRow[]> {
     if (c.status !== 'draft') return tx.select().from(expenses).where(eq(expenses.claimId, c.id)).orderBy(asc(expenses.date), asc(expenses.createdAt));
     const rows = await tx.select().from(expenses).where(and(eq(expenses.projectId, c.projectId), eq(expenses.partnerId, c.partnerId), eq(expenses.status, 'recorded'), isNull(expenses.claimId))).orderBy(asc(expenses.date), asc(expenses.createdAt));
-    return rows.filter((e) => e.date >= rp.startDate && e.date <= rp.endDate);
+    const selected = new Set(c.earlierExpenseIds ?? []);
+    const eligible = selected.size ? new Set((await this.earlierCandidates(tx, c, rp)).map((x) => x.e.id)) : new Set<string>();
+    return rows.filter((e) => (e.date >= rp.startDate && e.date <= rp.endDate) || (selected.has(e.id) && eligible.has(e.id)));
+  }
+
+  /**
+   * Nepredani troškovi iz ranijih razdoblja istog partnera (WP1.16b): datirani prije početka ovog razdoblja u razdoblju
+   * čiji je ZNS već predan. `period` – razdoblje u kojem je trošak datiran; `selectedElsewhere` – broj razdoblja drugog
+   * nacrta koji ga je već odabrao (tada ga ovaj nacrt ne može uključiti).
+   */
+  private async earlierCandidates(tx: Tx, c: ClaimRow, rp: PeriodRow) {
+    const rows = await tx.select().from(expenses).where(and(eq(expenses.projectId, c.projectId), eq(expenses.partnerId, c.partnerId), lt(expenses.date, rp.startDate), strandedExpense()))
+      .orderBy(asc(expenses.date), asc(expenses.createdAt));
+    if (!rows.length) return [];
+    const periods = await tx.select({ number: reportingPeriods.number, startDate: reportingPeriods.startDate, endDate: reportingPeriods.endDate }).from(reportingPeriods).where(eq(reportingPeriods.projectId, c.projectId));
+    const drafts = await tx.select({ id: reimbursementClaims.id, ids: reimbursementClaims.earlierExpenseIds, number: reportingPeriods.number }).from(reimbursementClaims)
+      .innerJoin(reportingPeriods, eq(reportingPeriods.id, reimbursementClaims.reportingPeriodId))
+      .where(and(eq(reimbursementClaims.projectId, c.projectId), eq(reimbursementClaims.status, 'draft'), ne(reimbursementClaims.id, c.id)));
+    return rows.map((e) => ({
+      e,
+      period: periods.find((p) => e.date >= p.startDate && e.date <= p.endDate)?.number ?? null,
+      selectedElsewhere: drafts.find((d) => (d.ids ?? []).includes(e.id))?.number ?? null,
+    }));
   }
 
   /** Broj dokaza i podaci za grupiranje troškova osoblja (osoba, mjesec, radni paket). */
@@ -84,8 +115,19 @@ export class ClaimsService {
     return new Map(rows.map((r) => [r.id, { documents: r.documents, person: r.person, month: r.month, wp: r.wp }]));
   }
 
+  /** Broj aktivnih dokaza uz troškove (svi, i povjerljivi – samo zbroj, bez naziva; mjera pripreme). */
+  private async evidenceFiles(tx: Tx, ids: string[]): Promise<number> {
+    if (!ids.length) return 0;
+    const r = await tx.select({ n: sql<number>`count(*)::int` }).from(documents).where(and(eq(documents.entityType, 'expense'), inArray(documents.entityId, ids), isNull(documents.deletedAt)));
+    return r[0]?.n ?? 0;
+  }
+
   /** Popis za provjeru (samo za nacrt): timesheetovi članova tima partnera u mjesecima razdoblja, dokazi, proračun po kategoriji. */
-  private async checklist(tx: Tx, c: ClaimRow, rp: PeriodRow, rows: ExpenseRow[], docs: (id: string) => number, pkg: ProgrammePackage, opts: { earlyReason?: string; acknowledged?: string[] } = {}): Promise<ClaimChecklist> {
+  private async checklist(tx: Tx, c: ClaimRow, rp: PeriodRow, all: ExpenseRow[], docs: (id: string) => number, pkg: ProgrammePackage, opts: { earlyReason?: string; acknowledged?: string[] } = {}): Promise<ClaimChecklist> {
+    const rows = all.filter((e) => e.date >= rp.startDate);
+    const earlier = all.filter((e) => e.date < rp.startDate);
+    const candidates = await this.earlierCandidates(tx, c, rp);
+    const notSelected = candidates.filter((x) => !earlier.some((e) => e.id === x.e.id) && x.selectedElsewhere === null);
     const months = monthsInPeriod(rp.startDate, rp.endDate);
     const ts = await tx.select({ memberName: teamMembers.fullName, month: timesheets.month, status: timesheets.status, minutes: sql<number>`coalesce(sum(${timesheetEntries.minutes}), 0)::int` })
       .from(timesheets).innerJoin(teamMembers, eq(teamMembers.id, timesheets.teamMemberId)).leftJoin(timesheetEntries, eq(timesheetEntries.timesheetId, timesheets.id))
@@ -99,9 +141,12 @@ export class ClaimsService {
       .where(and(eq(expenses.projectId, c.projectId), eq(expenses.partnerId, c.partnerId), isNotNull(expenses.claimId), ne(expenses.claimId, c.id))).groupBy(expenses.categoryCode);
     const names = categoryNames(pkg);
     const codes = new Set([...planned.map((x) => x.code), ...before.map((x) => x.code)]);
+    const asItem = (e: ExpenseRow) => ({ id: e.id, date: e.date, description: e.description, amount: e.amountCents, categoryCode: e.categoryCode, source: e.source, documents: docs(e.id) });
     return claimChecklist({
       today: isoToday(), period: { startDate: rp.startDate, endDate: rp.endDate },
-      expenses: rows.map((e) => ({ id: e.id, date: e.date, description: e.description, amount: e.amountCents, categoryCode: e.categoryCode, source: e.source, documents: docs(e.id) })),
+      expenses: rows.map(asItem),
+      earlier: earlier.map(asItem),
+      earlierNotSelected: notSelected.map((x) => ({ date: x.e.date, description: x.e.description, amount: x.e.amountCents, period: x.period ?? 0 })),
       timesheets: ts,
       budget: [...codes].map((code) => ({ categoryCode: code, name: names.get(code), planned: Number(planned.find((x) => x.code === code)?.amount ?? 0), claimedBefore: Number(before.find((x) => x.code === code)?.amount ?? 0) })),
       earlyReason: opts.earlyReason, acknowledgedWithoutEvidence: opts.acknowledged,
@@ -120,6 +165,15 @@ export class ClaimsService {
     const isDecided = (DECIDED as readonly string[]).includes(c.status);
     const checklist = c.status === 'draft' ? await this.checklist(tx, c, rp, rows, docs, r.pkg) : null;
     const decision = (c.decision ?? null) as { computed?: number; funderTotal?: number | null; difference?: number; backfilled?: boolean } | null;
+    const candidates = c.status === 'draft' ? await this.earlierCandidates(tx, c, rp) : [];
+    const candidateDocs = candidates.length ? await this.expenseInfo(tx, projectId, candidates.map((x) => x.e.id)) : new Map();
+    const selected = new Set(c.earlierExpenseIds ?? []);
+    const measures = c.status !== 'draft' && c.submittedAt ? preparationMeasures({
+      periodEnd: rp.endDate, openedAt: c.createdAt.toISOString(), submittedAt: c.submittedAt.toISOString(),
+      returns: (await this.audit.countByEntity(tx, 'claim', [c.id], 'decision.returned')).get(c.id) ?? 0,
+      expenses: rows.length, evidenceFiles: await this.evidenceFiles(tx, rows.map((e) => e.id)),
+      timesheets: new Set(rows.map((e) => e.timesheetId).filter(Boolean)).size, earlierExpenses: rows.filter((e) => e.date < rp.startDate).length,
+    }) : null;
     return {
       id: c.id, projectId, period: { number: rp.number, startDate: rp.startDate, endDate: rp.endDate, dueDate: rp.dueDate }, partnerId: c.partnerId, status: c.status,
       expenses: rows.map((e) => {
@@ -128,8 +182,17 @@ export class ClaimsService {
           id: e.id, date: e.date, categoryCode: e.categoryCode, description: e.description, supplier: e.supplier, amount: e.amountCents,
           recognised: e.recognisedCents, decisionReason: e.decisionReason, source: e.source, status: e.status, documents: x?.documents ?? 0,
           timesheetId: e.timesheetId, workPackage: x?.wp ? `WP${x.wp}` : null, person: x?.person ?? null, month: x?.month ?? null,
+          /** WP1.16b: trošak iz ranijeg razdoblja (datiran prije početka razdoblja zahtjeva). */
+          earlier: e.date < rp.startDate,
         };
       }),
+      /** Samo u nacrtu: nepredani troškovi iz ranijih razdoblja koje priprematelj može izričito uključiti. */
+      earlierCandidates: c.status === 'draft' ? candidates.map((x) => ({
+        id: x.e.id, date: x.e.date, categoryCode: x.e.categoryCode, description: x.e.description, supplier: x.e.supplier, amount: x.e.amountCents, source: x.e.source,
+        documents: candidateDocs.get(x.e.id)?.documents ?? 0, period: x.period, selected: selected.has(x.e.id) && x.selectedElsewhere === null, selectedElsewhere: x.selectedElsewhere,
+      })) : null,
+      /** WP1.16b: prijavljeni sati pripreme i automatske mjere (nakon predaje). */
+      preparation: { hours: c.preparationMinutes === null ? null : Math.round((c.preparationMinutes / 60) * 100) / 100, measures },
       /** Ručno uneseni troškovi bez priloženog dokaza (trošak osoblja dokazuje se timesheetom). */
       missingEvidence: rows.filter((e) => e.source === 'manual' && !docs(e.id)).length,
       totals: { direct: t.directTotal, indirect: t.indirectTotal, total: t.total, ratePercent: t.ratePercent, requested: t.requested, byCategory: t.direct, indirectByCategory: t.indirect },
@@ -193,12 +256,52 @@ export class ClaimsService {
     const missing = new Set(rows.filter((e) => e.source === 'manual' && !docs(e.id)).map((e) => e.id));
     const acknowledged = rows.filter((e) => missing.has(e.id)).map((e) => ({ id: e.id, date: e.date, description: e.description, amount: e.amountCents }));
     const earlyReason = check.early ? input.earlyReason!.trim() : null;
-    const submission = { checkedOn: isoToday(now), early: check.early, earlyReason, acknowledgedWithoutEvidence: acknowledged, warnings: check.warnings.map((w) => ({ key: w.key, title: w.title, details: w.details })) };
-    await tx.update(reimbursementClaims).set({ status: 'submitted', totals: t as unknown as Record<string, unknown>, requestedCents: t.requested, submittedAt: now, earlyReason, submission, note: null, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+    const earlier = rows.filter((e) => e.date < rp.startDate).map((e) => e.id);
+    // Snimka popisa za provjeru kakav je bio pri predaji (stavke, upozorenja, potvrde) – ulazi u paket za predaju (kontrolna lista).
+    const submission = {
+      checkedOn: isoToday(now), early: check.early, earlyReason, acknowledgedWithoutEvidence: acknowledged, earlierExpenses: earlier,
+      warnings: check.warnings.map((w) => ({ key: w.key, title: w.title, details: w.details })),
+      items: check.items.map((i) => ({ key: i.key, ok: i.ok, severity: i.severity, title: i.title, details: i.details })),
+    };
+    const preparationMinutes = input.preparationHours === undefined ? c.preparationMinutes : hoursToMinutes(input.preparationHours);
+    await tx.update(reimbursementClaims).set({ status: 'submitted', totals: t as unknown as Record<string, unknown>, requestedCents: t.requested, submittedAt: now, earlyReason, submission, preparationMinutes, note: null, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
     await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: check.early ? 'submit.early' : 'submit', diff: {
-      after: { requested: t.requested, expenses: ids.length },
-      meta: { earlyReason, acknowledgedWithoutEvidence: acknowledged.map((a) => a.id), warnings: submission.warnings.map((w) => w.title) },
+      after: { requested: t.requested, expenses: ids.length, preparationMinutes },
+      meta: { earlyReason, acknowledgedWithoutEvidence: acknowledged.map((a) => a.id), earlierExpenses: earlier, warnings: submission.warnings.map((w) => w.title) },
     } });
+    return this.get(tx, projectId, id);
+  }
+
+  /**
+   * WP1.16b: izričit odabir troškova iz ranijih razdoblja u nacrtu. Smiju se odabrati samo nepredani troškovi istog partnera
+   * datirani u ranijem, već predanom razdoblju, koje nije odabrao drugi nacrt. Prazan popis poništava odabir.
+   */
+  async selectEarlier(tx: Tx, projectId: string, id: string, input: z.infer<typeof earlierInput>, actorId?: string) {
+    await loadProject(tx, projectId, { editable: true });
+    const { c, rp } = await this.claim(tx, projectId, id);
+    if (c.status !== 'draft') throw new ConflictException('Troškovi iz ranijih razdoblja biraju se samo u nacrtu zahtjeva');
+    const candidates = new Map((await this.earlierCandidates(tx, c, rp)).map((x) => [x.e.id, x]));
+    const ids = [...new Set(input.expenseIds)];
+    const issues: string[] = [];
+    for (const eid of ids) {
+      const x = candidates.get(eid);
+      if (!x) issues.push(`trošak ${eid} nije nepredan trošak ranijeg razdoblja ovog partnera`);
+      else if (x.selectedElsewhere !== null) issues.push(`trošak „${x.e.description}” već je odabran u nacrtu ZNS-a za RP${x.selectedElsewhere}`);
+    }
+    if (issues.length) throw new BadRequestException({ message: 'Odabir nije valjan', issues });
+    await tx.update(reimbursementClaims).set({ earlierExpenseIds: ids, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+    await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: 'earlier.select', diff: { before: { expenseIds: c.earlierExpenseIds ?? [] }, after: { expenseIds: ids } } });
+    return this.get(tx, projectId, id);
+  }
+
+  /** WP1.16b: naknadni upis ili ispravak sati pripreme (samo predan ili odlučen zahtjev; u nacrtu se sati upisuju pri predaji). */
+  async setPreparation(tx: Tx, projectId: string, id: string, input: z.infer<typeof preparationInput>, actorId?: string) {
+    await loadProject(tx, projectId, { editable: true });
+    const { c } = await this.claim(tx, projectId, id);
+    if (c.status === 'draft') throw new ConflictException('Sati pripreme upisuju se pri predaji zahtjeva');
+    const minutes = hoursToMinutes(input.hours);
+    await tx.update(reimbursementClaims).set({ preparationMinutes: minutes, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+    await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: 'preparation.update', diff: { before: { preparationMinutes: c.preparationMinutes }, after: { preparationMinutes: minutes } } });
     return this.get(tx, projectId, id);
   }
 

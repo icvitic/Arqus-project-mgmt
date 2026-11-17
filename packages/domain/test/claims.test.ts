@@ -157,3 +157,28 @@ describe('isplata', () => {
     expect(paymentIssues({ ...ok, paidAmount: 900, note: 'Prijeboj s povratom' })).toEqual([]);
   });
 });
+
+describe('troškovi iz ranijih razdoblja (WP1.16b)', () => {
+  const late = { id: 'late', date: '2026-12-15', description: 'Kasno evidentiran račun', amount: 40_000, categoryCode: 'VU', source: 'manual', documents: 1 };
+  it('izričito uključen trošak iz ranijeg razdoblja ne ruši provjeru datuma; ulazi u broj, dokaze i proračun', () => {
+    const c = claimChecklist(base({ earlier: [late] }));
+    expect(c.canSubmit).toBe(true);
+    expect(item(c, 'dates_in_period')).toMatchObject({ ok: true, title: 'Svi ostali troškovi su unutar razdoblja' });
+    expect(item(c, 'has_expenses').title).toBe('3 troška u zahtjevu (od toga 1 iz ranijih razdoblja)');
+    expect(item(c, 'earlier_periods')).toMatchObject({ ok: true, severity: 'warning', resolution: 'select_earlier' });
+    expect(c.warnings.map((w) => w.key)).toEqual(['earlier_periods']);
+    const noEvidence = claimChecklist(base({ earlier: [{ ...late, documents: 0 }] }));
+    expect(item(noEvidence, 'evidence')).toMatchObject({ ok: false, expenseIds: ['late'] });
+    const over = claimChecklist(base({ earlier: [{ ...late, amount: 800_000 }] }));
+    expect(item(over, 'budget').ok).toBe(false);
+  });
+  it('neuključeni nepredani troškovi ranijih razdoblja su upozorenje (ne blokiraju)', () => {
+    const c = claimChecklist(base({ earlierNotSelected: [{ date: '2026-12-15', description: 'Kasno evidentiran račun', amount: 40_000, period: 1 }] }));
+    expect(c.canSubmit).toBe(true);
+    expect(item(c, 'earlier_periods')).toMatchObject({ ok: false, severity: 'warning', title: '1 nepredan trošak iz ranijih razdoblja nije uključen' });
+    expect(item(c, 'earlier_periods').details).toEqual(['nije uključeno: 15. 12. 2026. Kasno evidentiran račun (400,00 EUR, RP1)']);
+  });
+  it('bez troškova iz ranijih razdoblja stavka se ne prikazuje', () => {
+    expect(claimChecklist(base()).items.some((i) => i.key === 'earlier_periods')).toBe(false);
+  });
+});

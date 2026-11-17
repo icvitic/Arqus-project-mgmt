@@ -420,9 +420,14 @@ export const reimbursementClaims = pgTable('reimbursement_claims', {
   decisionDate: date('decision_date', { mode: 'string' }),
   decision: jsonb('decision').$type<Record<string, unknown>>(),
   paymentNote: text('payment_note'),
+  /** WP1.16b: troškovi iz ranijih razdoblja koje je priprematelj izričito uključio u nacrt (nepredani, datirani u već predanom razdoblju). */
+  earlierExpenseIds: uuid('earlier_expense_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  /** WP1.16b: prijavljeno vrijeme pripreme zahtjeva u minutama (neobavezno; osnova izvještaja o uštedi). */
+  preparationMinutes: integer('preparation_minutes'),
   ...audited,
 }, (t) => [
   unique('reimbursement_claims_tenant_id_uq').on(t.tenantId, t.id),
+  check('reimbursement_claims_preparation_ck', sql`preparation_minutes is null or preparation_minutes between 0 and 600000`),
   uniqueIndex('reimbursement_claims_period_partner_uq').on(t.reportingPeriodId, t.partnerId),
   projectFk('reimbursement_claims_project_fk', t),
   foreignKey({ name: 'reimbursement_claims_period_fk', columns: [t.tenantId, t.reportingPeriodId], foreignColumns: [reportingPeriods.tenantId, reportingPeriods.id] }),

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { api, apiText, downloadFile } from '../lib/api';
 import { eur, minutesToHours, parseEur, parseHours } from '../lib/format';
 import { useLoad } from '../lib/hooks';
 import type { ProjectAccess, Structure, TeamMember, Timesheet, UserRow } from '../lib/types';
@@ -75,6 +75,7 @@ function TimesheetGrid({ projectId, memberId, month, me, mine }: { projectId: st
   const structure = useLoad(() => api<Structure>('GET', `/projects/${projectId}/structure`), [projectId]);
   const rows = useMemo(() => [...(structure.data?.workPackages ?? []).map((w) => ({ id: w.id, label: `${w.code} ${w.title}` })), { id: '', label: 'Bez radnog paketa' }], [structure.data]);
   const [cells, setCells] = useState<Record<string, string>>({});
+  const [printing, setPrinting] = useState(false);
   useEffect(() => {
     if (!ts.data) return;
     setCells(Object.fromEntries(ts.data.entries.map((e) => [`${e.workPackageId ?? ''}|${e.day}`, minutesToHours(e.minutes)])));
@@ -115,7 +116,31 @@ function TimesheetGrid({ projectId, memberId, month, me, mine }: { projectId: st
         {status === 'submitted' && approver && !mine && <ActionButton kind="primary" onClick={() => act('approve')}>Odobri (stvara trošak osoblja)</ActionButton>}
         {status === 'submitted' && approver && mine && <span className="muted">Vlastiti timesheet odobrava druga osoba (voditelj projekta ili ured za projekte).</span>}
         {(status === 'submitted' || status === 'approved') && approver && <ActionButton onClick={() => act('reopen')}>Vrati u nacrt</ActionButton>}
+        <button onClick={() => setPrinting((v) => !v)} aria-expanded={printing}>{printing ? 'Zatvori evidenciju za ispis' : 'Evidencija za ispis i potpis'}</button>
       </div>
+      {printing && <RecordView url={`${url}/record`} month={month} />}
     </>
+  );
+}
+
+/**
+ * Mjesečna evidencija rada za ispis i potpis (WP1.16b) – isti dokument kao u paketu ZNS-a. Prikazuje se u izoliranom
+ * okviru (bez skripti); „Ispiši” otvara ispis samo tog dokumenta (jedna stranica A4).
+ */
+function RecordView({ url, month }: { url: string; month: string }) {
+  const html = useLoad(() => apiText(url), [url]);
+  const frame = useRef<HTMLIFrameElement>(null);
+  if (html.error) return <ErrorBox error={html.error} />;
+  if (html.data === null) return <Loading what="evidenciju" />;
+  return (
+    <div className="sub-panel">
+      <div className="actions" style={{ marginTop: 0 }}>
+        <button className="primary" onClick={() => frame.current?.contentWindow?.print()}>Ispiši</button>
+        <ActionButton onClick={() => downloadFile(url, `evidencija-rada_${month}.html`)}>Preuzmi (HTML)</ActionButton>
+        <span className="muted">Jedna stranica A4 s crtama za potpis zaposlenika i nadređenog.</span>
+      </div>
+      <iframe ref={frame} title="Evidencija rada za ispis" sandbox="allow-same-origin allow-modals" srcDoc={html.data}
+        style={{ width: '100%', height: 1000, border: '1px solid var(--line)', borderRadius: 6, background: '#fff' }} />
+    </div>
   );
 }

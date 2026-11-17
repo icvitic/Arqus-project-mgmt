@@ -48,7 +48,7 @@ export function claimTotals(pkg: ProgrammePackage, actionCode: string, beneficia
 
 /* ---------- popis za provjeru prije predaje ---------- */
 
-export type ChecklistKey = 'period_ended' | 'has_expenses' | 'timesheets_approved' | 'evidence' | 'dates_in_period' | 'budget';
+export type ChecklistKey = 'period_ended' | 'has_expenses' | 'timesheets_approved' | 'evidence' | 'dates_in_period' | 'earlier_periods' | 'budget';
 export interface ChecklistItem {
   key: ChecklistKey;
   ok: boolean;
@@ -56,13 +56,15 @@ export interface ChecklistItem {
   severity: 'blocking' | 'warning';
   title: string;
   details: string[];
-  /** Kako korisnik može riješiti stavku pri predaji: obrazloženjem rane predaje ili potvrdom troškova bez dokaza. */
-  resolution?: 'early_reason' | 'acknowledge';
+  /** Kako korisnik može riješiti stavku pri predaji: obrazloženjem rane predaje, potvrdom troškova bez dokaza ili odabirom troškova iz ranijih razdoblja. */
+  resolution?: 'early_reason' | 'acknowledge' | 'select_earlier';
   /** Za `acknowledge`: troškovi koje treba potvrditi. */
   expenseIds?: string[];
 }
 
 export interface ChecklistExpense { id: string; date: string; description: string; amount: number; categoryCode: string; source: 'manual' | 'timesheet' | string; documents: number }
+/** Nepredan trošak iz ranijeg razdoblja (WP1.16b): datiran u razdoblju čiji je ZNS već predan. */
+export interface ChecklistEarlierExpense { date: string; description: string; amount: number; period: number }
 export interface ChecklistTimesheet { memberName: string; month: string; status: string; minutes: number }
 export interface ChecklistBudgetRow { categoryCode: string; name?: string; planned: number; claimedBefore: number }
 
@@ -76,6 +78,13 @@ export interface ClaimChecklistInput {
   budget: ChecklistBudgetRow[];
   earlyReason?: string | null;
   acknowledgedWithoutEvidence?: readonly string[];
+  /**
+   * WP1.16b – troškovi iz ranijih razdoblja koje je priprematelj izričito uključio (datirani prije početka razdoblja).
+   * Ulaze u broj troškova, provjeru dokaza i proračun; provjera „unutar razdoblja” vrijedi samo za ostale troškove.
+   */
+  earlier?: ChecklistExpense[];
+  /** Nepredani troškovi iz ranijih razdoblja koji NISU uključeni – upozorenje da se ne zaborave. */
+  earlierNotSelected?: ChecklistEarlierExpense[];
 }
 
 export interface ClaimChecklist { items: ChecklistItem[]; canSubmit: boolean; early: boolean; blocking: ChecklistItem[]; warnings: ChecklistItem[] }
@@ -114,8 +123,10 @@ export function claimChecklist(input: ClaimChecklistInput): ClaimChecklist {
   else if (hasText(input.earlyReason)) items.push({ key: 'period_ended', ok: true, severity: 'warning', title: 'Rana predaja – razdoblje još traje', details: [`Razdoblje završava ${hrDate(period.endDate)}.`, `Razlog: ${input.earlyReason!.trim()}`], resolution: 'early_reason' });
   else items.push({ key: 'period_ended', ok: false, severity: 'blocking', title: `Razdoblje još traje (do ${hrDate(period.endDate)})`, details: ['Predaja je moguća nakon kraja razdoblja ili ranije uz upisan razlog rane predaje.'], resolution: 'early_reason' });
 
-  items.push(input.expenses.length
-    ? { key: 'has_expenses', ok: true, severity: 'blocking', title: `${input.expenses.length} ${pl(input.expenses.length, 'trošak', 'troška', 'troškova')} u zahtjevu`, details: [] }
+  const earlier = input.earlier ?? [];
+  const all = [...input.expenses, ...earlier];
+  items.push(all.length
+    ? { key: 'has_expenses', ok: true, severity: 'blocking', title: `${all.length} ${pl(all.length, 'trošak', 'troška', 'troškova')} u zahtjevu${earlier.length ? ` (od toga ${earlier.length} iz ranijih razdoblja)` : ''}`, details: [] }
     : { key: 'has_expenses', ok: false, severity: 'blocking', title: 'Nema troškova u razdoblju', details: [] });
 
   const open = input.timesheets.filter((t) => (t.status === 'draft' || t.status === 'submitted') && t.minutes > 0)
@@ -124,7 +135,7 @@ export function claimChecklist(input: ClaimChecklistInput): ClaimChecklist {
     ? { key: 'timesheets_approved', ok: false, severity: 'blocking', title: `${open.length} ${pl(open.length, 'timesheet nije odobren', 'timesheeta nisu odobrena', 'timesheetova nije odobreno')} – trošak osoblja nedostaje`, details: open.map((t) => `${t.memberName}, ${t.month} (${TS_STATUS[t.status] ?? t.status}, ${(t.minutes / 60).toLocaleString('hr-HR', { maximumFractionDigits: 1 })} h)`) }
     : { key: 'timesheets_approved', ok: true, severity: 'blocking', title: 'Svi timesheetovi u razdoblju su odobreni', details: [] });
 
-  const missing = input.expenses.filter((e) => e.source === 'manual' && !e.documents);
+  const missing = all.filter((e) => e.source === 'manual' && !e.documents);
   const ack = new Set(input.acknowledgedWithoutEvidence ?? []);
   const unack = missing.filter((e) => !ack.has(e.id));
   const missingDetails = missing.map((e) => `${hrDate(e.date)} ${e.description} (${eurText(e.amount)})`);
@@ -135,10 +146,25 @@ export function claimChecklist(input: ClaimChecklistInput): ClaimChecklist {
   const outside = input.expenses.filter((e) => e.date < period.startDate || e.date > period.endDate);
   items.push(outside.length
     ? { key: 'dates_in_period', ok: false, severity: 'blocking', title: `${outside.length} ${pl(outside.length, 'trošak', 'troška', 'troškova')} izvan razdoblja`, details: outside.map((e) => `${hrDate(e.date)} ${e.description}`) }
-    : { key: 'dates_in_period', ok: true, severity: 'blocking', title: 'Svi troškovi su unutar razdoblja', details: [] });
+    : { key: 'dates_in_period', ok: true, severity: 'blocking', title: earlier.length ? 'Svi ostali troškovi su unutar razdoblja' : 'Svi troškovi su unutar razdoblja', details: [] });
+
+  // Troškovi iz ranijih razdoblja (WP1.16b): uključeni samo izričitim odabirom; neuključeni se navode da se ne zaborave.
+  const notSelected = input.earlierNotSelected ?? [];
+  if (earlier.length || notSelected.length) {
+    const parts: string[] = [];
+    if (earlier.length) parts.push(`${earlier.length} ${pl(earlier.length, 'trošak', 'troška', 'troškova')} iz ranijih razdoblja ${pl(earlier.length, 'uključen', 'uključena', 'uključeno')} izričitim odabirom`);
+    if (notSelected.length) parts.push(`${notSelected.length} ${pl(notSelected.length, 'nepredan trošak', 'nepredana troška', 'nepredanih troškova')} iz ranijih razdoblja nije ${pl(notSelected.length, 'uključen', 'uključena', 'uključeno')}`);
+    items.push({
+      key: 'earlier_periods', ok: notSelected.length === 0, severity: 'warning', title: parts.join('; '), resolution: 'select_earlier',
+      details: [
+        ...earlier.map((e) => `uključeno: ${hrDate(e.date)} ${e.description} (${eurText(e.amount)})`),
+        ...notSelected.map((e) => `nije uključeno: ${hrDate(e.date)} ${e.description} (${eurText(e.amount)}, RP${e.period})`),
+      ],
+    });
+  }
 
   const now = new Map<string, number>();
-  for (const e of input.expenses) now.set(e.categoryCode, (now.get(e.categoryCode) ?? 0) + e.amount);
+  for (const e of all) now.set(e.categoryCode, (now.get(e.categoryCode) ?? 0) + e.amount);
   const budgetByCode = new Map(input.budget.map((b) => [b.categoryCode, b]));
   const over: string[] = [];
   for (const code of [...new Set([...budgetByCode.keys(), ...now.keys()])].sort()) {
