@@ -1,0 +1,36 @@
+# DEMO okruženje ArQus Projekti na vlastitom računalu (WP1.13) – NIJE za produkciju ni za stvarne podatke.
+# Pokretanje: demo.cmd (Windows) ili scripts/demo.sh (macOS/Linux); upute: docs/DEMO.md
+# Lozinke i ključevi u ovoj datoteci namjerno su javni demo vrijednosti – nikad ih ne koristi u pilot-instalaciji (docs/PILOT-INSTALACIJA.md).
+name: arqus-demo
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: arqus
+      POSTGRES_PASSWORD: demo-samo-lokalno-vlasnik   # DEMO – nije tajna
+      POSTGRES_DB: arqus
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U arqus"], interval: 3s, timeout: 3s, retries: 30 }
+  app:
+    build: { context: ../.., dockerfile: Dockerfile }
+    image: arqus-projekti-demo
+    init: true
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      NODE_ENV: production
+      DATABASE_MIGRATE_URL: postgres://arqus:demo-samo-lokalno-vlasnik@db:5432/arqus
+      DATABASE_URL: postgres://arqus_app:demo-samo-lokalno-aplikacija@db:5432/arqus
+      DB_APP_PASSWORD: demo-samo-lokalno-aplikacija                 # DEMO – nije tajna
+      AUTH_JWT_SECRET: demo-samo-lokalno-jwt-NIJE-ZA-PRODUKCIJU-0123  # DEMO – nije tajna
+      MFA_ENCRYPTION_KEY: demo-samo-lokalno-mfa-NIJE-ZA-PRODUKCIJU    # DEMO – nije tajna
+      AUTH_TOKEN_TTL: 12h
+      DOCUMENTS_DIR: /data/documents
+      FT_IMPORT_INTERVAL_HOURS: "0"   # demo ne ovisi o mreži; stvarni pozivi: docker compose exec app node dist/db/cli.js import-calls
+      ARQUS_DEMO: "1"                 # dopušta naredbu `demo` u produkcijskom načinu slike
+    # Pri svakom pokretanju: migracije + paketi, zatim demo podaci (idempotentno – postojeći demo se ne dira), pa poslužitelj.
+    command: ["sh", "-c", "node dist/db/cli.js init && node dist/db/cli.js demo && exec node dist/main.js"]
+    volumes: ["documents:/data/documents"]
+    ports: ["127.0.0.1:8080:3000"]    # samo s ovog računala: http://localhost:8080
+volumes: { pgdata: {}, documents: {} }

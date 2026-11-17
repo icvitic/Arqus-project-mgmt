@@ -37,7 +37,7 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 ### Faza 1b – Spremnost za pilot (od v0.19.0)
 Širina MVP-a je gotova; do prvog pilota razvoj ide na spremnost za pilot. Obrazloženje i redoslijed: `docs/strategija-razvoja-faza-1b.md`.
 
-- [ ] **WP1.13** Demo okruženje: demo institucija s realnim podacima, pokretanje jednom naredbom, scenarij demonstracije
+- [x] **WP1.13** Demo okruženje: demo institucija s realnim podacima, pokretanje jednom naredbom, scenarij demonstracije (v0.20.0; `demo.cmd`, `docs/DEMO.md`, `docs/DEMO-SCENARIJ.md`)
 - [ ] **WP1.14** Pristup po projektu: uloge na projektu, povjerljivi dokumenti, zaštita od istovremenog prepisivanja, pregled revizije (vrata prije stvarnih podataka pilota)
 - [ ] **WP1.15** Portfelj (M10): pregled institucije – projekti, potrošnja, rokovi, opterećenje ljudi
 - [ ] **WP1.16** ZNS paket za predaju: izvoz troškova, evidencije rada, dokazi, mjerenje trajanja pripreme

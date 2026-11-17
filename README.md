@@ -7,6 +7,7 @@ Generička SaaS/PaaS platforma za cijeli životni ciklus nacionalnih i EU projek
 - **Repozitorij:** https://github.com/icvitic/arqus-project-mgmt
 - **Status:** Faza 1 – MVP i pilot (faza 0 zatvorena odlukom GO; vidi [docs/STATUS.md](docs/STATUS.md))
 - **Razvoj:** [docs/RAZVOJ.md](docs/RAZVOJ.md) – `pnpm install && pnpm infra:up && pnpm dev`
+- **Demo:** `demo.cmd` (Windows, Docker Desktop) ili `scripts/demo.sh` → http://localhost:8080 s popunjenom demo institucijom; upute [docs/DEMO.md](docs/DEMO.md), scenarij od 20 minuta [docs/DEMO-SCENARIJ.md](docs/DEMO-SCENARIJ.md)
 
 Proizvod je potpuno odvojen od FPZ Projektnog portala: novi kod, bez kopiranja koda ili podataka portala (vidi [ADR-0005](docs/adr/0005-odvojenost-od-fpz-portala.md)).
 
@@ -22,6 +23,8 @@ Proizvod je potpuno odvojen od FPZ Projektnog portala: novi kod, bez kopiranja k
 | [docs/domena/](docs/domena/) | domenski model i paketi programa (shema + primjeri) |
 | [prototip/](prototip/) | klikabilni prototip toka radar → prijava → projekt (WP0.5) |
 | [docs/RAZVOJ.md](docs/RAZVOJ.md) | lokalno pokretanje, struktura monorepa, pravila koda |
+| [docs/DEMO.md](docs/DEMO.md) | demo okruženje jednom naredbom (`demo.cmd`), računi, reset |
+| [docs/DEMO-SCENARIJ.md](docs/DEMO-SCENARIJ.md) | scenarij demonstracije proizvoda od 20 minuta |
 | [docs/PILOT-INSTALACIJA.md](docs/PILOT-INSTALACIJA.md) | instalacija na poslužitelj u EU (Docker Compose, HTTPS, kopije) |
 | [docs/sigurnost/ASVS-L2.md](docs/sigurnost/ASVS-L2.md) | sigurnosna samoprocjena i prioriteti |
 | [docs/izvjestaji/](docs/izvjestaji/) | izvještaji o napretku po datumu |

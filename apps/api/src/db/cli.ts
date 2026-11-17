@@ -3,7 +3,9 @@
  * import-packages – uvoz/osvježavanje globalnih paketa programa (ARQUS_PACKAGES_DIR)
  * seed – prvi stanar i administrator (SEED_TENANT_SLUG, SEED_TENANT_NAME, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD)
  * init – migrate + import-packages (pri svakom pokretanju kontejnera; idempotentno)
- * import-calls [--file a.json ...] – uvoz globalnih poziva s portala EU Funding & Tenders (ili iz spremljenih odgovora search API-ja) */
+ * import-calls [--file a.json ...] – uvoz globalnih poziva s portala EU Funding & Tenders (ili iz spremljenih odgovora search API-ja)
+ * demo [--reset] [--slug <oznaka>] – demo institucija s realnim podacima (WP1.13; nikad implicitno). Treba i DATABASE_URL (aplikacijska uloga);
+ *   u produkciji samo uz ARQUS_DEMO=1. Lozinka demo korisnika: DEMO_PASSWORD ili zadana (docs/DEMO.md). */
 import { Pool } from 'pg';
 import { runMigrations } from './migrate';
 import { importGlobalPackages, seedDemo } from './seed';
@@ -42,6 +44,23 @@ async function main(cmd: string | undefined): Promise<void> {
     const r = await importFtCalls(url, results);
     console.log(`F&T – dohvaćeno ${r.fetched}; novih ${r.inserted}, osvježeno ${r.updated}, ručnih zadržano ${r.keptManual}; preskočeno: duplikati ${r.skipped.duplicate}, istekli ${r.skipped.expired}, neispravni ${r.skipped.invalid}`);
   }
-  if (!['migrate', 'import-packages', 'seed', 'init', 'import-calls'].includes(cmd ?? '')) throw new Error('Naredba: migrate | import-packages | seed | init | import-calls');
+  if (cmd === 'demo') await demo(url, process.argv.slice(3));
+  if (!['migrate', 'import-packages', 'seed', 'init', 'import-calls', 'demo'].includes(cmd ?? '')) throw new Error('Naredba: migrate | import-packages | seed | init | import-calls | demo');
+}
+
+async function demo(ownerUrl: string, args: string[]): Promise<void> {
+  if (process.env.NODE_ENV === 'production' && process.env.ARQUS_DEMO !== '1') throw new Error('Demo podaci se u produkciji pune samo uz ARQUS_DEMO=1 (zaštita pilot-instalacije).');
+  const appUrl = process.env.DATABASE_URL;
+  if (!appUrl) throw new Error('DATABASE_URL (aplikacijska uloga) nije postavljen – demo podaci pune se kroz API pod RLS-om');
+  const unknown = args.filter((a, i) => !['--reset', '--slug'].includes(a) && args[i - 1] !== '--slug');
+  if (unknown.length) throw new Error(`Nepoznati argumenti: ${unknown.join(' ')} (demo [--reset] [--slug <oznaka>])`);
+  const slugAt = args.indexOf('--slug');
+  const { runDemo } = await import('../demo/demo');
+  const started = Date.now();
+  const r = await runDemo({ ownerUrl, appUrl, reset: args.includes('--reset'), slug: slugAt >= 0 ? args[slugAt + 1] : undefined, password: process.env.DEMO_PASSWORD || undefined, log: (m) => console.log(`  ${m}`) });
+  console.log(r.status === 'created' ? `Demo institucija "${r.slug}" spremna (${((Date.now() - started) / 1000).toFixed(0)} s).` : `Demo institucija "${r.slug}" već postoji.`);
+  if (r.summary) console.log(`  projekti: ${r.summary.projects.join(', ')}; prijave: ${r.summary.proposals.join(', ')}; pozivi: ${r.summary.calls}; timesheetovi: ${r.summary.timesheets}; troškovi: ${r.summary.expenses}; dokumenti: ${r.summary.documents}; ZNS: ${r.summary.claims}`);
+  console.log(`Prijava: oznaka institucije "${r.slug}", lozinka za sve račune: ${r.password}`);
+  for (const u of r.users) console.log(`  ${u.email.padEnd(28)} ${u.roleLabel} – ${u.note}`);
 }
 main(process.argv[2]).catch((e: unknown) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

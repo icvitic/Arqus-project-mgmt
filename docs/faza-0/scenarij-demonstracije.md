@@ -1,5 +1,7 @@
 # Scenarij demonstracije prototipa (10 min) – priprema za WP0.6
 
+> Za demonstraciju pravog proizvoda (od v0.20.0) koristi [DEMO-SCENARIJ.md](../DEMO-SCENARIJ.md) i demo okruženje iz [DEMO.md](../DEMO.md). Ovaj scenarij ostaje za klikabilni prototip iz faze 0.
+
 Prototip: `prototip/index.html` (pokretanje: `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”). Prije intervjua kliknuti **Resetiraj podatke**. Demonstracija ide **nakon** pitanja iz vodiča, da ne usmjeri odgovore.
 
 Cilj nije pokazati sve, nego provjeriti **tri hipoteze**: (H2) želi li sugovornik jedan alat za prijavu i provedbu, (H4) jesu li pravila programa kao konfiguracija razumljiva i vrijedna, (H7) što od viđenog ima najveću vrijednost.

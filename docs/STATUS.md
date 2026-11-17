@@ -1,8 +1,9 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-16 · **Verzija:** v0.19.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.20.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- WP1.13 (v0.20.0): demo okruženje – `demo.cmd` (Windows, Docker Desktop) u nekoliko minuta digne ArQus Projekti na http://localhost:8080 s popunjenom demo institucijom (HE projekt u provedbi, NPOO projekt s isplaćenim ZNS-om, prijava u pripremi, radar, 7 korisnika s različitim ulogama); `demo.cmd reset` vraća početno stanje. Scenarij demonstracije od 20 minuta u `docs/DEMO-SCENARIJ.md`. Ivan može pokazati pravi proizvod bez ručne instalacije.
 - WP1.12 (v0.19.0): uvoz poziva s portala EU Funding & Tenders – ~470 aktualnih tema (365 Horizon Europe s paketom i vrstom akcije) osvježava se svaki dan; radar s filtrima po programu i „vlastiti i praćeni”. Institucija više ne mora ručno unositi EU pozive.
 - WP1.11 (v0.18.0): dokumenti – dokazi uz troškove (zamrzavaju se predajom ZNS-a), ugovori i isporuke na projektu, dokumenti prijave; verzije s SHA-256, sigurna provjera i preuzimanje, dnevna kopija. Pilot ima sve za reviziju troškova na jednom mjestu.
 - WP1.5 (v0.17.0): prijave – iz odluke go na radaru, konzorcij s potvrdama, struktura rada, proračun po pravilima paketa (verzije, zaključavanje), provjera spremnosti, predaja, ishod i ugovaranje u projekt. Cijeli put poziv → prijava → projekt → ZNS radi u sučelju.
@@ -34,10 +35,10 @@
 - WP1.9 – čeka odabir pružatelja i pilot-institucije (instalacija za ~1 sat prema `docs/PILOT-INSTALACIJA.md`) i vanjski penetracijski test.
 
 ## Sljedeće
-Prema `docs/strategija-razvoja-faza-1b.md` (2026-11-17): WP1.13 demo okruženje → WP1.14 pristup po projektu → WP1.15 portfelj → WP1.16 ZNS paket za predaju → WP1.17 uvoz iz Excela → WP1.18 rokovi i „Moj rad”. Revizija strategije nakon WP1.15 ili s prvim pilotom.
+Prema `docs/strategija-razvoja-faza-1b.md`: WP1.14 pristup po projektu (vrata prije stvarnih podataka prve institucije) → WP1.15 portfelj → WP1.16 ZNS paket za predaju → WP1.17 uvoz iz Excela → WP1.18 rokovi i „Moj rad”. Usporedno (Ivan): demonstracija trima do pet institucija s demo okruženjem. Revizija strategije nakon WP1.15 ili s prvim pilotom.
 
 ## Otvorena pitanja za Ivana
-- Ljudski kolosijek iz strategije faze 1b: pokazati demo (nakon WP1.13) trima do pet institucija, odabrati EU pružatelja, od prvog pilota dobiti polaznu mjeru trajanja pripreme ZNS-a, budžet za penetracijski test.
+- Ljudski kolosijek iz strategije faze 1b: demo je spreman (`demo.cmd`, upute `docs/DEMO.md`) – pokazati ga trima do pet institucija; isprobaj `demo.cmd` na svom računalu prije prvog razgovora (slika, compose, punjenje, reset i ponovno pokretanje provjereni su u Dockeru na Linuxu; sama skripta `demo.cmd` na Windowsu nije), odabrati EU pružatelja, od prvog pilota dobiti polaznu mjeru trajanja pripreme ZNS-a, budžet za penetracijski test.
 - Kad odabereš pružatelja i pilot-instituciju, instalacija ide prema `docs/PILOT-INSTALACIJA.md`; za vanjski penetracijski test treba budžet i izvođača.
 - Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?
 - NPOO stopa neizravnih troškova (15 %) nije potvrđena u pozivima – Upute za prijavitelje jednog stvarnog poziva i dalje bi pomogle.
