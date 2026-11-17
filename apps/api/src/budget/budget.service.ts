@@ -3,7 +3,7 @@ import { and, asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { budgetLineIssues, computeProjectBudget } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
-import { budgetLines, organisations, projectBudgets, projectPartners, workPackages } from '../db/schema';
+import { budgetLines, organisations, projectBudgets, projectPartners, projects, workPackages } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { loadProject } from '../common/project-access';
@@ -58,6 +58,10 @@ export class BudgetService {
   /** Zamjena svih redaka nacrta proračuna (tablični unos). Zaključan proračun mijenja se samo amandmanom. */
   async replaceLines(tx: Tx, tenantId: string, projectId: string, input: BudgetLinesInput, actorId?: string) {
     const p = await loadProject(tx, projectId, { editable: true });
+    // WP1.19: istovremena spremanja proračuna istog projekta idu jedno za drugim (zaključan redak projekta). Bez toga dva prva
+    // spremanja (revizija 0) oba ne vide proračun, oba ga stvaraju i drugo padne na jedinstvenosti verzije (generički 409)
+    // umjesto na `revision_conflict`. Zaključavanje bez ključa ne blokira upise koji se na projekt samo pozivaju.
+    await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).for('no key update');
     let budget = await this.current(tx, projectId);
     // Prva radnja: provjera revizije uz zaključavanje retka – istovremeno spremanje drugog korisnika ne prepisuje se tiho.
     await assertRevision(tx, projectBudgets, budget?.id ?? null, input.revision, 'Proračun');

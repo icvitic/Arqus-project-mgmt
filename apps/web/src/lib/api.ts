@@ -13,6 +13,10 @@ export const token = {
 
 let onUnauthorized: () => void = () => undefined;
 export function setUnauthorizedHandler(fn: () => void): void { onUnauthorized = fn; }
+/** WP1.19: poslužitelj traži postavljanje obveznog MFA (403 `mfa_setup_required`) – sučelje prelazi na postavljanje MFA. */
+let onMfaRequired: () => void = () => undefined;
+export function setMfaRequiredHandler(fn: () => void): void { onMfaRequired = fn; }
+const mfaRequired = (status: number, data: unknown) => status === 403 && (data as { code?: unknown } | null)?.code === 'mfa_setup_required';
 
 function issuesOf(body: unknown): string[] {
   const raw = (body as { issues?: unknown })?.issues;
@@ -30,6 +34,7 @@ export async function api<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   const data: unknown = text ? JSON.parse(text) : null;
   if (!res.ok) {
     if (res.status === 401 && path !== '/auth/login') onUnauthorized();
+    if (mfaRequired(res.status, data)) onMfaRequired();
     const msg = (data as { message?: unknown })?.message;
     throw new ApiError(res.status, typeof msg === 'string' ? msg : Array.isArray(msg) ? msg.join(', ') : `Greška ${res.status}`, issuesOf(data), data);
   }

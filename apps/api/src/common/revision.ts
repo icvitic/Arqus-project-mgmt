@@ -12,7 +12,9 @@ import { tenantTimeZone } from './tenant-context';
  * razlikuje, odgovor je 409 s tim tko je i kada promijenio zapis, a ništa se ne zapisuje (provjera je prva radnja u
  * transakciji, uz zaključavanje retka). `0` znači „zapis još ne postoji” (prvi proračun, prvi unos timesheeta).
  */
-export const revisionField = z.number().int().min(0).max(2_147_483_647).optional();
+export const REVISION_REQUIRED = 'Nedostaje revizija (revision) – pošalji reviziju zapisa koju si učitao (0 ako zapis još ne postoji); bez nje se spremanje odbija';
+/** WP1.19: revizija je obavezna na svakom spremanju koje je prima (bez nje 400) – nema spremanja bez provjere. */
+export const revisionField = z.number({ error: (iss) => (iss.input === undefined ? REVISION_REQUIRED : 'revizija mora biti cijeli broj ≥ 0') }).int().min(0).max(2_147_483_647);
 
 export const REVISION_CONFLICT = 'revision_conflict';
 
@@ -23,10 +25,9 @@ export const bump = (t: { revision: PgColumn }): SQL => sql`${t.revision} + 1`;
 
 /**
  * Provjera revizije uz zaključavanje retka (`FOR UPDATE` – istovremena spremanja čekaju jedno drugo, pa drugo vidi novu reviziju).
- * `expected === undefined` → bez provjere (klijent revizije ne šalje); redak `null` → zapis ne postoji (očekuje se 0).
+ * Redak `null` → zapis ne postoji (očekuje se 0). WP1.19: revizija je obavezna (shema `revisionField` odbija zahtjev bez nje).
  */
-export async function assertRevision(tx: Tx, table: PgTable & Versioned, id: string | null, expected: number | undefined, what: string): Promise<void> {
-  if (expected === undefined) return;
+export async function assertRevision(tx: Tx, table: PgTable & Versioned, id: string | null, expected: number, what: string): Promise<void> {
   const row = id ? (await tx.select({ revision: table.revision, updatedAt: table.updatedAt, updatedBy: table.updatedBy }).from(table as PgTable).where(eq(table.id, id)).for('update'))[0] as
     { revision: number; updatedAt: Date; updatedBy: string | null } | undefined : undefined;
   const current = row?.revision ?? 0;

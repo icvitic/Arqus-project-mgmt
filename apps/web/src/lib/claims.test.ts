@@ -18,6 +18,17 @@ describe('grupiranje troškova u ZNS-u', () => {
   });
 });
 
+describe('WP1.19: skriveni iznosi troškova osoblja', () => {
+  it('grupa s retkom bez iznosa nema zbroj (ne zbraja se djelomično)', () => {
+    const g = groupExpenses([
+      e('a1', '2027-02-28', { source: 'timesheet', timesheetId: 't1', person: 'Ana', month: '2027-02', amount: null, amountHidden: true }),
+      e('a2', '2027-02-28', { source: 'timesheet', timesheetId: 't1', person: 'Ana', month: '2027-02', amount: null, amountHidden: true }),
+      e('m0', '2027-02-28'),
+    ]);
+    expect(g.map((x) => `${x.kind}:${x.rows.length}:${x.amount}:${x.hidden}`)).toEqual(['personnel:2:null:true', 'single:1:100:false']);
+  });
+});
+
 describe('zadano razdoblje novog ZNS-a', () => {
   const free = [{ number: 3, endDate: '2027-09-30' }, { number: 2, endDate: '2027-06-30' }];
   it('najranije završeno bez zahtjeva', () => { expect(defaultPeriod(free, '2027-10-05')).toBe(2); });

@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { IdentityService } from './identity.service';
-import { Authenticated, ProjectPermission, Public, RequirePermission } from './auth.guard';
+import { Authenticated, MfaSetupAllowed, ProjectPermission, Public, RequirePermission } from './auth.guard';
+import { MFA_POLICIES } from './mfa-policy';
 import { DbService } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
 import { parseBody } from '../common/validation';
@@ -14,6 +15,7 @@ const updateUserInput = z.object({ displayName: z.string().trim().min(2).max(200
 const passwordInput = z.object({ currentPassword: str(500), newPassword: str(500) });
 const codeInput = z.object({ code: z.string().regex(/^\d{6}$/, 'kod ima 6 znamenki') });
 const resetInput = z.object({ newPassword: str(500) });
+const securityInput = z.object({ requireMfa: z.enum(MFA_POLICIES) }).strict();
 const grantInput = z.object({ userId: z.string().uuid(), roleCode: z.string().min(1).max(60) }).strict();
 
 @Controller()
@@ -26,26 +28,36 @@ export class IdentityController {
     return this.identity.login(input, { ip: req.ip, userAgent: req.headers['user-agent'] });
   }
 
-  @Authenticated() @Post('auth/logout')
+  @Authenticated() @MfaSetupAllowed() @Post('auth/logout')
   logout() { const c = this.ctx.require(); return this.db.tx((tx) => this.identity.logout(tx, c.userId!, c.sessionId!)); }
 
-  @Authenticated() @Get('me')
+  @Authenticated() @MfaSetupAllowed() @Get('me')
   me() { const c = this.ctx.require(); return this.db.tx((tx) => this.identity.me(tx, c.tenantId, c.userId!)); }
 
-  @Authenticated() @Post('me/password')
+  @Authenticated() @MfaSetupAllowed() @Post('me/password')
   changePassword(@Body() body: unknown) {
     const i = parseBody(passwordInput, body); const c = this.ctx.require();
     return this.db.tx((tx) => this.identity.changePassword(tx, c.tenantId, c.userId!, c.sessionId!, i.currentPassword, i.newPassword));
   }
 
-  @Authenticated() @Post('me/mfa/setup')
+  @Authenticated() @MfaSetupAllowed() @Post('me/mfa/setup')
   mfaSetup() { const c = this.ctx.require(); return this.db.tx((tx) => this.identity.mfaSetup(tx, c.userId!)); }
 
-  @Authenticated() @Post('me/mfa/enable')
+  @Authenticated() @MfaSetupAllowed() @Post('me/mfa/enable')
   mfaEnable(@Body() body: unknown) { const { code } = parseBody(codeInput, body); const c = this.ctx.require(); return this.db.tx((tx) => this.identity.mfaEnable(tx, c.userId!, c.sessionId!, code)); }
 
   @Authenticated() @Post('me/mfa/disable')
-  mfaDisable(@Body() body: unknown) { const { code } = parseBody(codeInput, body); const c = this.ctx.require(); return this.db.tx((tx) => this.identity.mfaDisable(tx, c.userId!, code)); }
+  mfaDisable(@Body() body: unknown) { const { code } = parseBody(codeInput, body); const c = this.ctx.require(); return this.db.tx((tx) => this.identity.mfaDisable(tx, c.tenantId, c.userId!, c.sessionId!, code)); }
+
+  /** WP1.19: sigurnosne postavke institucije – obvezni MFA (čita tko vidi korisnike, mijenja samo administrator korisnika). */
+  @Get('tenant/security') @RequirePermission('users:read')
+  security() { const c = this.ctx.require(); return this.db.tx((tx) => this.identity.securitySettings(tx, c.tenantId)); }
+
+  @Put('tenant/security') @RequirePermission('users:write')
+  setSecurity(@Body() body: unknown) {
+    const { requireMfa } = parseBody(securityInput, body); const c = this.ctx.require();
+    return this.db.tx((tx) => this.identity.setSecuritySettings(tx, c.tenantId, c.userId!, requireMfa));
+  }
 
   @Get('users') @RequirePermission('users:read')
   users() { return this.db.tx((tx) => this.identity.listUsers(tx)); }

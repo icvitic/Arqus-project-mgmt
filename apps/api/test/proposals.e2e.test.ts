@@ -54,8 +54,8 @@ describe('Prijave (e2e)', () => {
     await http().post(`/api/proposals/${pid}/work-packages`).set(auth(A)).send({ title: 'Upravljanje', leadMemberId: selfMember, startMonth: 1, endMonth: 24, personMonths: 6 }).expect(201);
     d = (await http().post(`/api/proposals/${pid}/work-packages`).set(auth(A)).send({ title: 'Pilot', leadMemberId: partnerMember, startMonth: 3, endMonth: 20, personMonths: 18 }).expect(201)).body;
     expect(d.workPackages.map((w: { code: string }) => w.code)).toEqual(['WP1', 'WP2']);
-    await http().put(`/api/proposals/${pid}/budget/lines`).set(auth(A)).send({ lines: [{ memberId: selfMember, categoryCode: 'NEPOSTOJI', amount: 1 }] }).expect(400);
-    d = (await http().put(`/api/proposals/${pid}/budget/lines`).set(auth(A)).send({ lines: [
+    await http().put(`/api/proposals/${pid}/budget/lines`).set(auth(A)).send({ revision: d.revision, lines: [{ memberId: selfMember, categoryCode: 'NEPOSTOJI', amount: 1 }] }).expect(400);
+    d = (await http().put(`/api/proposals/${pid}/budget/lines`).set(auth(A)).send({ revision: d.revision, lines: [
       { memberId: selfMember, categoryCode: 'OS', amount: 6_000_000 }, { memberId: partnerMember, categoryCode: 'OS', amount: 4_000_000 }, { memberId: partnerMember, categoryCode: 'PUT', amount: 500_000 },
     ] }).expect(200)).body;
     expect(d.budget.totals.total).toBeGreaterThanOrEqual(10_500_000);
@@ -64,7 +64,7 @@ describe('Prijave (e2e)', () => {
     await http().patch(`/api/proposals/${pid}/members/${partnerMember}`).set(auth(A)).send({ confirmed: true }).expect(200);
     d = (await http().post(`/api/proposals/${pid}/budget/lock`).set(auth(A)).expect(201)).body;
     expect(d.ready).toBe(true);
-    await http().put(`/api/proposals/${pid}/budget/lines`).set(auth(A)).send({ lines: [] }).expect(409);
+    await http().put(`/api/proposals/${pid}/budget/lines`).set(auth(A)).send({ revision: d.revision, lines: [] }).expect(409);
     d = (await http().post(`/api/proposals/${pid}/budget/unlock`).set(auth(A)).expect(201)).body;
     expect(d.budget).toMatchObject({ version: 2, locked: false });
     d = (await http().post(`/api/proposals/${pid}/budget/lock`).set(auth(A)).expect(201)).body;
@@ -86,7 +86,7 @@ describe('Prijave (e2e)', () => {
     expect(d).toMatchObject({ status: 'funded', outcome: { result: 'funded', score: '87/100' } });
     // WP1.14: nositelj prijave bez uloge institucije ugovaranjem postaje voditelj (samo) novog projekta.
     const lead = (await http().post('/api/users').set(auth(A)).send({ email: `nositelj@${slugA}.hr`, displayName: 'Nositelj prijave', password: 'Plava-Staza-2027-x', roleCodes: [] }).expect(201)).body.id;
-    await http().patch(`/api/proposals/${pid}`).set(auth(A)).send({ leadUserId: lead }).expect(200);
+    await http().patch(`/api/proposals/${pid}`).set(auth(A)).send({ revision: d.revision, leadUserId: lead }).expect(200);
     const c = (await http().post(`/api/proposals/${pid}/contract`).set(auth(A)).send({ contractNo: `NPOO-${tag}`, startDate: '2027-01-01' }).expect(201)).body;
     expect(c.proposal).toMatchObject({ status: 'contracted', projectId: c.projectId });
     const leadToken = (await http().post('/api/auth/login').send({ tenantSlug: slugA, email: `nositelj@${slugA}.hr`, password: 'Plava-Staza-2027-x' }).expect(201)).body.accessToken;

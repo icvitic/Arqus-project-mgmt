@@ -178,6 +178,11 @@ describe('troškovi iz ranijih razdoblja (WP1.16b)', () => {
     expect(item(c, 'earlier_periods')).toMatchObject({ ok: false, severity: 'warning', title: '1 nepredan trošak iz ranijih razdoblja nije uključen' });
     expect(item(c, 'earlier_periods').details).toEqual(['nije uključeno: 15. 12. 2026. Kasno evidentiran račun (400,00 EUR, RP1)']);
   });
+  it('WP1.19: iznos pojedinog troška osoblja nikad u tekstu popisa (tekst se sprema i prikazuje bez personnel:read)', () => {
+    const c = claimChecklist(base({ earlierNotSelected: [{ date: '2026-12-31', description: 'Rad: Ana, 2026-12 (7,50 h)', amount: 123_456, period: 1, source: 'timesheet' }] }));
+    expect(item(c, 'earlier_periods').details).toEqual(['nije uključeno: 31. 12. 2026. Rad: Ana, 2026-12 (7,50 h) (trošak osoblja, RP1)']);
+    expect(JSON.stringify(c)).not.toContain('1.234,56');
+  });
   it('bez troškova iz ranijih razdoblja stavka se ne prikazuje', () => {
     expect(claimChecklist(base()).items.some((i) => i.key === 'earlier_periods')).toBe(false);
   });

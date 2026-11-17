@@ -21,7 +21,7 @@ export function FinanceTab({ project: p }: TabProps) {
       </div>
       {d.strandedExpenses.count > 0 && (
         <div className="warnbox">
-          {d.strandedExpenses.count} {plural(d.strandedExpenses.count, 'trošak nije predan', 'troška nisu predana', 'troškova nije predano')} ({eur(d.strandedExpenses.amount)}): {plural(d.strandedExpenses.count, 'datiran je', 'datirani su', 'datirani su')} u razdoblju čiji je ZNS već predan. <a href={`#/projekti/${p.id}/zns`}>Uključi ih u nacrt sljedećeg zahtjeva</a> (troškovi iz ranijih razdoblja).
+          {d.strandedExpenses.count} {plural(d.strandedExpenses.count, 'trošak nije predan', 'troška nisu predana', 'troškova nije predano')} ({d.strandedExpenses.personnelAmountHidden ? (d.strandedExpenses.amount ? `${eur(d.strandedExpenses.amount)} bez troškova osoblja` : 'iznos troškova osoblja skriven') : eur(d.strandedExpenses.amount)}): {plural(d.strandedExpenses.count, 'datiran je', 'datirani su', 'datirani su')} u razdoblju čiji je ZNS već predan. <a href={`#/projekti/${p.id}/zns`}>Uključi ih u nacrt sljedećeg zahtjeva</a> (troškovi iz ranijih razdoblja).
         </div>
       )}
       <p className="muted">Ostvareno: trošak prije odluke o ZNS-u s traženim iznosom, nakon odluke s priznatim (odbijen = 0).{d.unrecognised.total > 0 && <> Nepriznato u odlukama: <b>{eur(d.unrecognised.total)}</b> (izravno {eur(d.unrecognised.direct)}, neizravno {eur(d.unrecognised.indirect)}).</>}</p>

@@ -92,11 +92,12 @@ describe('Projekti (e2e)', () => {
   });
 
   it('nakon aktivacije: početak i partneri se ne mijenjaju (amandman), naslov da; nedopušteni prijelazi 409', async () => {
-    await http().patch(`/api/projects/${npooProject}`).set(auth(A)).send({ startDate: '2027-02-01' }).expect(409);
+    const rev = async () => (await http().get(`/api/projects/${npooProject}`).set(auth(A)).expect(200)).body.revision as number;
+    await http().patch(`/api/projects/${npooProject}`).set(auth(A)).send({ revision: await rev(), startDate: '2027-02-01' }).expect(409);
     await http().post(`/api/projects/${npooProject}/partners`).set(auth(A)).send({ organisationId: polimi }).expect(409);
-    const upd = await http().patch(`/api/projects/${npooProject}`).set(auth(A)).send({ title: 'Zeleni promet 2' }).expect(200);
+    const upd = await http().patch(`/api/projects/${npooProject}`).set(auth(A)).send({ revision: await rev(), title: 'Zeleni promet 2' }).expect(200);
     expect(upd.body.title).toBe('Zeleni promet 2');
-    await http().patch(`/api/projects/${npooProject}`).set(auth(A)).send({ status: 'closed' }).expect(400);
+    await http().patch(`/api/projects/${npooProject}`).set(auth(A)).send({ revision: await rev(), status: 'closed' }).expect(400);
     await http().post(`/api/projects/${npooProject}/transition`).set(auth(A)).send({ to: 'closed' }).expect(409);
     await http().post(`/api/projects/${npooProject}/transition`).set(auth(A)).send({ to: 'suspended' }).expect(201);
     const back = await http().post(`/api/projects/${npooProject}/transition`).set(auth(A)).send({ to: 'active' }).expect(201);

@@ -10,7 +10,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AppModule } from '../src/app.module';
-import { routeAccess, type RouteAccess } from '../src/identity/auth.guard';
+import { MFA_SETUP_ALLOWED_KEY, routeAccess, type RouteAccess } from '../src/identity/auth.guard';
 import { buildAccessFixture, PDF, type AccessFixture } from './access-fixture';
 
 /**
@@ -19,7 +19,7 @@ import { buildAccessFixture, PDF, type AccessFixture } from './access-fixture';
  * automatski provjerava da korisnik s dodjelom samo na projektu A za id-jeve projekta B dobiva 404 (nikad 2xx);
  * za svaku rutu institucije da ga ista uloga na projektu ne pušta (403). Nova ruta tako ne može tiho preskočiti autorizaciju.
  */
-interface Route { method: string; path: string; access: RouteAccess | { kind: 'invalid'; reason: string } }
+interface Route { method: string; path: string; access: RouteAccess | { kind: 'invalid'; reason: string }; mfaSetup: boolean }
 
 const join2 = (...parts: (string | undefined)[]) => '/' + parts.flatMap((p) => (p ?? '').split('/')).filter(Boolean).join('/');
 
@@ -39,7 +39,7 @@ function enumerateRoutes(app: INestApplication): Route[] {
         if (method === undefined) continue;
         const sub = Reflect.getMetadata(PATH_METADATA, handler) as string | string[] | undefined;
         for (const b of [base].flat()) for (const s of [sub].flat()) {
-          routes.push({ method: RequestMethod[method]!, path: join2('api', b, s), access: routeAccess(reflector, [handler as never, ctrl]) });
+          routes.push({ method: RequestMethod[method]!, path: join2('api', b, s), access: routeAccess(reflector, [handler as never, ctrl]), mfaSetup: !!reflector.getAllAndOverride<boolean>(MFA_SETUP_ALLOWED_KEY, [handler as never, ctrl]) });
         }
       }
     }
@@ -86,6 +86,12 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
     expect(routes.filter((r) => r.path.startsWith('/api/documents')).every((r) => r.access.kind === 'resolves-project')).toBe(true);
     // Javne rute: samo health i prijava.
     expect(routes.filter((r) => r.access.kind === 'public').map((r) => `${r.method} ${r.path}`).sort()).toEqual(['GET /api/health', 'GET /api/health/ready', 'POST /api/auth/login']);
+    // WP1.19: u ograničenom stanju (obvezni MFA nije postavljen) dostupne su samo ove rute – vlastiti račun i odjava.
+    expect(routes.filter((r) => r.mfaSetup).map((r) => `${r.method} ${r.path} (${r.access.kind})`).sort()).toEqual([
+      'GET /api/me (authenticated)', 'POST /api/auth/logout (authenticated)', 'POST /api/me/mfa/enable (authenticated)', 'POST /api/me/mfa/setup (authenticated)', 'POST /api/me/password (authenticated)',
+    ].sort());
+    // Sigurnosne postavke institucije (WP1.19): čitanje uz users:read, izmjena samo uz users:write (administrator).
+    expect(routes.filter((r) => r.path === '/api/tenant/security').map((r) => `${r.method} ${(r.access as { permission?: string }).permission}`).sort()).toEqual(['GET users:read', 'PUT users:write']);
   });
 
   /** Id-jevi projekta B za parametre putanje; nepoznati parametar ruši test (treba ga dodati ovdje). */

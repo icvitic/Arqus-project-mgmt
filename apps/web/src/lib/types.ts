@@ -1,6 +1,10 @@
 /** `permissions` – dozvole na razini institucije; `projectPermissions` – dozvole po projektu (WP1.14). */
 /** WP1.14b: `leadProposals` – prijave kojima je korisnik voditelj (radi na njima i bez uloge institucije). */
-export interface Me { user: { id: string; email: string; displayName: string; mfaEnabled: boolean }; tenant: { id: string; slug: string; name: string; timeZone?: string } | null; permissions: string[]; projectPermissions: Record<string, string[]>; leadProposals?: string[] }
+/** WP1.19: obvezni MFA po postavci institucije; `setupRequired` – sesija je u ograničenom stanju dok korisnik ne postavi MFA. */
+export type MfaPolicy = 'none' | 'privileged' | 'all';
+export interface MfaState { policy: MfaPolicy; required: boolean; enabled: boolean; setupRequired: boolean }
+export interface Me { user: { id: string; email: string; displayName: string; mfaEnabled: boolean }; tenant: { id: string; slug: string; name: string; timeZone?: string } | null; permissions: string[]; projectPermissions: Record<string, string[]>; leadProposals?: string[]; mfa?: MfaState }
+export interface SecuritySettings { requireMfa: MfaPolicy; privilegedPermissions: string[]; impact: Record<MfaPolicy, { required: number; withoutMfa: number }> }
 /** WP1.14b: odstupanje od pravila programa (valjanost paketa, pravilo `validations`). */
 export interface Deviation { key: string; severity: 'error' | 'warning' | 'info'; message: string }
 export interface PackageSummary { id: string; packageId: string; version: string; programme: string; funder: string | null; status: string; scope: 'global' | 'tenant'; extendsId: string | null; validFrom: string; validTo: string | null; publishedAt: string | null }
@@ -35,21 +39,24 @@ export interface Budget {
 /** `annualCost` je null bez dozvole personnel:read; `costSet` kaže je li trošak upisan. */
 export interface TeamMember { id: string; fullName: string; userId: string | null; partnerId: string; role: string | null; annualCost: number | null; costSet: boolean; active: boolean }
 export interface Timesheet { status: string; revision: number; submittedBy: string | null; entries: { day: number; minutes: number; workPackageId: string | null }[]; totalMinutes: number; warnings: string[] }
-/** Trošak; `person`/`month`/`workPackage` za troškove osoblja (grupiranje po osobi i mjesecu). `recognised` – priznati iznos nakon odluke o ZNS-u. */
+/**
+ * Trošak; `person`/`month`/`workPackage` za troškove osoblja (grupiranje po osobi i mjesecu). `recognised` – priznati iznos nakon odluke o ZNS-u.
+ * WP1.19: bez `personnel:read` iznos i priznati iznos troška osoblja su `null`, a `amountHidden` je `true` (sati ostaju u opisu).
+ */
 export interface Expense {
-  id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number; recognised: number | null; decisionReason: string | null;
+  id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number | null; recognised: number | null; amountHidden: boolean; decisionReason: string | null;
   evidenceRef: string | null; source: string; status: string; documents: number; timesheetId: string | null; person: string | null; month: string | null; workPackage: string | null;
 }
 export interface Money { direct: number; indirect: number; total: number; requested: number }
 export interface ChecklistItem { key: string; ok: boolean; severity: 'blocking' | 'warning'; title: string; details: string[]; resolution?: 'early_reason' | 'acknowledge'; expenseIds?: string[] }
 export interface ClaimExpense {
-  id: string; date: string; categoryCode: string; description: string; supplier: string | null; amount: number; recognised: number | null; decisionReason: string | null;
+  id: string; date: string; categoryCode: string; description: string; supplier: string | null; amount: number | null; recognised: number | null; amountHidden: boolean; decisionReason: string | null;
   status: string; source: string; documents: number; timesheetId: string | null; person: string | null; month: string | null; workPackage: string | null;
   /** WP1.16b: trošak iz ranijeg razdoblja (izričito uključen). */
   earlier: boolean;
 }
 /** WP1.16b: nepredan trošak iz ranijeg razdoblja koji nacrt može izričito uključiti. */
-export interface EarlierCandidate { id: string; date: string; categoryCode: string; description: string; supplier: string | null; amount: number; source: string; documents: number; period: number | null; selected: boolean; selectedElsewhere: number | null }
+export interface EarlierCandidate { id: string; date: string; categoryCode: string; description: string; supplier: string | null; amount: number | null; amountHidden: boolean; source: string; documents: number; period: number | null; selected: boolean; selectedElsewhere: number | null }
 /** WP1.16b: automatske mjere pripreme predanog zahtjeva. */
 export interface PreparationMeasures { daysAfterPeriodEnd: number; daysInPreparation: number; returns: number; expenses: number; evidenceFiles: number; timesheets: number; earlierExpenses: number }
 export interface Claim {
@@ -61,17 +68,19 @@ export interface Claim {
   requested: number | null; approved: number | null; paid: number | null; submittedAt: string | null; decisionDate: string | null; paidAt: string | null; paymentNote: string | null; note: string | null;
   earlierCandidates: EarlierCandidate[] | null;
   preparation: { hours: number | null; measures: PreparationMeasures | null };
+  /** WP1.19: o pojedinom trošku osoblja odlučuje samo uloga s personnel:read; ostali ga ostavljaju priznatim kako je zatražen. */
+  canDecidePersonnel: boolean;
 }
 export interface DecisionPreview { outcome: string; claimed: Money; recognised: Money; unrecognised: Money; computed: number; funderTotal: number | null; approved: number; difference: number; errors: string[] }
 export interface FinanceOverview {
   budgetStatus: string; planned: Money; actual: Money; unrecognised: Money;
   /** WP1.16b: nepredani troškovi iz ranijih razdoblja (razdoblje već predano, trošak nije odabran ni u jednom nacrtu). */
-  strandedExpenses: { count: number; amount: number };
+  strandedExpenses: { count: number; amount: number; personnelAmountHidden?: boolean };
   byCategory: { code: string; name: string; planned: number; actual: number; unrecognised: number; remaining: number; percent: number | null }[]; byPartner: { partnerId: string; name: string; planned: number; actual: number; unrecognised: number }[];
 }
 export interface ProjectRole { assignmentId: string; code: string; projectId: string; acronym: string | null }
 /** `roles` – uloge na razini institucije; `projectRoles` – uloge na pojedinom projektu. */
-export interface UserRow { id: string; email: string; displayName: string; status: string; mfaEnabled: boolean; lastLoginAt: string | null; roles: string[]; projectRoles: ProjectRole[] }
+export interface UserRow { id: string; email: string; displayName: string; status: string; mfaEnabled: boolean; mfaRequired?: boolean; lastLoginAt: string | null; roles: string[]; projectRoles: ProjectRole[] }
 export interface RoleRow { code: string; name: string; scope: string; system: boolean }
 export interface AccessEntry { assignmentId: string | null; userId: string; displayName: string; email: string; status: string; roleCode: string; roleName: string; scope: 'tenant' | 'project'; revocable: boolean }
 export interface ProjectAccess { projectId: string; entries: AccessEntry[]; users: { id: string; displayName: string; email: string }[]; roles: { code: string; name: string; scope: string; grantable: boolean }[] }

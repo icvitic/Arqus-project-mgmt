@@ -25,7 +25,17 @@ Pri svakom pokretanju aplikacija primijeni migracije, postavi lozinku aplikacijs
 ```bash
 docker compose exec -e SEED_TENANT_SLUG=fpz -e SEED_TENANT_NAME="Naziv institucije" -e SEED_ADMIN_EMAIL=admin@institucija.hr -e SEED_ADMIN_PASSWORD='<najmanje 12 znakova>' app node dist/db/cli.js seed
 ```
-Administrator se prijavljuje oznakom institucije, e-adresom i lozinkom, u izborniku **Korisnici** dodaje korisnike i uloge, a u **Moj račun** uključuje dvofaktorsku prijavu (preporučeno za sve administratore).
+Nova institucija stvorena ovom naredbom (produkcijska slika, `NODE_ENV=production`) ima **obveznu dvofaktorsku prijavu za povlaštene uloge** (WP1.19). Administrator se prijavljuje oznakom institucije, e-adresom i lozinkom i odmah dobiva samo stranicu **Postavi dvofaktorsku prijavu** (treba mu aplikacija za autentikaciju na mobitelu: Microsoft ili Google Authenticator, Aegis, 1Password); dok MFA ne postavi, poslužitelj odbija sve osim vlastitog računa i odjave. Nakon toga u izborniku **Korisnici** dodaje korisnike i uloge.
+
+**Obvezni MFA** (izbornik **Korisnici → Obvezna dvofaktorska prijava**, mijenja samo administrator; promjena se bilježi u reviziju):
+
+| Postavka | Za koga je MFA obvezan |
+| --- | --- |
+| Nije obvezna | ni za koga (zadano za postojeće instalacije i demo) |
+| Obvezna za povlaštene uloge | tko na razini institucije ima `users:write`, `tenant:write`, `personnel:read`, `audit:read`, `finance:write` ili `*` – sistemski administrator, ured za projekte i financije (zadano za novu produkcijsku instituciju) |
+| Obvezna za sve | svaki korisnik institucije |
+
+Korisnik kojem je MFA obvezan, a nema ga, pri prvom sljedećem zahtjevu (i sa starim tokenom) ide na postavljanje MFA; ne može ga isključiti dok ga institucija zahtijeva. Izgubljen uređaj: administrator u **Korisnici** radi „reset MFA”, korisnik ga pri sljedećoj prijavi ponovno postavlja. Postojeće instalacije nakon nadogradnje na v0.27.0 zadržavaju „nije obvezna” – preporuka je odmah prijeći na „povlaštene uloge”.
 
 Globalni pozivi s portala EU Funding & Tenders uvoze se automatski minutu nakon pokretanja, zatim svakih `FT_IMPORT_INTERVAL_HOURS` (zadano 24 h; ADR-0011). Ručno: `docker compose exec app node dist/db/cli.js import-calls`. Poslužitelj treba izlazni HTTPS prema `api.tech.ec.europa.eu`.
 
@@ -46,6 +56,7 @@ Migracije se primjenjuju automatski. Prije nadogradnje napraviti ručnu kopiju (
 
 ## 6. Prije puštanja pilotu
 - [ ] Sigurnosni pregled prema `docs/sigurnost/ASVS-L2.md` – sve stavke „nedostaje” s visokim rizikom riješene ili prihvaćene.
-- [ ] Penetracijski test vanjskog izvođača (uvjet faze 2).
+- [ ] Penetracijski test vanjskog izvođača (uvjet faze 2) – opseg, testni računi i prihvaćena ograničenja: `docs/sigurnost/PENTEST-OPSEG.md`.
+- [ ] Obvezni MFA najmanje „za povlaštene uloge” (Korisnici → Obvezna dvofaktorska prijava).
 - [ ] DPA s pružateljem i ugovor o obradi s pilot-institucijom.
 - [ ] Probna obnova iz kopije.

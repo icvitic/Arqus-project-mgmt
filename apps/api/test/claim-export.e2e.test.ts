@@ -65,14 +65,14 @@ describe('Paket ZNS-a za predaju i mjerenje pripreme (WP1.16b, e2e)', () => {
     otherPid = (await http().post('/api/projects').set(auth(t.admin!)).send({ acronym: `DRUGI${tag.slice(0, 3)}`, title: 'Drugi projekt', packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', startDate: '2025-01-01', durationMonths: 12, managerUserId: pm2User }).expect(201)).body.id;
     wp1 = (await http().post(`/api/projects/${pid}/work-packages`).set(auth(t.admin!)).send({ title: 'Upravljanje', startMonth: 1, endMonth: 24 }).expect(201)).body.id;
     wp2 = (await http().post(`/api/projects/${pid}/work-packages`).set(auth(t.admin!)).send({ title: 'Istraživanje', startMonth: 1, endMonth: 24 }).expect(201)).body.id;
-    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(t.admin!)).send({ lines: [
+    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(t.admin!)).send({ revision: 0, lines: [
       { partnerId: self, categoryCode: 'OS', amount: 6_000_000 }, { partnerId: self, categoryCode: 'VU', amount: 2_000_000 }, { partnerId: self, categoryCode: 'PUT', amount: 300_000 }, { partnerId: self, categoryCode: 'PV', amount: 500_000 },
     ] }).expect(200);
     durdica = (await http().post(`/api/projects/${pid}/team`).set(auth(t.admin!)).send({ fullName: 'Đurđica Šimić-Ćorić', role: 'istraživačica', annualCost: 3_440_000 }).expect(201)).body.id;
     ivan = (await http().post(`/api/projects/${pid}/team`).set(auth(t.admin!)).send({ fullName: 'Ivan Horvat', annualCost: 5_160_000 }).expect(201)).body.id;
     await http().post(`/api/projects/${pid}/transition`).set(auth(t.admin!)).send({ to: 'active' }).expect(201);
     const ts = async (member: string, month: string, entries: unknown[]) => {
-      await http().put(`/api/projects/${pid}/team/${member}/timesheets/${month}`).set(auth(t.admin!)).send({ entries }).expect(200);
+      await http().put(`/api/projects/${pid}/team/${member}/timesheets/${month}`).set(auth(t.admin!)).send({ revision: 0, entries }).expect(200);
       await http().post(`/api/projects/${pid}/team/${member}/timesheets/${month}/submit`).set(auth(t.admin!)).expect(201);
       // WP1.14b – četiri oka: predao administrator, odobrava ured za projekte.
       t.ured ??= await login(slug, `ured@${slug}.hr`);
@@ -161,7 +161,10 @@ describe('Paket ZNS-a za predaju i mjerenje pripreme (WP1.16b, e2e)', () => {
     expect(reader.files.get('kontrolna-lista.html')!.toString()).toContain('Povjerljivi dokazi');
     const x = new Map(readZip(reader.files.get('troskovi.xlsx')!).map((e) => [e.name, e.data.toString('utf8')]));
     expect([...readSheet(x, 2).values()].some((c) => c.v === '[povjerljivi dokaz – izostavljen]')).toBe(true);
-    expect([...readSheet(x, 3).values()].some((c) => c.v.startsWith('Stopa se prikazuje samo uz pristup'))).toBe(true);
+    // WP1.19: čitatelj nema personnel:read – na listu troškova osoblja samo sati, iznosi po osobi skriveni (i na listu troškova).
+    expect([...readSheet(x, 3).values()].some((c) => c.v.startsWith('Iznosi troškova osoblja po osobi'))).toBe(true);
+    expect([...readSheet(x, 3).values()].filter((c) => c.v === 'skriveno').length).toBeGreaterThan(0);
+    expect([...readSheet(x, 2).values()].filter((c) => c.v === 'skriveno').length).toBeGreaterThan(0);
     const fin = await exportOf(claim1, t.fin!);
     expect([...fin.files.keys()]).toContain('dokazi/001_2025-02-20_Putni-nalog-Zagreb-Split/putni-nalog.pdf');
     await http().get(`/api/projects/${pid}/claims/${claim1}/export`).set(auth(t.pm2!)).expect(404);
@@ -211,7 +214,7 @@ describe('Paket ZNS-a za predaju i mjerenje pripreme (WP1.16b, e2e)', () => {
   it('trošak iz ranijeg razdoblja: vidljiv i izričito uključiv; signal u financijama i portfelju; jedan nacrt', async () => {
     lateExpense = await expense({ categoryCode: 'VU', date: '2025-03-28', description: 'Kasno evidentiran račun za anketu', supplier: 'Istraživanja d.o.o.', amount: 40_000 });
     await upload(t.admin!, lateExpense, 'kasni-racun.pdf', PDF('kasni'));
-    expect((await http().get(`/api/projects/${pid}/finance`).set(auth(t.admin!)).expect(200)).body.strandedExpenses).toEqual({ count: 1, amount: 40_000 });
+    expect((await http().get(`/api/projects/${pid}/finance`).set(auth(t.admin!)).expect(200)).body.strandedExpenses).toEqual({ count: 1, amount: 40_000, personnelAmountHidden: false });
     const pf = (await http().get('/api/portfolio').set(auth(t.admin!)).expect(200)).body;
     expect(pf.projects.find((p: { id: string }) => p.id === pid).attention.strandedExpenses).toBe(1);
 
@@ -223,14 +226,14 @@ describe('Paket ZNS-a za predaju i mjerenje pripreme (WP1.16b, e2e)', () => {
     expect(c2.checklist.items.find((i: { key: string }) => i.key === 'earlier_periods')).toMatchObject({ ok: false, severity: 'warning' });
 
     // Odabir: samo nepredani trošak ranijeg razdoblja; čitatelj ne smije; drugi nacrt ga ne može uzeti.
-    await http().put(`/api/projects/${pid}/claims/${claim2}/earlier-expenses`).set(auth(t.rdr!)).send({ expenseIds: [lateExpense] }).expect(403);
-    await http().put(`/api/projects/${pid}/claims/${claim2}/earlier-expenses`).set(auth(t.admin!)).send({ expenseIds: [vuExpense] }).expect(400);
-    c2 = (await http().put(`/api/projects/${pid}/claims/${claim2}/earlier-expenses`).set(auth(t.admin!)).send({ expenseIds: [lateExpense] }).expect(200)).body;
+    await http().put(`/api/projects/${pid}/claims/${claim2}/earlier-expenses`).set(auth(t.rdr!)).send({ revision: c2.revision, expenseIds: [lateExpense] }).expect(403);
+    await http().put(`/api/projects/${pid}/claims/${claim2}/earlier-expenses`).set(auth(t.admin!)).send({ revision: c2.revision, expenseIds: [vuExpense] }).expect(400);
+    c2 = (await http().put(`/api/projects/${pid}/claims/${claim2}/earlier-expenses`).set(auth(t.admin!)).send({ revision: c2.revision, expenseIds: [lateExpense] }).expect(200)).body;
     expect(c2.expenses.find((e: { id: string }) => e.id === lateExpense)).toMatchObject({ earlier: true });
     expect(c2.checklist.items.find((i: { key: string }) => i.key === 'dates_in_period')).toMatchObject({ ok: true, title: 'Svi ostali troškovi su unutar razdoblja' });
     expect(c2.checklist.items.find((i: { key: string }) => i.key === 'earlier_periods')).toMatchObject({ ok: true });
     expect(c2.totals.byCategory.VU).toBe(40_000);
-    const r = await http().put(`/api/projects/${pid}/claims/${claim3}/earlier-expenses`).set(auth(t.admin!)).send({ expenseIds: [lateExpense] }).expect(400);
+    const r = await http().put(`/api/projects/${pid}/claims/${claim3}/earlier-expenses`).set(auth(t.admin!)).send({ revision: (await claim(claim3)).revision, expenseIds: [lateExpense] }).expect(400);
     expect(r.body.issues[0]).toMatch(/već je odabran u nacrtu ZNS-a za RP2/);
     expect((await claim(claim3)).earlierCandidates[0]).toMatchObject({ selectedElsewhere: 2, selected: false });
     expect((await http().get(`/api/projects/${pid}/finance`).set(auth(t.admin!)).expect(200)).body.strandedExpenses.count).toBe(0);

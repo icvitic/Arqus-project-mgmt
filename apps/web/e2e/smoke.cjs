@@ -2,7 +2,9 @@
  * Tok: prijava → paket → radar (go) → organizacija → prijava na poziv (konzorcij, RP, proračun, predaja, ishod) → ugovaranje u projekt → aktivacija → tim i timesheet (predaja, odobrenje)
  *      → trošak (dokaz) → ZNS (provjera, rana predaja, odluka po trošku, isplata, paket za predaju) → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → portfelj → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve.
  * WP1.14b: istovremena izmjena proračuna (drugi korisnik – ured za projekte – sprema prvi; poruka o sukobu, učitavanje, vraćanje vlastitog unosa),
- *      četiri oka na timesheetu (predavatelj ne vidi „Odobri”, odobrava ured), stranica Revizija (filtri, prije/poslije, CSV). */
+ *      četiri oka na timesheetu (predavatelj ne vidi „Odobri”, odobrava ured), stranica Revizija (filtri, prije/poslije, CSV).
+ * WP1.19: obvezni MFA (administrator postroži postavku, ured u otvorenoj sesiji ide na postavljanje MFA), iznosi troškova osoblja
+ *      skriveni upravi bez prava na plaće (sati vidljivi). */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -396,6 +398,75 @@ const tag = Date.now().toString(36);
     if (await page.getByRole('tab', { name: 'Pristup' }).count()) throw new Error('kartica Pristup ne smije biti vidljiva članu tima');
     if (await page.getByRole('button', { name: 'Dodaj člana tima' }).count()) throw new Error('član tima ne dodaje članove');
     await shot('clan-tima');
+  });
+  // WP1.19: obvezni MFA. Administrator uključi vlastiti MFA i postroži postavku institucije; voditeljica ureda (povlaštena uloga,
+  // bez MFA) u otvorenoj sesiji odmah dobiva samo postavljanje MFA s objašnjenjem, nakon postavljanja radi normalno.
+  let adminSecret = '';
+  await step('obvezni MFA: administrator postroži postavku, ured odmah na postavljanje MFA', async () => {
+    await relogin(EMAIL, PW);
+    await page.getByRole('heading', { name: 'Portfelj' }).waitFor();
+    await page.getByRole('link', { name: /Administrator/ }).click();
+    await page.getByRole('button', { name: 'Postavi MFA' }).click();
+    adminSecret = (await page.locator('code').first().textContent()).trim();
+    await page.getByLabel('Kod iz aplikacije').fill(totp(adminSecret));
+    await page.getByRole('button', { name: 'Uključi MFA' }).click();
+    await page.getByText('MFA je uključen').waitFor();
+    await page.getByRole('link', { name: 'Korisnici' }).click();
+    const card = page.locator('.card', { hasText: 'Obvezna dvofaktorska prijava (MFA)' });
+    await card.getByLabel(/Obvezna za povlaštene uloge/).check();
+    await card.getByText(/još nema MFA i pri sljedećem zahtjevu/).waitFor();
+    await card.getByRole('button', { name: 'Spremi postavku' }).click();
+    await page.locator('tr', { hasText: officeEmail }).getByText('obvezan – nije postavljen').waitFor();
+    const o = await openOffice();
+    await o.reload();
+    await o.getByRole('heading', { name: 'Postavi dvofaktorsku prijavu' }).waitFor();
+    await o.getByText(/Tvoja institucija zahtijeva dvofaktorsku prijavu/).waitFor();
+    if (await o.locator('header nav').count()) throw new Error('u ograničenom stanju izbornik ne smije biti dostupan');
+    // Poslužitelj odbija i izravne zahtjeve (ne samo sučelje).
+    const blocked = await o.evaluate(async () => { const r = await fetch('/api/projects', { headers: { Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` } }); return `${r.status} ${(await r.json()).code}`; });
+    if (blocked !== '403 mfa_setup_required') throw new Error(`izravni zahtjev u ograničenom stanju: ${blocked}`);
+    if (SHOTS) await o.screenshot({ path: `${SHOTS}/obvezni-mfa.png`, fullPage: true });
+    await o.getByRole('button', { name: 'Postavi MFA' }).click();
+    const s2 = (await o.locator('code').first().textContent()).trim();
+    await o.getByLabel('Kod iz aplikacije').fill(totp(s2));
+    await o.getByRole('button', { name: 'Uključi MFA' }).click();
+    await o.locator('header nav').getByRole('link', { name: 'Projekti', exact: true }).waitFor(); // puni izbornik – sesija više nije ograničena
+    if (await o.getByRole('heading', { name: 'Postavi dvofaktorsku prijavu' }).count()) throw new Error('nakon postavljanja MFA sesija mora biti otključana');
+  });
+  // WP1.19: uprava (čitatelj, finance:read bez personnel:read) vidi sate, ne iznose troškova osoblja; zbroj kategorije ostaje.
+  await step('troškovi osoblja: bez prava na plaće sati da, iznos ne', async () => {
+    const readerEmail = `uprava.${tag}@e2e.local`; const readerPw = `crvena-staza-${tag}-uz-rijeku`;
+    const status = await page.evaluate(async ([email, pw]) => (await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` }, body: JSON.stringify({ email, displayName: 'Uprava Čitatelj', password: pw, roleCodes: ['reader'] }) })).status, [readerEmail, readerPw]);
+    if (status !== 201) throw new Error(`čitatelj nije stvoren (${status})`);
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    const r = await ctx.newPage();
+    r.on('pageerror', (e) => problems.push(`pageerror (uprava): ${e.message}`));
+    await r.goto(WEB);
+    await r.getByLabel('Institucija (oznaka)').fill(SLUG);
+    await r.getByLabel('E-adresa').fill(readerEmail);
+    await r.getByLabel('Lozinka').fill(readerPw);
+    await r.getByRole('button', { name: 'Prijava' }).click();
+    await r.getByRole('heading', { name: 'Portfelj' }).waitFor(); // čitatelj nije povlašten – bez obveznog MFA
+    await r.getByRole('link', { name: 'Projekti' }).click();
+    await r.getByRole('cell', { name: new RegExp(acronym) }).first().click();
+    await r.getByRole('tab', { name: 'Troškovi' }).click();
+    await r.getByText(/Iznosi troškova osoblja \(plaće\) vidljivi su samo uz pristup podacima o osoblju/).waitFor();
+    const personnel = r.locator('tr', { hasText: 'Rad: Ivana Horvat' }).first();
+    await personnel.getByText('skriveno').first().waitFor();
+    if (await r.getByText(/310,00/).count()) throw new Error('iznos troška osoblja ne smije biti vidljiv bez personnel:read');
+    await r.getByRole('cell', { name: 'Anketno istraživanje' }).waitFor(); // ručni trošak s iznosom
+    if (SHOTS) await r.screenshot({ path: `${SHOTS}/troskovi-bez-place.png`, fullPage: true });
+    await ctx.close();
+  });
+  // Testna baza se ponovno koristi: postavka natrag na „nije obvezna”, administrator bez MFA (ponovljivo pokretanje).
+  await step('vraćanje postavki MFA', async () => {
+    const res = await page.evaluate(async (code) => {
+      const h = { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` };
+      const a = (await fetch('/api/tenant/security', { method: 'PUT', headers: h, body: JSON.stringify({ requireMfa: 'none' }) })).status;
+      const b = (await fetch('/api/me/mfa/disable', { method: 'POST', headers: h, body: JSON.stringify({ code }) })).status;
+      return `${a} ${b}`;
+    }, totp(adminSecret, 1));
+    if (res !== '200 201') throw new Error(`vraćanje postavki: ${res}`);
   });
   await browser.close();
   if (problems.length) { console.error('\nProblemi:\n' + problems.join('\n')); process.exit(1); }

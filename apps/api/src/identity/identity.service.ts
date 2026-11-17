@@ -1,10 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { passwordIssues, timeZoneOr } from '@arqus/domain';
 import { DbService, type Tx } from '../db/db.service';
 import { projects, proposals, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
-import { hashPassword, verifyPassword } from './password';
+import { hashPassword, verifyPassword, verifyPasswordOrBurn } from './password';
 import { TokenService } from './token.service';
 import { AuditService } from '../audit/audit.service';
 import { hasPermission, SYSTEM_ROLES } from './permissions';
@@ -16,6 +16,7 @@ import { LoginThrottle } from './login-throttle';
 import { generateTotpSecret, otpauthUri, verifyTotp } from './totp';
 import { open, seal } from '../common/crypto-box';
 import { ttlSeconds } from './ttl';
+import { MFA_POLICIES, mfaPolicyOf, mfaRequiredFor, PRIVILEGED_PERMISSIONS, type MfaPolicy } from './mfa-policy';
 
 export interface LoginInput { tenantSlug: string; email: string; password: string; code?: string }
 export interface CreateUserInput { email: string; displayName: string; password?: string; roleCodes?: string[] }
@@ -25,6 +26,16 @@ interface ClientInfo { ip?: string; userAgent?: string }
 export interface UserAccess { tenant: string[]; projects: Record<string, string[]>; leadProposals: string[] }
 
 const publicUser = (u: User) => ({ id: u.id, tenantId: u.tenantId, email: u.email, displayName: u.displayName, status: u.status, mfaEnabled: u.mfaEnabled, lastLoginAt: u.lastLoginAt, createdAt: u.createdAt });
+
+/**
+ * WP1.19: nepovratni otisak upisane e-adrese za zapis neuspjele prijave na nepoznati račun – HMAC-SHA256 s tajnom
+ * poslužitelja (nije u bazi), skraćen na 16 heksadekadskih znakova. Isti unos daje isti otisak (ponovljeni pokušaji se
+ * mogu povezati), a iz zapisa se upisani tekst ne može dobiti.
+ */
+export function inputFingerprint(tenantSlug: string, email: string): string {
+  const key = process.env.AUTH_JWT_SECRET ?? 'dev-only-secret-change-me-0123456789';
+  return createHmac('sha256', `arqus-login-input|${key}`).update(`${tenantSlug.trim().toLowerCase()}|${email.trim().toLowerCase()}`).digest('hex').slice(0, 16);
+}
 
 /** 401 s oznakom da je potreban (ili neispravan) MFA kod – sučelje tada traži kod. */
 const mfaRequired = (message: string) => new UnauthorizedException({ statusCode: 401, message, mfaRequired: true });
@@ -67,12 +78,17 @@ export class IdentityService {
     this.throttle.assertAllowed(input.tenantSlug, input.email, ip);
     const tenant = await this.db.withoutTenant(async (tx) =>
       (await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.slug, input.tenantSlug), isNull(tenants.deletedAt))))[0]);
-    if (!tenant) { this.throttle.failed(input.tenantSlug, input.email, ip); throw new UnauthorizedException('Pogrešni podaci za prijavu'); }
+    if (!tenant) {
+      await verifyPasswordOrBurn(input.password, null); // jednako vrijeme odgovora kao za postojeću instituciju
+      this.throttle.failed(input.tenantSlug, input.email, ip); throw new UnauthorizedException('Pogrešni podaci za prijavu');
+    }
 
-    type Outcome = { kind: 'ok'; user: User; access: UserAccess; sid: string } | { kind: 'bad'; userId: string | null; reason: string } | { kind: 'mfa'; message: string; userId: string; count: boolean };
+    type Outcome = { kind: 'ok'; user: User; access: UserAccess; sid: string; mfaSetupRequired: boolean } | { kind: 'bad'; userId: string | null; reason: string } | { kind: 'mfa'; message: string; userId: string; count: boolean };
     const outcome: Outcome = await this.db.withTenant(tenant.id, async (tx) => {
       const user = (await tx.select().from(users).where(and(eq(users.email, input.email.toLowerCase()), isNull(users.deletedAt))))[0];
-      const ok = user && user.status === 'active' && (await verifyPassword(input.password, user.passwordHash));
+      // Uvijek jedan scrypt (i za nepostojeći ili neaktivan račun) – vrijeme odgovora ne otkriva postoji li račun (WP1.19).
+      const passwordOk = await verifyPasswordOrBurn(input.password, user?.passwordHash);
+      const ok = user && user.status === 'active' && passwordOk;
       if (!ok) return { kind: 'bad', userId: user?.id ?? null, reason: 'password' };
       if (user.mfaEnabled && user.mfaSecretEnc) {
         if (!input.code) return { kind: 'mfa', message: 'Unesi kod iz aplikacije za autentikaciju', userId: user.id, count: false };
@@ -81,17 +97,22 @@ export class IdentityService {
         await tx.update(users).set({ mfaLastStep: step }).where(eq(users.id, user.id));
       }
       const access = await this.accessOf(tx, tenant.id, user.id);
+      const mfa = this.mfaState(await this.tenantSettings(tx, tenant.id), access.tenant, user.mfaEnabled);
       const sid = randomUUID();
       await tx.insert(sessions).values({ id: sid, tenantId: tenant.id, userId: user.id, expiresAt: new Date(Date.now() + this.ttl * 1000), ip: ip ?? null, userAgent: client.userAgent?.slice(0, 300) ?? null });
       await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
-      await this.audit.record(tx, { tenantId: tenant.id, entity: 'user', entityId: user.id, action: 'login.ok', actorType: 'user', actorId: user.id, diff: { meta: { sessionId: sid, mfa: user.mfaEnabled } } });
-      return { kind: 'ok', user, access, sid };
+      await this.audit.record(tx, { tenantId: tenant.id, entity: 'user', entityId: user.id, action: 'login.ok', actorType: 'user', actorId: user.id, diff: { meta: { sessionId: sid, mfa: user.mfaEnabled, ...(mfa.setupRequired ? { mfaSetupRequired: true } : {}) } } });
+      return { kind: 'ok', user, access, sid, mfaSetupRequired: mfa.setupRequired };
     });
 
     if (outcome.kind !== 'ok') {
       const counted = outcome.kind === 'bad' || outcome.count;
       if (counted) {
-        await this.db.withTenant(tenant.id, (tx) => this.audit.record(tx, { tenantId: tenant.id, entity: 'user', entityId: outcome.userId, action: outcome.kind === 'mfa' ? 'login.mfa_failed' : 'login.failed', actorType: 'system', diff: { meta: { email: input.email, ip } } }));
+        // WP1.19: zapis ne sadrži upisani tekst (u polje e-adrese ponekad se upiše lozinka). Postojeći račun → njegov id
+        // (entityId i meta.account); nepoznata e-adresa → samo nepovratni otisak (HMAC s tajnom poslužitelja, skraćen) za
+        // povezivanje ponovljenih pokušaja s istim unosom.
+        const meta = outcome.userId ? { account: outcome.userId, ip } : { account: null, input: inputFingerprint(input.tenantSlug, input.email), ip };
+        await this.db.withTenant(tenant.id, (tx) => this.audit.record(tx, { tenantId: tenant.id, entity: 'user', entityId: outcome.userId, action: outcome.kind === 'mfa' ? 'login.mfa_failed' : 'login.failed', actorType: 'system', diff: { meta } }));
         this.throttle.failed(input.tenantSlug, input.email, ip);
       }
       if (outcome.kind === 'mfa') throw mfaRequired(outcome.message);
@@ -100,18 +121,65 @@ export class IdentityService {
     this.throttle.succeeded(input.tenantSlug, input.email);
     // `perms` u tokenu je samo informativan; ovlaštenje se uvijek računa svježe iz uloga (AuthGuard).
     const accessToken = await this.tokens.sign({ sub: outcome.user.id, tid: tenant.id, perms: outcome.access.tenant, sid: outcome.sid });
-    return { accessToken, user: publicUser(outcome.user), permissions: outcome.access.tenant, projectPermissions: outcome.access.projects, leadProposals: outcome.access.leadProposals };
+    // WP1.19: `mfaSetupRequired` – prijava je uspjela, ali je sesija u ograničenom stanju dok korisnik ne postavi MFA.
+    return { accessToken, user: publicUser(outcome.user), permissions: outcome.access.tenant, projectPermissions: outcome.access.projects, leadProposals: outcome.access.leadProposals, mfaSetupRequired: outcome.mfaSetupRequired };
   }
 
   /** Aktivna sesija + aktivan korisnik → svježe dozvole (promjena i opoziv uloga vrijede odmah). Null = sesija ne vrijedi. */
-  async sessionAccess(tenantId: string, userId: string, sid: string): Promise<(UserAccess & { timeZone: string }) | null> {
+  async sessionAccess(tenantId: string, userId: string, sid: string): Promise<(UserAccess & { timeZone: string; mfaEnabled: boolean; mfaPolicy: MfaPolicy }) | null> {
     return this.db.withTenant(tenantId, async (tx) => {
-      const r = await tx.select({ id: sessions.id }).from(sessions).innerJoin(users, eq(users.id, sessions.userId))
+      const r = await tx.select({ id: sessions.id, mfaEnabled: users.mfaEnabled }).from(sessions).innerJoin(users, eq(users.id, sessions.userId))
         .where(and(eq(sessions.id, sid), eq(sessions.userId, userId), isNull(sessions.revokedAt), sql`${sessions.expiresAt} > now()`, eq(users.status, 'active'), isNull(users.deletedAt)));
       if (!r.length) return null;
       const t = (await tx.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, tenantId)))[0];
-      return { ...(await this.accessOf(tx, tenantId, userId)), timeZone: timeZoneOr(t?.settings?.timeZone) };
+      return { ...(await this.accessOf(tx, tenantId, userId)), timeZone: timeZoneOr(t?.settings?.timeZone), mfaEnabled: r[0]!.mfaEnabled, mfaPolicy: mfaPolicyOf(t?.settings) };
     });
+  }
+
+  /** WP1.19: stanje MFA korisnika prema postavci institucije (za /me, prijavu i sučelje). */
+  private mfaState(settings: Record<string, unknown> | null | undefined, tenantPermissions: string[], mfaEnabled: boolean) {
+    const policy = mfaPolicyOf(settings);
+    const required = mfaRequiredFor(policy, tenantPermissions);
+    return { policy, required, enabled: mfaEnabled, setupRequired: required && !mfaEnabled };
+  }
+
+  private async tenantSettings(tx: Tx, tenantId: string): Promise<Record<string, unknown>> {
+    return (await tx.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, tenantId)))[0]?.settings ?? {};
+  }
+
+  // ---------- sigurnosne postavke institucije (WP1.19) ----------
+  /** Postavka obveznog MFA i broj korisnika na koje se odnosi (aktivni; bez MFA = bit će u ograničenom stanju). */
+  async securitySettings(tx: Tx, tenantId: string) {
+    const settings = await this.tenantSettings(tx, tenantId);
+    const active = await tx.select({ id: users.id, mfaEnabled: users.mfaEnabled }).from(users).where(and(isNull(users.deletedAt), eq(users.status, 'active')));
+    const grants = await tx.select({ userId: roleAssignments.userId, permissions: roles.permissions }).from(roleAssignments).innerJoin(roles, eq(roles.id, roleAssignments.roleId)).where(isNull(roleAssignments.projectId));
+    const permsOf = (id: string) => grants.filter((g) => g.userId === id).flatMap((g) => g.permissions);
+    const count = (policy: MfaPolicy) => {
+      const req = active.filter((u) => mfaRequiredFor(policy, permsOf(u.id)));
+      return { required: req.length, withoutMfa: req.filter((u) => !u.mfaEnabled).length };
+    };
+    return {
+      requireMfa: mfaPolicyOf(settings), privilegedPermissions: PRIVILEGED_PERMISSIONS,
+      impact: Object.fromEntries(MFA_POLICIES.map((p) => [p, count(p)])) as Record<MfaPolicy, { required: number; withoutMfa: number }>,
+    };
+  }
+
+  /**
+   * Promjena obveznog MFA – radnja institucije (`users:write`, samo administrator), revidirana. Tko postrožuje postavku
+   * tako da se odnosi i na njega, mora prije toga sam imati MFA (inače bi se odmah zaključao u ograničeno stanje).
+   */
+  async setSecuritySettings(tx: Tx, tenantId: string, userId: string, requireMfa: MfaPolicy) {
+    const settings = await this.tenantSettings(tx, tenantId);
+    const before = mfaPolicyOf(settings);
+    const me = await this.userRow(tx, userId);
+    if (!me.mfaEnabled && mfaRequiredFor(requireMfa, (await this.accessOf(tx, tenantId, userId)).tenant)) {
+      throw new ConflictException('Najprije uključi MFA na vlastitom računu (Moj račun) – nova postavka odnosi se i na tebe');
+    }
+    if (before !== requireMfa) {
+      await tx.execute(sql`update tenants set settings = settings || ${JSON.stringify({ requireMfa })}::jsonb, updated_at = now() where id = ${tenantId}`);
+      await this.audit.record(tx, { entity: 'tenant', entityId: tenantId, action: 'security.update', diff: { before: { requireMfa: before }, after: { requireMfa } } });
+    }
+    return this.securitySettings(tx, tenantId);
   }
 
   async logout(tx: Tx, userId: string, sid: string) {
@@ -129,7 +197,8 @@ export class IdentityService {
     if (!user) throw new NotFoundException();
     const tenant = (await tx.select().from(tenants).where(eq(tenants.id, tenantId)))[0];
     const access = await this.accessOf(tx, tenantId, userId);
-    return { user: publicUser(user), tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name, plan: tenant.plan, timeZone: timeZoneOr(tenant.settings?.timeZone) } : null, permissions: access.tenant, projectPermissions: access.projects, leadProposals: access.leadProposals };
+    return { user: publicUser(user), tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name, plan: tenant.plan, timeZone: timeZoneOr(tenant.settings?.timeZone) } : null, permissions: access.tenant, projectPermissions: access.projects, leadProposals: access.leadProposals,
+      mfa: this.mfaState(tenant?.settings, access.tenant, user.mfaEnabled) };
   }
 
   private async userRow(tx: Tx, id: string): Promise<User> {
@@ -173,11 +242,16 @@ export class IdentityService {
     return { mfaEnabled: true };
   }
 
-  async mfaDisable(tx: Tx, userId: string, code: string) {
+  async mfaDisable(tx: Tx, tenantId: string, userId: string, sid: string, code: string) {
     const u = await this.userRow(tx, userId);
     if (!u.mfaEnabled || !u.mfaSecretEnc) throw new ConflictException('MFA nije uključen');
+    if (mfaRequiredFor(mfaPolicyOf(await this.tenantSettings(tx, tenantId)), (await this.accessOf(tx, tenantId, userId)).tenant)) {
+      throw new ConflictException('Institucija zahtijeva MFA za tvoju ulogu – ne može se isključiti');
+    }
     if (verifyTotp(open(u.mfaSecretEnc), code.trim(), { lastStep: u.mfaLastStep }) === null) throw new BadRequestException('Neispravan kod');
     await tx.update(users).set({ mfaEnabled: false, mfaSecretEnc: null, mfaPendingEnc: null, mfaLastStep: null, updatedAt: new Date() }).where(eq(users.id, userId));
+    // WP1.19: promjena drugog faktora odjavljuje ostale uređaje (kao promjena lozinke i uključivanje MFA).
+    await this.revokeSessions(tx, userId, sid);
     await this.audit.record(tx, { entity: 'user', entityId: userId, action: 'mfa.disable' });
     return { mfaEnabled: false };
   }
@@ -185,10 +259,13 @@ export class IdentityService {
   // ---------- administracija korisnika ----------
   async listUsers(tx: Tx) {
     const list = await tx.select().from(users).where(isNull(users.deletedAt)).orderBy(users.displayName);
-    const assigned = await tx.select({ id: roleAssignments.id, userId: roleAssignments.userId, code: roles.code, projectId: roleAssignments.projectId, acronym: projects.acronym })
+    const assigned = await tx.select({ id: roleAssignments.id, userId: roleAssignments.userId, code: roles.code, projectId: roleAssignments.projectId, acronym: projects.acronym, permissions: roles.permissions })
       .from(roleAssignments).innerJoin(roles, eq(roles.id, roleAssignments.roleId)).leftJoin(projects, eq(projects.id, roleAssignments.projectId)).orderBy(projects.acronym);
+    const policy = mfaPolicyOf((await tx.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, sql`app_current_tenant()`)))[0]?.settings);
     return list.map((u) => ({
       ...publicUser(u),
+      /** WP1.19: je li korisniku MFA obvezan prema postavci institucije (bez MFA je u ograničenom stanju). */
+      mfaRequired: mfaRequiredFor(policy, assigned.filter((a) => a.userId === u.id && !a.projectId).flatMap((a) => a.permissions)),
       /** Uloge na razini institucije (vrijede za sve projekte). */
       roles: assigned.filter((a) => a.userId === u.id && !a.projectId).map((a) => a.code),
       /** Uloge dodijeljene na pojedinom projektu. */

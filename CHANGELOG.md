@@ -3,8 +3,30 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+
+## [0.27.0] - 2026-11-17
 ### Dodano
+- WP1.19 **Plaće se ne mogu izvesti bez prava na plaće**: iznos pripisiv radu jedne osobe – iznos i priznati iznos troška osoblja iz timesheeta (troškovi, ZNS, kandidati iz ranijih razdoblja), trošak osoblja u odgovoru na odobrenje timesheeta, listovi *Troškovi* i *Troškovi osoblja* paketa ZNS-a i kontrolna lista – vraća se samo uz `personnel:read` na projektu; ostali dobivaju sate i `amountHidden: true` (iznos `null`). Skrivanje je u API-ju; sučelje prikazuje „skriveno”. Zbrojevi po kategoriji i projektu ostaju vidljivi; kategorija s jednom osobom je dokumentirano preostalo otkrivanje. Bez `personnel:read` korisnik s `finance:write` odlučuje o zahtjevu i ručnim troškovima, a o pojedinom trošku osoblja ne (403; trošak ostaje priznat kako je zatražen dok ga ne umanje ured ili financije).
+- **Obvezni MFA**: postavka institucije `requireMfa` (`none` / `privileged` / `all`); `privileged` obuhvaća svakoga s `users:write`, `tenant:write`, `personnel:read`, `audit:read`, `finance:write` ili `*` na razini institucije. Bez postavljenog MFA prijava vodi u ograničeno stanje (samo vlastiti račun, postavljanje MFA i odjava; ostalo 403 `mfa_setup_required`), provjera pri svakom zahtjevu i za stari token; sučelje odmah otvara postavljanje MFA s objašnjenjem. Postavku mijenja samo administrator (`users:write`) u izborniku **Korisnici**, uz revizijski zapis; tko je postrožuje, mora i sam imati MFA. API: `GET|PUT /api/tenant/security`, `mfa` u `/api/me`, `mfaSetupRequired` u odgovoru prijave, `mfaRequired` u popisu korisnika. Nova produkcijska institucija (`cli.js seed`, `NODE_ENV=production`) zadano `privileged`; postojeće, testne i demo `none`.
+- **Opseg penetracijskog testa** za izvođača: `docs/sigurnost/PENTEST-OPSEG.md` (arhitektura i granice povjerenja, opseg, testna instanca i računi po ulozi, model autorizacije, prihvaćena ograničenja, prioriteti testa).
+- Ograničenje skupih izvoza po korisniku (CSV revizije, ZIP paketa ZNS-a): 20 u 10 minuta (`EXPORT_RATE_MAX`, `EXPORT_RATE_WINDOW_MINUTES`), inače 429; u memoriji instance.
+- Test `apps/api/test/pentest-prep.e2e.test.ts` (20 testova): plaće na svakoj ruti i izvozu, MFA za svaku postavku, obavezna revizija na svih šest ruta, zapis neuspjele prijave, strujanje i ograničenje izvoza, rubna površina. E2e u pregledniku: obvezni MFA (ured u otvorenoj sesiji ide na postavljanje MFA) i troškovi osoblja bez prava na plaće.
 - Strategija, odj. 8: rad tijekom točke zaustavljanja – WP1.19 (sigurnosne dorade prije penetracijskog testa) i WP1.20 (S3 pohrana i kopije izvan poslužitelja); nove funkcije i dalje čekaju bilješke s demonstracija.
+
+### Promijenjeno
+- **Revizija je obavezna** na svakom spremanju koje je prima (osnovni podaci projekta i prijave, proračun projekta i prijave, timesheet, odabir troškova iz ranijih razdoblja): bez nje 400 „Nedostaje revizija”. Prvo istovremeno spremanje proračuna (i timesheeta) daje `revision_conflict` umjesto generičkog „Zapis s istim ključem već postoji”. Sučelje, demo punjenje i testovi šalju reviziju.
+- **Zapis neuspjele prijave** ne čuva upisani tekst: postojeći račun → id računa, nepoznata e-adresa → nepovratni otisak (HMAC s tajnom poslužitelja); isto za neuspio MFA kod. Ograničenje prijava i dalje po računu (ključ je sažetak) i po IP-u.
+- **Izvoz revizije u CSV** struji se u stranicama od 1.000 redaka (bez 50.000 redaka u memoriji); broj redaka u zapisu izvoza.
+- Prijava: i za nepostojeći račun ili instituciju računa se jedan scrypt (vrijeme odgovora ne otkriva postoji li račun).
+- Isključivanje MFA odjavljuje ostale uređaje; isključivanje nije moguće dok ga institucija zahtijeva.
+- `/api/health` u produkciji bez verzije i vremena rada; 409 iz baze bez naziva ograničenja; JWT samo HS256.
+- Sigurnosna zaglavlja i kratka poruka i na odgovorima 400/413 parsera tijela (neispravan ili prevelik JSON); HTTP postavke u `configureHttp` (`main.ts` i testovi).
+- Tekst popisa za provjeru ZNS-a ne sadrži iznos pojedinog troška osoblja.
+
+### Ispravljeno
+- `POST /api/programme-packages/:rowId/publish` s id-jem koji nije UUID vraćao je 500 (sada 400).
+- Manifest paketa ZNS-a (`sadrzaj.csv`) nije neutralizirao ćelije koje počinju formulom.
+- Naziv prenesene datoteke zadržavao je znakove za smjer teksta (npr. U+202E – lažno prikazana vrsta datoteke).
 
 ## [0.26.0] - 2026-11-17
 ### Dodano

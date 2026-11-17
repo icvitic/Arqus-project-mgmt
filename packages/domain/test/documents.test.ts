@@ -24,6 +24,9 @@ describe('dokumenti', () => {
     expect(sanitizeFileName('C:\\Users\\x\\Račun 12/2026.pdf')).toBe('2026.pdf');
     expect(sanitizeFileName('  ugovor "final"\u0000.pdf ')).toBe('ugovor final.pdf');
     expect(sanitizeFileName('...')).toBe('datoteka');
+    // WP1.19: znakovi za smjer teksta (lažno prikazana vrsta datoteke) se uklanjaju.
+    expect(sanitizeFileName('racun\u202Efdp.docx')).toBe('racunfdp.docx');
+    expect(sanitizeFileName('a\u200e\u200f\u2066\u2069b.pdf')).toBe('ab.pdf');
     expect(sanitizeFileName(`${'a'.repeat(300)}.pdf`)).toHaveLength(200);
     expect(sanitizeFileName(`${'a'.repeat(300)}.pdf`).endsWith('.pdf')).toBe(true);
   });

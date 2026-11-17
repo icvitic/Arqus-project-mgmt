@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, setUnauthorizedHandler, token } from './lib/api';
+import { api, setMfaRequiredHandler, setUnauthorizedHandler, token } from './lib/api';
 import { go, useRoute } from './lib/hooks';
 import type { Me } from './lib/types';
 import { Login } from './pages/Login';
@@ -7,7 +7,7 @@ import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { Organisations } from './pages/Organisations';
 import { Users } from './pages/Users';
-import { Account } from './pages/Account';
+import { Account, MfaRequired } from './pages/Account';
 import { Packages } from './pages/Packages';
 import { Radar } from './pages/Radar';
 import { Proposals } from './pages/Proposals';
@@ -28,10 +28,25 @@ export function App() {
     if (!token.get()) { setChecking(false); return; }
     try { setMe(await api<Me>('GET', '/me')); } catch { token.clear(); } finally { setChecking(false); }
   }, []);
-  useEffect(() => { setUnauthorizedHandler(logout); void loadMe(); }, [logout, loadMe]);
+  useEffect(() => { setUnauthorizedHandler(logout); setMfaRequiredHandler(() => { void loadMe(); }); void loadMe(); }, [logout, loadMe]);
 
   if (checking) return <main><Loading /></main>;
   if (!me) return <Login onLogin={async () => { go(''); await loadMe(); }} />;
+
+  // WP1.19: obvezni MFA nije postavljen – samo postavljanje MFA i odjava (poslužitelj odbija sve ostalo).
+  if (me.mfa?.setupRequired) {
+    return (
+      <>
+        <header className="top">
+          <div className="brand">ArQus Projekti<small>{me.tenant?.name}</small></div>
+          <div className="spacer" />
+          <span className="muted">{me.user.displayName}</span>
+          <button onClick={() => void signOut()}>Odjava</button>
+        </header>
+        <main><MfaRequired me={me} reloadMe={loadMe} /></main>
+      </>
+    );
+  }
 
   // Početna stranica: portfelj za upravu i ured (portfolio:read institucije), inače popis projekata (WP1.15).
   const [routePage, id, tab] = route;

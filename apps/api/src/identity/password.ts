@@ -19,3 +19,15 @@ export async function verifyPassword(password: string, stored: string | null): P
   const actual = await scrypt(password, Buffer.from(saltB64, 'base64'), expected.length, { N: +N, r: +r, p: +p, maxmem: maxmem(+N, +r) });
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
+
+/**
+ * WP1.19 – zaštita od otkrivanja računa po vremenu odgovora: kad račun ne postoji, nije aktivan ili nema lozinku, prijava
+ * ipak izračuna jedan scrypt (nad lažnim hashem istih parametara), pa odgovor traje jednako kao za postojeći račun.
+ */
+let dummy: Promise<string> | undefined;
+export async function verifyPasswordOrBurn(password: string, stored: string | null | undefined): Promise<boolean> {
+  if (stored) return verifyPassword(password, stored);
+  dummy ??= hashPassword('arqus-lazni-racun');
+  await verifyPassword(password, await dummy);
+  return false;
+}

@@ -86,7 +86,7 @@ describe('Provedba i proračun (e2e)', () => {
   it('proračun: retci po partneru, kategoriji i WP-u; neizravni 15 % osoblja; upozorenje za upravljanje > 10 %', async () => {
     const empty = await http().get(`/api/projects/${pid}/budget`).set(auth(A)).expect(200);
     expect(empty.body.status).toBe('none');
-    const res = await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ lines: [
+    const res = await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ revision: 0, lines: [
       { partnerId: self, categoryCode: 'OS', workPackageId: wp1, amount: 4_000_000 },
       { partnerId: self, categoryCode: 'OS', workPackageId: wp2, amount: 6_000_000 },
       { partnerId: self, categoryCode: 'UP', amount: 2_000_000 },
@@ -100,14 +100,15 @@ describe('Provedba i proračun (e2e)', () => {
   });
 
   it('proračun odbija neizravne, nepoznatu kategoriju, tuđeg partnera i tuđi WP (400 s popisom)', async () => {
-    const r = await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ lines: [
+    const { revision } = (await http().get(`/api/projects/${pid}/budget`).set(auth(A)).expect(200)).body;
+    const r = await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ revision, lines: [
       { partnerId: self, categoryCode: 'NT', amount: 1 },
       { partnerId: self, categoryCode: 'XX', amount: 1 },
       { partnerId: randomUUID(), categoryCode: 'OS', amount: 1 },
       { partnerId: self, categoryCode: 'OS', amount: 1, workPackageId: randomUUID() },
     ] }).expect(400);
     expect(r.body.issues).toHaveLength(4);
-    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ lines: [{ partnerId: self, categoryCode: 'OS', amount: 1.5 }] }).expect(400);
+    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ revision, lines: [{ partnerId: self, categoryCode: 'OS', amount: 1.5 }] }).expect(400);
   });
 
   it('aktivacija zaključava proračun v1; nakon toga izmjene → 409', async () => {
@@ -115,7 +116,7 @@ describe('Provedba i proračun (e2e)', () => {
     const b = await http().get(`/api/projects/${pid}/budget`).set(auth(A)).expect(200);
     expect(b.body.status).toBe('locked');
     expect(b.body.totals.total).toBe(18_500_000);
-    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ lines: [] }).expect(409);
+    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ revision: b.body.revision, lines: [] }).expect(409);
     await http().patch(`/api/projects/${pid}/deliverables/${d11}`).set(auth(A)).send({ status: 'accepted' }).expect(200);
   });
 

@@ -19,10 +19,8 @@ export class PgErrorFilter extends BaseExceptionFilter {
   override catch(exception: unknown, host: ArgumentsHost): void {
     const code = pgCode(exception);
     const msg = code ? MESSAGES[code] : undefined;
-    if (msg) {
-      const detail = (exception as { constraint?: string; cause?: { constraint?: string } }).constraint ?? (exception as { cause?: { constraint?: string } }).cause?.constraint;
-      return super.catch(new ConflictException({ message: msg, constraint: detail }), host);
-    }
+    // WP1.19: naziv ograničenja (shema baze) ne vraća se klijentu – samo poruka.
+    if (msg) return super.catch(new ConflictException({ statusCode: 409, message: msg }), host);
     return super.catch(exception, host);
   }
 }

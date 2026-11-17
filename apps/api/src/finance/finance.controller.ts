@@ -8,13 +8,14 @@ import { ProjectPermission } from '../identity/auth.guard';
 import { DbService, type Tx } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
 import { parseBody } from '../common/validation';
+import { ExportRateLimit } from '../common/rate-limit';
 
 const uuid = new ParseUUIDPipe();
 const disposition = (name: string, kind = 'attachment') => `${kind}; filename="${name.replace(/[^\x20-\x7e]|["\\]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 
 @Controller('projects/:id')
 export class FinanceController {
-  constructor(private readonly ts: TimesheetsService, private readonly ex: ExpensesService, private readonly cl: ClaimsService, private readonly exporter: ClaimExportService, private readonly db: DbService, private readonly ctx: TenantContext) {}
+  constructor(private readonly ts: TimesheetsService, private readonly ex: ExpensesService, private readonly cl: ClaimsService, private readonly exporter: ClaimExportService, private readonly db: DbService, private readonly ctx: TenantContext, private readonly limit: ExportRateLimit) {}
   private run<T>(fn: (tx: Tx, tenantId: string, userId?: string) => Promise<T>) { const c = this.ctx.require(); return this.db.tx((tx) => fn(tx, c.tenantId, c.userId)); }
   private month(m: string) { return parseBody(monthParam, m); }
 
@@ -56,6 +57,7 @@ export class FinanceController {
    */
   @Get('claims/:cid/export') @ProjectPermission('finance:read')
   async exportClaim(@Param('id', uuid) id: string, @Param('cid', uuid) cid: string, @Res({ passthrough: true }) res: Response) {
+    this.limit.take('claim-zip', this.ctx.require().userId!); // WP1.19: ograničenje skupih izvoza po korisniku (429)
     const { fileName, stream } = await this.exporter.export(id, cid);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'no-store');

@@ -5,6 +5,7 @@ import { TokenService } from './token.service';
 import { hasPermission, type Permission } from './permissions';
 import { IdentityService } from './identity.service';
 import { assertProjectPermission, assertProposalPermission, canAnyProposal, canAnywhere } from '../common/access';
+import { MFA_SETUP_MESSAGE, MFA_SETUP_REQUIRED, mfaRequiredFor } from './mfa-policy';
 import type { RequestContext } from '../common/tenant-context';
 
 /**
@@ -31,6 +32,7 @@ export const PROJECT_PERMISSION_KEY = 'arqus:project-permission';
 export const RESOLVES_PROJECT_KEY = 'arqus:resolves-project';
 export const ANY_SCOPE_KEY = 'arqus:any-scope';
 export const PROPOSAL_PERMISSION_KEY = 'arqus:proposal-permission';
+export const MFA_SETUP_ALLOWED_KEY = 'arqus:mfa-setup-allowed';
 
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
 export const Authenticated = () => SetMetadata(AUTHENTICATED_KEY, true);
@@ -39,6 +41,11 @@ export const ProjectPermission = (p: Permission, param = 'id') => SetMetadata(PR
 export const ResolvesProject = (p: Permission) => SetMetadata(RESOLVES_PROJECT_KEY, p);
 export const AnyScope = (p: Permission) => SetMetadata(ANY_SCOPE_KEY, p);
 export const ProposalPermission = (p: Permission, param: string | null = 'id') => SetMetadata(PROPOSAL_PERMISSION_KEY, { permission: p, param });
+/**
+ * WP1.19: ruta dostupna i u ograničenom stanju (MFA obvezan, a nije postavljen) – samo vlastiti račun i odjava.
+ * Nije oznaka autorizacije (ruta i dalje treba točno jednu oznaku iznad); sve rute bez nje u tom stanju daju 403.
+ */
+export const MfaSetupAllowed = () => SetMetadata(MFA_SETUP_ALLOWED_KEY, true);
 
 export type RouteAccess =
   | { kind: 'public' } | { kind: 'authenticated' }
@@ -91,6 +98,10 @@ export class AuthGuard implements CanActivate {
       projectPermissions: new Map(Object.entries(fresh.projects).map(([id, perms]) => [id, new Set(perms)])),
       leadProposals: new Set(fresh.leadProposals), timeZone: fresh.timeZone,
     };
+    // WP1.19: obvezni MFA – bez postavljenog MFA samo vlastiti račun i odjava (svježe iz baze, i za stari token).
+    if (!fresh.mfaEnabled && mfaRequiredFor(fresh.mfaPolicy, fresh.tenant) && !this.reflector.getAllAndOverride<boolean>(MFA_SETUP_ALLOWED_KEY, [context.getHandler(), context.getClass()])) {
+      throw new ForbiddenException({ statusCode: 403, code: MFA_SETUP_REQUIRED, message: MFA_SETUP_MESSAGE });
+    }
     switch (access.kind) {
       case 'tenant':
         if (!hasPermission(ctx.permissions, access.permission)) throw new ForbiddenException(`Nedostaje dozvola ${access.permission} (na razini institucije)`);

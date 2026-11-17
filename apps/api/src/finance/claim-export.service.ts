@@ -201,6 +201,7 @@ export class ClaimExportService {
       workPackages: [...wps.map((w) => ({ id: w.id, code: `WP${w.number}`, title: w.title })), { id: '', code: 'bez RP', title: 'bez radnog paketa' }],
       expenseWp: new Map(expRows.map((e) => [e.id, e.wp])),
       expenseFolder, evidence: evidenceRefs, personnel, recognised, openedAt: opened,
+      expenseTotal: expRows.reduce((a, e) => a + e.amount, 0), recognisedTotal: expRows.reduce((a, e) => a + (e.recognised ?? 0), 0),
     };
     return { data, evidence, omitted, records, exporter: exporterRow ? `${exporterRow.name} <${exporterRow.email}>` : 'sustav' };
   }

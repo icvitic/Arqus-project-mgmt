@@ -27,8 +27,13 @@ export class HealthController {
     catch { throw new ServiceUnavailableException('Baza nije dostupna'); }
   }
 
+  /**
+   * Živost procesa. WP1.19: javna ruta u produkciji ne otkriva verziju ni vrijeme rada (olakšava odabir poznatih ranjivosti);
+   * izvan produkcije (razvoj, testovi) ih vraća. Verzija je u manifestu paketa ZNS-a i u `docs/STATUS.md`.
+   */
   @Get()
-  get(): { status: 'ok'; version: string; uptimeSeconds: number; time: string } {
+  get(): { status: 'ok'; version?: string; uptimeSeconds?: number; time: string } {
+    if (process.env.NODE_ENV === 'production') return { status: 'ok', time: new Date().toISOString() };
     return { status: 'ok', version: readVersion(), uptimeSeconds: Math.round((Date.now() - this.startedAt) / 1000), time: new Date().toISOString() };
   }
 }

@@ -157,6 +157,13 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(await heDocs('member')).not.toContain(confidentialTitle);
     expect(((await http().get(`/api/projects/${he.id}/team`).set(as('member')).expect(200)).body as { annualCost: number | null }[]).every((t) => t.annualCost === null)).toBe(true);
 
+    // WP1.19: troškovi osoblja – voditeljica (bez personnel:read) i uprava vide sate, ne iznose; financije i ured vide sve.
+    // Demo institucija ne traži MFA (frictionless demonstracija).
+    const heExpenses = (who: string) => http().get(`/api/projects/${he.id}/expenses`).set(as(who)).expect(200).then((r) => (r.body as { source: string; amount: number | null; amountHidden: boolean }[]).filter((e) => e.source === 'timesheet'));
+    for (const who of ['pm', 'board']) { const rows = await heExpenses(who); expect(rows.length).toBeGreaterThan(0); expect(rows.every((e) => e.amount === null && e.amountHidden)).toBe(true); }
+    for (const who of ['finance', 'office']) expect((await heExpenses(who)).every((e) => typeof e.amount === 'number' && !e.amountHidden)).toBe(true);
+    expect((await http().get('/api/me').set(as('office')).expect(200)).body.mfa).toMatchObject({ policy: 'none', setupRequired: false });
+
     // WP1.15 portfelj (uprava): svaki signal ima primjer u demo podacima.
     const pf = (await http().get('/api/portfolio').set(as('board')).expect(200)).body;
     const row = (acr: string) => pf.projects.find((x: Row) => x.acronym === acr);
