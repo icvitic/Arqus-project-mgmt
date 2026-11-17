@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseEur, eur, parseHours, minutesToHours, centsToInput, date } from './format';
+import { parseEur, eur, parseHours, minutesToHours, centsToInput, date, plural, hours, monthLabel } from './format';
 
 describe('format', () => {
   it('parseEur prihvaća hrvatski i engleski zapis', () => {
@@ -25,5 +25,10 @@ describe('format', () => {
     expect(parseHours('25.123')).toBeNull();
     expect(minutesToHours(450)).toBe('7,5');
     expect(date('2027-03-31')).toBe('31. 03. 2027.');
+  });
+  it('množina, sati i mjeseci (portfelj)', () => {
+    expect([1, 2, 4, 5, 11, 12, 21, 22, 25, 111].map((n) => plural(n, 'isporuka', 'isporuke', 'isporuka.'))).toEqual(['isporuka', 'isporuke', 'isporuke', 'isporuka.', 'isporuka.', 'isporuka.', 'isporuka', 'isporuke', 'isporuka.', 'isporuka.']);
+    expect(hours(450)).toBe('7,5'); expect(hours(480)).toBe('8');
+    expect(monthLabel('2027-02')).toBe('velj. 2027.'); expect(monthLabel('2027-12', true)).toBe('pro.');
   });
 });

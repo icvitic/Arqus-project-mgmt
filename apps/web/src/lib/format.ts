@@ -53,3 +53,14 @@ export const GENERIC_STATUS: Record<string, string> = {
   idea: 'ideja', preparation: 'u pripremi', internal_review: 'interna provjera', in_evaluation: 'u evaluaciji', funded: 'financirana', reserve: 'rezervna lista', withdrawn: 'povučena', contracted: 'ugovorena',
 };
 export const label = (s: string): string => PROJECT_STATUS[s] ?? GENERIC_STATUS[s] ?? s;
+
+/** Hrvatska množina: 1 isporuka, 2–4 isporuke, 5+ (i 11–14) isporuka. */
+export function plural(n: number, one: string, few: string, many: string): string {
+  const d = n % 10, h = n % 100;
+  return d === 1 && h !== 11 ? one : d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
+}
+/** Minute → sati s najviše jednom decimalom ("7,5"). */
+export const hours = (minutes: number): string => (minutes / 60).toLocaleString('hr-HR', { maximumFractionDigits: 1 });
+const MONTHS = ['sij.', 'velj.', 'ožu.', 'tra.', 'svi.', 'lip.', 'srp.', 'kol.', 'ruj.', 'lis.', 'stu.', 'pro.'];
+/** "2027-02" → "velj. 2027." (kratko: "velj."). */
+export const monthLabel = (ym: string, short = false): string => `${MONTHS[Number(ym.slice(5, 7)) - 1] ?? ym}${short ? '' : ` ${ym.slice(0, 4)}.`}`;

@@ -79,3 +79,33 @@ export interface Proposal {
 export interface DocVersion { version: number; fileName: string; mimeType: string; size: number; sha256: string; note?: string | null; createdAt: string; createdBy?: string | null }
 export interface DocumentSummary { id: string; title: string; kind: string; confidentiality: string; aiGenerated: boolean; entityType: string; entityId: string; projectId: string | null; proposalId: string | null; currentVersion: number; updatedAt: string; current: DocVersion }
 export interface DocumentDetail extends Omit<DocumentSummary, 'current'> { versions: DocVersion[] }
+
+/* ---------- Portfelj (WP1.15) ---------- */
+export interface PortfolioAttention { lateDeliverables: number; highRisks: number; timesheetsToApprove: number | null; expensesWithoutEvidence: number | null; unclaimedPeriods: number | null }
+export interface PortfolioProject {
+  id: string; acronym: string; title: string; programme: string; packageId: string; actionType: string; role: string; status: string;
+  startDate: string | null; durationMonths: number | null; endDate: string | null;
+  time: { state: 'unknown' | 'not_started' | 'running' | 'finished'; month: number; percent: number | null };
+  /** Vlastita organizacija (naš dio); `project*` = cijeli projekt sa svim partnerima. Null bez finance:read na projektu. */
+  budget: { planned: number; actual: number; requested: number; percent: number | null; signal: 'none' | 'ok' | 'lagging' | 'ahead'; gap: number | null; projectPlanned: number; projectActual: number; projectRequested: number } | null;
+  nextReport: { period: number; endDate: string; dueDate: string; days: number; overdue: boolean } | null;
+  attention: PortfolioAttention | null;
+}
+export interface PortfolioDeadline { kind: string; date: string; at?: string; days: number; overdue: boolean; title: string; detail?: string; link: string; scope?: string; projectId?: string; callId?: string; proposalId?: string }
+export interface PortfolioPerson { key: string; name: string; userId: string | null; projects: { id: string; acronym: string }[]; months: { month: string; minutes: number }[]; yearMinutes: number; annualLimitHours: number | null; overAnnual: boolean; overDays: { date: string; minutes: number; projects: number }[] }
+export interface PortfolioStatusRow { status: string; count: number; requested: number; requestedOwn: number }
+export interface PortfolioProposal { id: string; acronym: string; title: string; status: string; callCode: string | null; internalDeadline: string | null; days: number | null; requested: number; requestedOwn: number }
+export interface Portfolio {
+  today: string; days: number; thresholdPp: number;
+  access: { full: boolean; people: boolean; pipeline: boolean; calls: boolean; finance: 'all' | 'partial' | 'none' };
+  summary: {
+    projects: number; activeProjects: number; deadlinesSoon: number; overdue: number; attention: { lagging: number; ahead: number };
+    money: { projects: number; planned: number; requested: number; spent: number; spentPercent: number | null; projectPlanned: number; projectRequested: number; projectSpent: number } | null;
+    pipeline: { open: number; requested: number; requestedOwn: number; byStatus: PortfolioStatusRow[] } | null;
+    successRate: { funded: number; rejected: number; percent: number | null } | null;
+  };
+  projects: PortfolioProject[];
+  deadlines: PortfolioDeadline[];
+  people: { months: string[]; year: string; dailyLimitHours: number; persons: PortfolioPerson[] } | null;
+  pipeline: { open: number; requested: number; requestedOwn: number; byStatus: PortfolioStatusRow[]; proposals: PortfolioProposal[] } | null;
+}

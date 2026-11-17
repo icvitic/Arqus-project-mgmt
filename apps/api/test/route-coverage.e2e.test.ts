@@ -148,7 +148,7 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
 
   it('rute „bilo koji opseg”: popisi ne otkrivaju projekte bez pristupa', async () => {
     const any = routes.filter((r) => r.access.kind === 'any-scope').map((r) => `${r.method} ${r.path}`).sort();
-    expect(any).toEqual(['GET /api/organisations', 'GET /api/organisations/:id', 'GET /api/programme-packages', 'GET /api/programme-packages/:packageId', 'GET /api/programme-packages/rows/:rowId', 'GET /api/projects'].sort());
+    expect(any).toEqual(['GET /api/organisations', 'GET /api/organisations/:id', 'GET /api/programme-packages', 'GET /api/programme-packages/:packageId', 'GET /api/programme-packages/rows/:rowId', 'GET /api/projects', 'GET /api/portfolio'].sort());
     const list = (await http().get('/api/projects').set({ Authorization: `Bearer ${f.tokens.pm}` }).expect(200)).body as { id: string }[];
     expect(list.map((p) => p.id)).toEqual([f.A.id]);
   });

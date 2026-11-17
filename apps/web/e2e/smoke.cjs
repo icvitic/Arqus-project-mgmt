@@ -1,6 +1,6 @@
 /* E2E provjera web sučelja na pravom API-ju (Playwright). Pokretanje: apps/web/e2e/run-local.sh
  * Tok: prijava → paket → radar (go) → organizacija → prijava na poziv (konzorcij, RP, proračun, predaja, ishod) → ugovaranje u projekt → aktivacija → tim i timesheet (predaja, odobrenje)
- *      → trošak (dokaz) → ZNS → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve. */
+ *      → trošak (dokaz) → ZNS → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → portfelj → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve. */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -41,7 +41,7 @@ const tag = Date.now().toString(36);
     await page.getByLabel('E-adresa').fill(EMAIL);
     await page.getByLabel('Lozinka').fill(PW);
     await page.getByRole('button', { name: 'Prijava' }).click();
-    await page.getByRole('heading', { name: 'Projekti' }).waitFor();
+    await page.getByRole('heading', { name: 'Portfelj' }).waitFor(); // početna stranica uz portfolio:read (WP1.15)
   });
   await step('paket po pozivu (sučelje)', async () => {
     await page.getByRole('link', { name: 'Paketi programa' }).click();
@@ -211,6 +211,17 @@ const tag = Date.now().toString(36);
     await page.getByRole('tab', { name: 'Ugovoreno / ostvareno' }).click();
     await page.getByText('iskorištenost proračuna').waitFor();
     await shot('financije');
+  });
+  await step('portfelj: projekt, potrošnja i rokovi', async () => {
+    await page.getByRole('link', { name: 'Portfelj' }).click();
+    const row = page.locator('table.portfolio tr', { hasText: `E2E${tag}`.slice(0, 20) });
+    await row.getByText('potrošnja').waitFor();
+    await row.getByText('nije počeo').waitFor(); // projekt počinje 2027-01-01
+    await page.getByRole('heading', { name: 'Rokovi' }).waitFor();
+    await page.getByRole('heading', { name: 'Opterećenje ljudi' }).waitFor();
+    await row.getByRole('link', { name: `E2E${tag}`.slice(0, 20) }).click();
+    await page.getByRole('tab', { name: 'Pregled' }).waitFor();
+    await shot('portfelj');
   });
   const newEmail = `ana.${tag}@e2e.local`; const newPw = `plava-staza-${tag}-uz-more`;
   const acronym = `E2E${tag}`.slice(0, 20);
