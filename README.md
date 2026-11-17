@@ -7,6 +7,7 @@ Generička SaaS/PaaS platforma za cijeli životni ciklus nacionalnih i EU projek
 - **Repozitorij:** https://github.com/icvitic/arqus-project-mgmt
 - **Status:** Faza 1 – MVP i pilot (faza 0 zatvorena odlukom GO; vidi [docs/STATUS.md](docs/STATUS.md))
 - **Razvoj:** [docs/RAZVOJ.md](docs/RAZVOJ.md) – `pnpm install && pnpm infra:up && pnpm dev`
+- **Demo na NAS-u:** stalno upaljena demo instanca na Synologyju preko Tailscalea – [docs/NAS-INSTALACIJA.md](docs/NAS-INSTALACIJA.md).
 - **Demo:** `demo.cmd` (Windows, Docker Desktop) ili `scripts/demo.sh` → http://localhost:8080 s popunjenom demo institucijom; upute [docs/DEMO.md](docs/DEMO.md), scenarij od 20 minuta [docs/DEMO-SCENARIJ.md](docs/DEMO-SCENARIJ.md)
 
 Proizvod je potpuno odvojen od FPZ Projektnog portala: novi kod, bez kopiranja koda ili podataka portala (vidi [ADR-0005](docs/adr/0005-odvojenost-od-fpz-portala.md)).

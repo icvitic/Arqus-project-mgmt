@@ -1,6 +1,6 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.25.0 · **Faza:** 1 – MVP i pilot · **Točka zaustavljanja dosegnuta**
+**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.26.0 · **Faza:** 1 – MVP i pilot · **Točka zaustavljanja dosegnuta**
 
 ## Točka zaustavljanja (od v0.25.0)
 Dogovorena točka zaustavljanja iz revizije strategije (`docs/strategija-razvoja-faza-1b.md`, odj. 7) je **dosegnuta**: WP1.16a, WP1.16b i WP1.14b su gotovi. **Razvoj se zaustavlja** dok se ne održe **barem tri demonstracije** i njihove bilješke ne zapišu (predložak `docs/faza-0/predlozak-biljeske.md`). **WP1.17** (uvoz iz Excela) i **WP1.18** (rokovi i „Moj rad”) su uvjetni – rade se samo ako ih bilješke s demonstracija potvrde; bilješke određuju sljedeću reviziju strategije. Do tada samo ispravci grešaka nađenih na demonstracijama ili penetracijskom testu.
@@ -64,6 +64,7 @@ Dogovorena točka zaustavljanja iz revizije strategije (`docs/strategija-razvoja
 **Razvoj stoji** (točka zaustavljanja). Sljedeći korak je Ivanov: tri demonstracije i bilješke. Nakon toga revizija strategije odlučuje o WP1.17 (uvoz iz Excela) i WP1.18 (rokovi i „Moj rad”) ili o nečem trećem što sugovornici traže.
 
 ## Otvorena pitanja za Ivana
+- **Demo na NAS-u:** upute su u `docs/NAS-INSTALACIJA.md` (Synology, Container Manager, Tailscale). Nisu isprobane na stvarnom uređaju – javi gdje zapne.
 - **Odabir EU pružatelja:** usporedba i preporuka su u `docs/infrastruktura/usporedba-eu-pruzatelja.md` (preporuka: Exoscale, zona Zagreb, uz dva uvjeta za provjeru; zamjena: Hetzner). Nakon odluke slijede instalacija, javna adresa i S3 pohrana.
 - WP1.14b: potvrdi (1) da se razdoblje valjanosti paketa odnosi na **početak** projekta, a kraj provedbe na pravila paketa (inače bi svaki projekt Obzora Europa koji traje iza 2027. nosio upozorenje); (2) da provjera revizije pri spremanju nije obavezna za API klijente bez nje (sučelje je uvijek šalje); (3) da voditelj prijave smije zaključati/otključati proračun i poslati prijavu na internu provjeru, a povlačenje ostaje uredu; (4) da se godišnji trošak sada bilježi u reviziji s iznosom (vidljiv samo uz `personnel:read`); (5) da se NPOO odstupanje na ZELENI-LAB-u u demou ostavi kao namjerni primjer.
 - WP1.16b: potvrdi (1) pravilo troškova iz ranijih razdoblja (nacrt kasnijeg razdoblja ih nudi, ulaze samo izričitim odabirom); (2) da ured za projekte smije mijenjati postavke institucije (`tenant:write`, zasad samo polazna mjera ZNS-a); (3) da mjera „broj dokaza” broji i povjerljive dokaze (samo zbroj). Format paketa je generički – koje obrasce financijera (eFondovi, Horizon Europe) pilot treba, odlučuje se s pilotom. Za mjerenje uštede od prvog pilota treba polazna mjera (sati po ZNS-u prije ArQusa).
