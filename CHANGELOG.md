@@ -4,6 +4,16 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-17
+### Dodano
+- Strategija razvoja za fazu 1b „Spremnost za pilot” (`docs/strategija-razvoja-faza-1b.md`): radni paketi WP1.13–WP1.18 u ROADMAP-u.
+- WP1.13 demo okruženje: naredba `cli.js demo [--reset] [--slug]` puni demo instituciju „Pokazno sveučilište” kroz pravi API (aplikacijska uloga, RLS, dozvole i revizija), prijavljena kao sedam demo korisnika s različitim ulogama; datumi relativni prema današnjem danu.
+- Sadržaj: radar sa 6 vlastitih poziva (ocjene, go / pratimo / no-go, interni rokovi), paket po pozivu za NPOO s izvještavanjem od 6 mjeseci, 6 partnera iz 6 država; NPOO projekt ZELENI-LAB prošao poziv → go → prijava → predaja → financirana → ugovorena, s ZNS-om za RP1 (predan, djelomično odobren, isplaćen) i nacrtom za RP2; HE projekt BLUESENSE u provedbi (struktura, rizici, zaključan proračun, tim s plaćama, 10 mjeseci timesheetova od kojih jedan čeka odobrenje, troškovi s PDF dokazima i jedan bez dokaza, ugovori); prijava AQUAREST u pripremi s otvorenim stavkama spremnosti.
+- Sigurnost demoa: demo stanar nosi oznaku `settings.demo`; naredba odbija stanara bez nje, reset briše samo retke i datoteke demo stanara (globalni retci i drugi stanari ostaju), `init` nikad ne stvara demo račune, u produkcijskom načinu treba `ARQUS_DEMO=1`. Idempotentno; prekinuto punjenje se ponavlja.
+- Jedna naredba lokalno: `demo.cmd` (Windows, Docker Desktop) i `scripts/demo.sh` s `start | reset | stop | obrisi | log`, `infra/demo/docker-compose.yml` (baza + aplikacija na http://localhost:8080, javne demo tajne, volumen dokumenata).
+- Dokumentacija: `docs/DEMO.md` (pokretanje, računi, reset, problemi) i `docs/DEMO-SCENARIJ.md` (demonstracija od 20 minuta po stvarnim zaslonima).
+- Test `demo.e2e.test.ts`: sadržaj kroz HTTP API, idempotentnost, reset ne dira drugog stanara ni globalne pozive, odbijanje ne-demo stanara.
+
 ## [0.19.0] - 2026-11-16
 ### Dodano
 - WP1.12 uvoz poziva s portala EU Funding & Tenders (ADR-0011): javni SEDIA search API, najavljene i otvorene teme razdoblja 2021–2027, stranice po 100, ponovni pokušaj na 429/5xx, vremensko ograničenje.

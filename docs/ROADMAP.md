@@ -34,6 +34,16 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [x] **WP1.12** Uvoz poziva s portala EU Funding & Tenders: javni search API, najavljene i otvorene teme 2021–2027, briselsko vrijeme rokova, paket i vrste akcije za Horizon Europe, periodički uvoz, filtri radara (v0.19.0); proračun teme i fondovieu → kasnije
 - [x] **WP1.10** Web sučelje za pilot: prijava, projekti, organizacije, struktura, proračun, timesheetovi, troškovi, ZNS, ugovoreno/ostvareno (React) + e2e provjera u pregledniku (v0.12.0)
 
+### Faza 1b – Spremnost za pilot (od v0.19.0)
+Širina MVP-a je gotova; do prvog pilota razvoj ide na spremnost za pilot. Obrazloženje i redoslijed: `docs/strategija-razvoja-faza-1b.md`.
+
+- [x] **WP1.13** Demo okruženje: demo institucija s realnim podacima, pokretanje jednom naredbom, scenarij demonstracije (v0.20.0; `demo.cmd`, `docs/DEMO.md`, `docs/DEMO-SCENARIJ.md`)
+- [ ] **WP1.14** Pristup po projektu: uloge na projektu, povjerljivi dokumenti, zaštita od istovremenog prepisivanja, pregled revizije (vrata prije stvarnih podataka pilota)
+- [ ] **WP1.15** Portfelj (M10): pregled institucije – projekti, potrošnja, rokovi, opterećenje ljudi
+- [ ] **WP1.16** ZNS paket za predaju: izvoz troškova, evidencije rada, dokazi, mjerenje trajanja pripreme
+- [ ] **WP1.17** Uvoz postojećeg projekta iz Excela
+- [ ] **WP1.18** Rokovi i „Moj rad”: stranica člana tima i obavijesti u aplikaciji
+
 ## Faza 2 – Komercijalna v1 (mj. 10–15)
 Uvjet za fazu 3: 10 kupaca koji plaćaju, 60.000 € ARR.
 

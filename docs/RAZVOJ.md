@@ -28,6 +28,8 @@ Seed stvara sistemske uloge i demo stanara `demo` s administratorom `admin@demo.
 
 Dvije uloge u bazi: `arqus` (vlasnik, migracije) i `arqus_app` (aplikacija, bez BYPASSRLS). API uvijek radi pod `arqus_app`, pa RLS politike vrijede i za grešku u kodu. Testovi traže PostgreSQL na `127.0.0.1:5433` (`TEST_DATABASE_MIGRATE_URL`, `TEST_DATABASE_URL`); CI ga diže kao servis.
 
+Demo institucija s realnim podacima (WP1.13): `node dist/db/cli.js demo [--reset] [--slug <oznaka>]` u `apps/api`, uz `DATABASE_MIGRATE_URL` i `DATABASE_URL`; vidi [DEMO.md](DEMO.md).
+
 ## Svakodnevno
 ```bash
 pnpm dev
