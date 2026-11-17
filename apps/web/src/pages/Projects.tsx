@@ -4,15 +4,16 @@ import { date, label } from '../lib/format';
 import { go, useLoad } from '../lib/hooks';
 import type { Me, PackageDetail, PackageSummary, ProjectSummary } from '../lib/types';
 import { ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
+import { can } from '../lib/access';
 
 export function Projects({ me }: { me: Me }) {
   const projects = useLoad(() => api<ProjectSummary[]>('GET', '/projects'), []);
-  const canWrite = me.permissions.includes('*') || me.permissions.includes('projects:write');
+  const canWrite = can(me, 'projects:write'); // novi projekt je radnja institucije
   const [showNew, setShowNew] = useState(false);
   return (
     <>
       <h1>Projekti</h1>
-      <p className="sub">Ugovoreni projekti institucije, vezani uz verziju paketa programa.</p>
+      <p className="sub">{can(me, 'projects:read') ? 'Ugovoreni projekti institucije, vezani uz verziju paketa programa.' : 'Projekti na kojima imaš ulogu.'}</p>
       {canWrite && <div className="actions" style={{ marginBottom: 12 }}><button className="primary" onClick={() => setShowNew((v) => !v)}>{showNew ? 'Zatvori' : 'Novi projekt'}</button></div>}
       {showNew && <NewProject onCreated={(id) => go(`projekti/${id}`)} />}
       <div className="card scroll">

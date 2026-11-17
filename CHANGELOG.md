@@ -4,6 +4,29 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-17
+### Dodano
+- WP1.14 pristup po projektu (`docs/sigurnost/AUTORIZACIJA.md`): uloga se dodjeljuje na razini institucije (svi projekti) ili na jednom projektu i tada vrijedi samo za taj projekt – u API-ju i u popisima. Kontekst zahtjeva nosi dozvole institucije i mapu dozvola po projektu, svježe pri svakom zahtjevu (opoziv vrijedi odmah).
+- Provedba sigurno prema zadanome: svaka ruta mora imati točno jednu oznaku (`@Public`, `@Authenticated`, `@RequirePermission` – institucija, `@ProjectPermission` – projekt u putanji, `@ResolvesProject` – dokumenti, `@AnyScope` – popisi i referentni podaci); neoznačena ruta odbija se za sve. Projekt bez pristupa je 404 kao projekt druge institucije; `loadProject` kao druga linija obrane.
+- `GET /api/projects` i popisi dokumenata samo s pristupom; dokumenti razrješavaju vlasnika (projekt, trošak, isporuka, ZNS, prijava) i provjeravaju pristup tom projektu.
+- Pristup novom projektu: imenovani voditelj (pri stvaranju, ugovaranju prijave – nositelj, promjeni voditelja) dobiva ulogu voditelja na projektu; član tima s korisničkim računom dobiva ulogu člana tima na projektu.
+- Upravljanje pristupom: `GET/POST /api/projects/:id/access`, `DELETE /api/projects/:id/access/:assignmentId` (administrator ili `projects:write` na projektu; bez `users:write` samo uloge čije dozvole dodjeljivač i sam ima). `/api/me` i prijava vraćaju `projectPermissions`, `/api/users` `projectRoles`.
+- Povjerljivi dokumenti: nova dozvola `documents:confidential` (administrator, ured, voditelj projekta, financije); ostali povjerljive dokumente ne vide u popisima ni u brojanju dokaza, izravno 404; povjerljivim ih označava samo tko ima dozvolu.
+- `PATCH /api/projects/:id/team/:mid` (član tima; godišnji trošak samo uz `personnel:read`).
+- Web: kartica **Pristup** na projektu (tko vidi projekt i kroz koju ulogu, dodjela i oduzimanje), Korisnici s ulogom institucije i ulogama na projektima (novi korisnik zadano dobiva projektnu ulogu na projektu), sve provjere unutar projekta po projektu, izbornik i kartice samo ono što korisnik smije otvoriti.
+- Testovi: `project-access.e2e.test.ts` (voditelj i član tima samo na A, financije i čitatelj institucije – svi moduli, popisi, dokumenti, plaće, povjerljivo, samoodobrenje, upravljanje pristupom, opoziv), `route-coverage.e2e.test.ts` (sve rute razvrstane; svaka projektna ruta s id-jevima projekta B → 404, svaka ruta institucije → 403). E2E u pregledniku (21 korak): član tima samo na projektu vidi samo svoj projekt.
+- Migracija 0019: strani ključ dodjele uloge na projekt, indeks po projektu, prazan godišnji trošak člana tima.
+
+### Promijenjeno
+- Uloga „Član tima” više nema `finance:read`: ne vidi proračun, troškove ni ZNS projekta (iz troškova osoblja mogle su se izračunati tuđe satnice); vlastiti timesheet i dokumenti ostaju.
+- Plaće: godišnji trošak člana tima čita se, **upisuje i mijenja** samo uz `personnel:read` na projektu; voditelj bez nje dodaje člana bez troška, timesheet bez upisanog troška ne može se odobriti (409).
+- Nitko ne odobrava vlastiti timesheet, bez obzira na ulogu (403).
+- Uloga financije dobiva `documents:write` (prilaže dokaze uz troškove).
+- Ugovaranje prijave traži i `proposals:read` institucije; dokumenti prijave traže dozvole prijava institucije.
+- Organizacije i paketi programa (čitanje) dostupni uz dozvolu na bilo kojem projektu (partneri, kategorije troškova); izmjene ostaju radnja institucije.
+- Sistemske uloge usklađuju se s bazom pri svakom `cli.js init` / `migrate` (postojeće instalacije preuzimaju nove dozvole).
+- Demo: `voditelj@` je voditeljica samo na BLUESENSE-u, `voditelj2@` samo na ZELENI-LAB-u, `clan@` član tima samo na BLUESENSE-u; prijave priprema ured; dokaze troškova prilažu financije; povjerljiva odluka o plaćama tima. Scenarij: korak „Tko vidi koji projekt”.
+
 ## [0.20.0] - 2026-11-17
 ### Dodano
 - Strategija razvoja za fazu 1b „Spremnost za pilot” (`docs/strategija-razvoja-faza-1b.md`): radni paketi WP1.13–WP1.18 u ROADMAP-u.

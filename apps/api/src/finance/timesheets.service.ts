@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { daysInMonth, minutesByWorkPackage, personnelCostCents, timesheetIssues } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
@@ -7,15 +7,19 @@ import { expenses, teamMembers, timesheetEntries, timesheets, users, workPackage
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { TenantContext } from '../common/tenant-context';
-import { hasPermission } from '../identity/permissions';
 import { assertPartnerOnProject, loadProject } from '../common/project-access';
+import { canOnProject } from '../common/access';
+import { ensureTeamMemberAccess } from '../identity/project-grants';
 import { assertSpendable, projectEnd, selfPartner } from './finance-common';
 
 export const memberInput = z.object({
   fullName: z.string().trim().min(2).max(200), userId: z.string().uuid().optional(), partnerId: z.string().uuid().optional(),
-  role: z.string().max(100).optional(), annualCost: z.number().int().min(0).max(1_000_000_000),
+  role: z.string().max(100).optional(),
+  /** Godišnji trošak (plaća) – neobavezan; unosi ga i mijenja samo uloga s personnel:read na projektu (WP1.14). */
+  annualCost: z.number().int().min(0).max(1_000_000_000).optional(),
 });
 export const memberPatch = memberInput.omit({ userId: true, partnerId: true }).partial().extend({ active: z.boolean().optional() }).strict();
+const COST_DENIED = 'Godišnji trošak (plaću) unosi i mijenja samo uloga s pristupom podacima o osoblju (personnel:read)';
 export const timesheetInput = z.object({ entries: z.array(z.object({ day: z.number().int(), minutes: z.number().int(), workPackageId: z.string().uuid().nullable().optional() })).max(31 * 10) });
 export const monthParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'mjesec u obliku GGGG-MM');
 
@@ -24,22 +28,42 @@ export const monthParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'mjesec u 
 export class TimesheetsService {
   constructor(private readonly audit: AuditService, private readonly packages: ProgrammePackagesService, private readonly ctx: TenantContext) {}
 
+  /** Plaće: čitanje, unos i izmjena godišnjeg troška samo uz personnel:read na projektu (ASVS V8, WP1.14). */
+  private seesCost(projectId: string): boolean { return canOnProject(this.ctx.require(), 'personnel:read', projectId); }
+
+  private memberView(m: typeof teamMembers.$inferSelect, seeCost: boolean) {
+    const { tenantId: _t, createdBy: _c, updatedBy: _u, deletedAt: _d, annualCostCents, ...r } = m;
+    return { ...r, annualCost: seeCost ? annualCostCents : null, costSet: annualCostCents !== null };
+  }
+
   async team(tx: Tx, projectId: string) {
     await loadProject(tx, projectId);
     const rows = await tx.select().from(teamMembers).where(eq(teamMembers.projectId, projectId)).orderBy(asc(teamMembers.fullName));
-    // Godišnji trošak osoblja (plaća) vidljiv je samo uz dozvolu personnel:read (ASVS V8).
-    const seeCost = hasPermission(this.ctx.require().permissions, 'personnel:read');
-    return rows.map(({ tenantId: _t, createdBy: _c, updatedBy: _u, deletedAt: _d, annualCostCents, ...r }) => ({ ...r, annualCost: seeCost ? annualCostCents : null }));
+    const seeCost = this.seesCost(projectId);
+    return rows.map((m) => this.memberView(m, seeCost));
   }
 
   async addMember(tx: Tx, tenantId: string, projectId: string, input: z.infer<typeof memberInput>, actorId?: string) {
     await loadProject(tx, projectId, { editable: true });
+    if (input.annualCost !== undefined && !this.seesCost(projectId)) throw new ForbiddenException(COST_DENIED);
     const partnerId = input.partnerId ?? (await selfPartner(tx, projectId)).id;
     await assertPartnerOnProject(tx, projectId, partnerId);
-    if (input.userId && !(await tx.select({ id: users.id }).from(users).where(eq(users.id, input.userId))).length) throw new NotFoundException(`Korisnik ${input.userId} ne postoji`);
-    const [row] = await tx.insert(teamMembers).values({ tenantId, projectId, partnerId, userId: input.userId ?? null, fullName: input.fullName, role: input.role ?? null, annualCostCents: input.annualCost, createdBy: actorId, updatedBy: actorId }).returning();
+    if (input.userId && !(await tx.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), isNull(users.deletedAt)))).length) throw new NotFoundException(`Korisnik ${input.userId} ne postoji`);
+    const [row] = await tx.insert(teamMembers).values({ tenantId, projectId, partnerId, userId: input.userId ?? null, fullName: input.fullName, role: input.role ?? null, annualCostCents: input.annualCost ?? null, createdBy: actorId, updatedBy: actorId }).returning();
+    // Član tima s korisničkim računom dobiva pristup projektu (uloga člana tima), da može voditi vlastite timesheetove.
+    if (input.userId) await ensureTeamMemberAccess(tx, this.audit, tenantId, projectId, input.userId, actorId);
     await this.audit.record(tx, { entity: 'team_member', entityId: row!.id, action: 'create', diff: { after: { ...row, annualCostCents: '***' }, meta: { projectId } } });
-    return { id: row!.id, fullName: row!.fullName, partnerId, userId: row!.userId, role: row!.role, annualCost: row!.annualCostCents, active: row!.active };
+    return this.memberView(row!, this.seesCost(projectId));
+  }
+
+  async updateMember(tx: Tx, projectId: string, memberId: string, patch: z.infer<typeof memberPatch>, actorId?: string) {
+    await loadProject(tx, projectId, { editable: true });
+    if (patch.annualCost !== undefined && !this.seesCost(projectId)) throw new ForbiddenException(COST_DENIED);
+    const before = await this.member(tx, projectId, memberId);
+    const { annualCost, ...rest } = patch;
+    const [row] = await tx.update(teamMembers).set({ ...rest, ...(annualCost !== undefined ? { annualCostCents: annualCost } : {}), updatedAt: new Date(), updatedBy: actorId }).where(eq(teamMembers.id, before.id)).returning();
+    await this.audit.record(tx, { entity: 'team_member', entityId: memberId, action: 'update', diff: { before: { fullName: before.fullName, role: before.role, active: before.active }, after: { ...rest, ...(annualCost !== undefined ? { annualCostCents: '***' } : {}) }, meta: { projectId } } });
+    return this.memberView(row!, this.seesCost(projectId));
   }
 
   private async member(tx: Tx, projectId: string, memberId: string) {
@@ -48,10 +72,10 @@ export class TimesheetsService {
     return m;
   }
 
-  /** Bez `timesheets:approve` korisnik smije uređivati samo vlastiti timesheet. */
-  private assertOwnOrApprover(m: { userId: string | null }): void {
+  /** Bez `timesheets:approve` na projektu korisnik smije uređivati samo vlastiti timesheet. */
+  private assertOwnOrApprover(m: { userId: string | null; projectId: string }): void {
     const c = this.ctx.require();
-    if (hasPermission(c.permissions, 'timesheets:approve')) return;
+    if (canOnProject(c, 'timesheets:approve', m.projectId)) return;
     if (!m.userId || m.userId !== c.userId) throw new ForbiddenException('Smiješ uređivati samo vlastiti timesheet');
   }
 
@@ -116,8 +140,12 @@ export class TimesheetsService {
     const p = await loadProject(tx, projectId, { editable: true });
     assertSpendable(p);
     const m = await this.member(tx, projectId, memberId);
+    // Nitko ne odobrava vlastiti timesheet, bez obzira na ulogu (razdvajanje dužnosti).
+    if (m.userId && m.userId === this.ctx.require().userId) throw new ForbiddenException('Ne možeš odobriti vlastiti timesheet – odobrava ga voditelj projekta ili ured za projekte');
     const ts = await this.load(tx, projectId, memberId, month);
     if (ts.status !== 'submitted') throw new ConflictException(`Odobrava se samo predan timesheet (trenutno "${ts.status}")`);
+    if (m.annualCostCents === null) throw new ConflictException(`Za člana tima ${m.fullName} nije upisan godišnji trošak – upisuje ga uloga s pristupom podacima o osoblju (financije, ured za projekte)`);
+    const annualCostCents = m.annualCostCents;
     const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
     const category = pkg.personnelRule?.categoryCode;
     if (!category) throw new BadRequestException(`Paket ${p.packageId} nema personnelRule.categoryCode – trošak osoblja ne može se izračunati`);
@@ -128,7 +156,7 @@ export class TimesheetsService {
     const created: { workPackageId: string | null; minutes: number; amount: number }[] = [];
     for (const [wp, minutes] of byWp) {
       if (minutes <= 0) continue;
-      const amount = personnelCostCents(pkg, m.annualCostCents, minutes);
+      const amount = personnelCostCents(pkg, annualCostCents, minutes);
       created.push({ workPackageId: wp, minutes, amount });
       await tx.insert(expenses).values({ tenantId, projectId, partnerId: m.partnerId, categoryCode: category, workPackageId: wp, date: expenseDate,
         description: `Rad: ${m.fullName}, ${month} (${(minutes / 60).toFixed(2)} h)`, amountCents: amount, source: 'timesheet', timesheetId: ts.id, createdBy: actorId, updatedBy: actorId });

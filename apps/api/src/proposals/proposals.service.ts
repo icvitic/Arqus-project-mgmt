@@ -1,4 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { currentContext } from '../common/tenant-context';
+import { canInTenant } from '../common/access';
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
@@ -220,6 +222,9 @@ export class ProposalsService {
 
   /** Ugovaranje (ADR-0006): projekt s partnerima, radnim paketima i proračunom v1 (nacrt) kopiranim iz prijave; prijava postaje arhiv. */
   async contract(tx: Tx, tenantId: string, id: string, input: z.infer<typeof contractInput>, actorId?: string) {
+    // Ruta traži projects:write na razini institucije; prijava je također podatak institucije (WP1.14).
+    const ctx = currentContext();
+    if (ctx && !canInTenant(ctx, 'proposals:read')) throw new ForbiddenException('Nedostaje dozvola proposals:read (na razini institucije)');
     const p = await this.row(tx, id);
     if (p.status !== 'funded') throw new ConflictException('Ugovara se samo financirana prijava');
     const d = await this.get(tx, id);

@@ -55,8 +55,13 @@ describe('Demo okruženje (WP1.13)', () => {
     const tokens: Record<string, string> = {};
     for (const u of DEMO_USERS) tokens[u.key] = await login(slug, `${u.local}@${slug}.local`, pw);
     const as = (k: string) => ({ Authorization: `Bearer ${tokens[k]}` });
-    const users = (await http().get('/api/users').set(as('admin')).expect(200)).body as { roles: string[] }[];
-    expect(new Set(users.flatMap((u) => u.roles))).toEqual(new Set(['tenant-admin', 'project-office', 'project-manager', 'team-member', 'finance', 'reader']));
+    const users = (await http().get('/api/users').set(as('admin')).expect(200)).body as { email: string; roles: string[]; projectRoles: { code: string; acronym: string }[] }[];
+    // WP1.14: uloge institucije samo za administratora, ured, financije i upravu; voditelji i član tima imaju ulogu na projektu.
+    expect(new Set(users.flatMap((u) => u.roles))).toEqual(new Set(['tenant-admin', 'project-office', 'finance', 'reader']));
+    const scoped = (local: string) => users.find((u) => u.email === `${local}@${slug}.local`)!;
+    expect(scoped('voditelj').roles).toEqual([]); expect(scoped('voditelj').projectRoles.map((r) => `${r.code}@${r.acronym}`)).toEqual(['project-manager@BLUESENSE']);
+    expect(scoped('voditelj2').projectRoles.map((r) => `${r.code}@${r.acronym}`)).toEqual(['project-manager@ZELENI-LAB']);
+    expect(scoped('clan').projectRoles.map((r) => `${r.code}@${r.acronym}`)).toEqual(['team-member@BLUESENSE']);
 
     // Organizacije: vlastita + 6 partnera iz različitih država.
     const orgs = (await http().get('/api/organisations').set(as('office')).expect(200)).body as { country: string; isSelf: boolean; name: string }[];
@@ -117,6 +122,18 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(claims[0]!.submittedAt).toBeTruthy(); expect(claims[0]!.paid).toBe(claims[0]!.approved); expect(claims[0]!.missingEvidence).toBe(0);
     expect(claims[1]!.missingEvidence).toBe(1);
     expect((await http().get(`/api/documents?projectId=${npoo.id}`).set(as('office')).expect(200)).body.length).toBeGreaterThanOrEqual(6);
+
+    // WP1.14: voditelj vidi samo svoj projekt; tuđi projekt je 404; član tima ne vidi plaće ni povjerljive dokumente.
+    expect(((await http().get('/api/projects').set(as('pm')).expect(200)).body as Row[]).map((p) => p.acronym)).toEqual(['BLUESENSE']);
+    expect(((await http().get('/api/projects').set(as('pm2')).expect(200)).body as Row[]).map((p) => p.acronym)).toEqual(['ZELENI-LAB']);
+    expect(((await http().get('/api/projects').set(as('member')).expect(200)).body as Row[]).map((p) => p.acronym)).toEqual(['BLUESENSE']);
+    await http().get(`/api/projects/${npoo.id}`).set(as('pm')).expect(404);
+    await http().get(`/api/projects/${he.id}/team`).set(as('pm2')).expect(404);
+    const confidentialTitle = 'Odluka o plaćama projektnog tima';
+    const heDocs = (as2: string) => http().get(`/api/documents?projectId=${he.id}`).set(as(as2)).expect(200).then((r) => (r.body as { title: string }[]).map((d) => d.title));
+    expect(await heDocs('pm')).toContain(confidentialTitle); expect(await heDocs('finance')).toContain(confidentialTitle);
+    expect(await heDocs('member')).not.toContain(confidentialTitle);
+    expect(((await http().get(`/api/projects/${he.id}/team`).set(as('member')).expect(200)).body as { annualCost: number | null }[]).every((t) => t.annualCost === null)).toBe(true);
   }, 120_000);
 
   it('drugo pokretanje ne mijenja ništa (idempotentno)', async () => {

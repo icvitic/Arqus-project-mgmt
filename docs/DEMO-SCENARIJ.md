@@ -83,7 +83,15 @@ Jedna rečenica za početak: *„Pokazat ću vam jednu instituciju kroz cijeli �
   *„Ovo je odgovor na pitanje uprave ‘koliko smo potrošili i koliko još možemo’.”*
 - **Dokumenti**: ugovor (povjerljivo), dokazi, odluka o ZNS-u – svaka verzija s SHA-256 i tragom tko je što učitao i preuzeo.
 
-## 9. Zatvaranje (1 min)
+## 9. Tko vidi koji projekt (1 min) – pristup po projektu
+
+**Klik:** u privatnoj kartici odjava → prijava `voditelj@demo.local` (Petra Horvat, voditeljica BLUESENSE-a).
+
+- **Projekti** pokazuju samo **BLUESENSE**; nema radara, prijava ni gumba „Novi projekt”. U kartici **Tim i timesheetovi** plaće su *skrivene*; Lukin predani timesheet može odobriti, vlastiti ne (umjesto gumba „Odobri” piše da ga odobrava druga osoba).
+- Kartica **Pristup**: tko vidi projekt i kroz koju ulogu – na ovom projektu (Petra, Luka) ili kroz ulogu institucije (ured, financije, uprava); Petra može dodati člana tima na svoj projekt, ali ne i ulogu s pravom na plaće.
+  *„Voditelj projekta vidi svoj projekt, ne i projekte kolega – ni na popisu ni ako netko pošalje poveznicu. Plaće i povjerljive ugovore vide samo ured i financije.”*
+
+## 10. Zatvaranje (1 min)
 
 - Sigurnost u jednoj rečenici: podaci svake institucije odvojeni na razini baze, dvofaktorska prijava, revizijski zapis svake promjene, poslužitelj u EU.
 - Pitanja za kraj (bilježi odgovore u `docs/faza-0/predlozak-biljeske.md` ili sličnu bilješku):
@@ -95,9 +103,9 @@ Jedna rečenica za početak: *„Pokazat ću vam jednu instituciju kroz cijeli �
 
 | Pitanje | Gdje pokazati |
 | --- | --- |
-| „Tko što smije?” | odjava → prijava `uprava@demo.local` (samo čitanje: nema gumba za izmjene); **Korisnici** kao `admin@demo.local` |
+| „Tko što smije?” | odjava → prijava `uprava@demo.local` (samo čitanje: nema gumba za izmjene); **Korisnici** kao `admin@demo.local` – uloge institucije i uloge na projektima, dodjela uloge na projektu |
 | „Imamo i druge programe” | **Paketi programa** → Novi paket po pozivu (nasljeđuje NPOO/HE, mijenjaju se samo razlike) |
-| „Kako izgleda za voditelja NPOO projekta?” | prijava `voditelj2@demo.local` → ZELENI-LAB |
+| „Kako izgleda za voditelja NPOO projekta?” | prijava `voditelj2@demo.local` → vidi samo ZELENI-LAB |
 | „A dvofaktorska prijava?” | ime korisnika gore desno → **Moj račun** → Uključi MFA |
 
 **Nakon razgovora:** `demo.cmd reset` (ili `demo.cmd stop`).

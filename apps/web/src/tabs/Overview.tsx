@@ -9,7 +9,7 @@ import { can, type TabProps } from '../pages/ProjectDetail';
 const ROLE: Record<string, string> = { coordinator: 'koordinator', partner: 'partner', associated: 'pridruženi', third_party: 'treća strana' };
 
 export function Overview({ project: p, me, reloadProject }: TabProps) {
-  const write = can(me, 'projects:write') && !['closed', 'terminated', 'archived'].includes(p.status);
+  const write = can(me, 'projects:write', p.id) && !['closed', 'terminated', 'archived'].includes(p.status);
   const contracting = p.status === 'contracting';
   const [f, setF] = useState({ contractNo: p.contractNo ?? '', startDate: p.startDate ?? '', durationMonths: p.durationMonths ? String(p.durationMonths) : '', title: p.title });
   const orgs = useLoad(() => (contracting && write ? api<Organisation[]>('GET', '/organisations') : Promise.resolve([] as Organisation[])), [contracting, write]);

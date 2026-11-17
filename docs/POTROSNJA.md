@@ -15,6 +15,7 @@ Težina: **L** = samo pisanje/uređivanje dokumenata iz postojećeg znanja; **M*
 | 2026-11-09 | 2 (ručno) | WP0.3 dio 2, v0.2.0 | 4 / 6 | 0 | M | |
 | 2026-11-09 | 3 (ručno) | WP0.4 domenski model, v0.3.0 | 0 / 0 | 0 | L | |
 | 2026-11-09 | 3 (nastavak) | skripta verzija + preglednik, test u pregledniku, v0.3.1 | 0 / 0 | 0 | M | |
+| 2026-11-17 | 9 (podagent) | WP1.14 pristup po projektu (guard s razvrstavanjem ruta, dokumenti, plaće, samoodobrenje, upravljanje pristupom, web Pristup/Korisnici, test izolacije i pokrivenosti ruta, demo, dokumentacija); v0.21.0 | 0 / 0 | 0 | H | |
 | 2026-11-17 | 8 (podagent) | WP1.13 demo okruženje (seeder kroz API, Docker skripte, scenarij, testovi); v0.20.0 | 0 / 0 | 0 | H | |
 | 2026-11-16 | 7 (ručno) | WP1.12 uvoz poziva s F&T (domena, uvoz, radar, e2e); v0.19.0 | 0 / 14 (javni API portala) | 0 | H | |
 | 2026-11-16 | 6 (ručno) | WP1.11 dokumenti (API, web, e2e, kopije); v0.18.0 | 0 / 0 | 0 | H | |

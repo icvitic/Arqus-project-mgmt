@@ -102,7 +102,7 @@ function ProposalView({ me, id }: { me: Me; id: string }) {
       <WorkPlan d={d} editable={editable} set={set} />
       <BudgetGrid d={d} editable={editable} set={set} />
       <div className="card scroll"><h2>Dokumenti prijave</h2>
-        <DocumentList target={{ entityType: 'proposal', entityId: d.id }} defaultKind="proposal" canWrite={can(me, 'documents:write') && !['contracted', 'withdrawn', 'rejected'].includes(d.status)} />
+        <DocumentList target={{ entityType: 'proposal', entityId: d.id }} defaultKind="proposal" allowConfidential={can(me, 'documents:confidential')} canWrite={can(me, 'documents:write') && can(me, 'proposals:write') && !['contracted', 'withdrawn', 'rejected'].includes(d.status)} />
       </div>
     </>
   );

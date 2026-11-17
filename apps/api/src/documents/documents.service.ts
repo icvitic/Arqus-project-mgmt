@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { checkUpload, DOCUMENT_KINDS, sanitizeFileName, type DocumentEntity } from '@arqus/domain';
@@ -7,6 +7,8 @@ import type { Tx } from '../db/db.service';
 import { deliverables, documents, documentVersions, expenses, proposals, reimbursementClaims, users, type DocumentRow } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { loadProject } from '../common/project-access';
+import { TenantContext, type RequestContext } from '../common/tenant-context';
+import { assertProjectPermission, canInTenant, canOnProject } from '../common/access';
 
 export const ENTITIES = ['project', 'expense', 'deliverable', 'claim', 'proposal'] as const;
 export const uploadMeta = z.object({
@@ -20,43 +22,80 @@ export const docPatch = z.object({ title: z.string().trim().min(1).max(300).opti
 
 export interface UploadedFile { originalname: string; size: number; buffer: Buffer }
 interface Owner { projectId: string | null; proposalId: string | null; frozen: string | null }
+type Op = 'read' | 'write';
+type Scope = { projectId: string | null; proposalId: string | null };
 
-/** M9: dokumenti s verzijama vezani uz projekt, trošak (dokaz), isporuku, ZNS ili prijavu. Sadržaj u DocumentStorage, metapodaci i hash u bazi. */
+/**
+ * M9: dokumenti s verzijama vezani uz projekt, trošak (dokaz), isporuku, ZNS ili prijavu. Sadržaj u DocumentStorage, metapodaci i hash u bazi.
+ * Pristup (WP1.14): projekt u putanji ne postoji, pa se za svaki zahtjev razrješava vlasnik (projekt ili prijava) i provjerava
+ * dozvola upravo na tom projektu; bez pristupa → 404 s istom porukom kao za nepostojeći entitet. Povjerljivi dokumenti
+ * (`confidential`) vidljivi su samo uz `documents:confidential` na tom opsegu – inače ih nema ni u popisu ni u brojanju.
+ */
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly audit: AuditService) {}
+  constructor(private readonly audit: AuditService, private readonly ctx: TenantContext) {}
 
-  /** Vlasnik entiteta (projekt ili prijava) pod RLS-om; `frozen` = razlog zašto se dokumenti više ne mijenjaju. */
-  private async owner(tx: Tx, type: DocumentEntity, id: string): Promise<Owner> {
+  /** Projekt: dozvola na projektu. Prijava (radnja institucije): documents:* i proposals:* na razini institucije. */
+  private authorize(c: RequestContext, scope: Scope, op: Op, notFound: string): void {
+    if (scope.projectId) return assertProjectPermission(c, scope.projectId, op === 'read' ? 'documents:read' : 'documents:write', notFound);
+    if (!canInTenant(c, 'proposals:read')) throw new NotFoundException(notFound);
+    const ok = op === 'read' ? canInTenant(c, 'documents:read') : canInTenant(c, 'documents:write') && canInTenant(c, 'proposals:write');
+    if (!ok) throw new ForbiddenException(`Nedostaje dozvola za ${op === 'read' ? 'čitanje' : 'izmjenu'} dokumenata prijave`);
+  }
+
+  private canConfidential(c: RequestContext, scope: Scope): boolean {
+    return scope.projectId ? canOnProject(c, 'documents:confidential', scope.projectId) : canInTenant(c, 'documents:confidential');
+  }
+
+  private assertMayMarkConfidential(c: RequestContext, scope: Scope, confidentiality: string | undefined): void {
+    if (confidentiality === 'confidential' && !this.canConfidential(c, scope)) throw new ForbiddenException('Povjerljive dokumente označava samo uloga s dozvolom documents:confidential');
+  }
+
+  /**
+   * Vlasnik entiteta (projekt ili prijava) pod RLS-om, s provjerom pristupa PRIJE bilo kakve druge informacije;
+   * `frozen` = razlog zašto se dokumenti više ne mijenjaju.
+   */
+  private async owner(tx: Tx, type: DocumentEntity, id: string, op: Op): Promise<Owner> {
+    const c = this.ctx.require();
     const closed = async (projectId: string) => { const p = await loadProject(tx, projectId); return ['closed', 'terminated', 'archived'].includes(p.status) ? `projekt je u statusu "${p.status}"` : null; };
+    const ofProject = async (projectId: string, notFound: string, frozen?: string | null): Promise<Owner> => {
+      this.authorize(c, { projectId, proposalId: null }, op, notFound);
+      return { projectId, proposalId: null, frozen: frozen ?? (await closed(projectId)) };
+    };
     switch (type) {
-      case 'project': return { projectId: id, proposalId: null, frozen: await closed(id) };
+      case 'project': return ofProject(id, `Projekt ${id} ne postoji`);
       case 'expense': {
         const e = (await tx.select({ projectId: expenses.projectId, status: expenses.status }).from(expenses).where(eq(expenses.id, id)))[0];
         if (!e) throw new NotFoundException('Trošak ne postoji');
-        return { projectId: e.projectId, proposalId: null, frozen: ['claimed', 'accepted'].includes(e.status) ? 'trošak je u zahtjevu za nadoknadu – dokazi su zamrznuti' : await closed(e.projectId) };
+        return ofProject(e.projectId, 'Trošak ne postoji', ['claimed', 'accepted'].includes(e.status) ? 'trošak je u zahtjevu za nadoknadu – dokazi su zamrznuti' : null);
       }
       case 'deliverable': {
         const d = (await tx.select({ projectId: deliverables.projectId }).from(deliverables).where(eq(deliverables.id, id)))[0];
         if (!d) throw new NotFoundException('Isporuka ne postoji');
-        return { projectId: d.projectId, proposalId: null, frozen: await closed(d.projectId) };
+        return ofProject(d.projectId, 'Isporuka ne postoji');
       }
       case 'claim': {
-        const c = (await tx.select({ projectId: reimbursementClaims.projectId }).from(reimbursementClaims).where(eq(reimbursementClaims.id, id)))[0];
-        if (!c) throw new NotFoundException('Zahtjev za nadoknadu ne postoji');
-        return { projectId: c.projectId, proposalId: null, frozen: await closed(c.projectId) };
+        const r = (await tx.select({ projectId: reimbursementClaims.projectId }).from(reimbursementClaims).where(eq(reimbursementClaims.id, id)))[0];
+        if (!r) throw new NotFoundException('Zahtjev za nadoknadu ne postoji');
+        return ofProject(r.projectId, 'Zahtjev za nadoknadu ne postoji');
       }
       case 'proposal': {
         const p = (await tx.select({ id: proposals.id, status: proposals.status }).from(proposals).where(and(eq(proposals.id, id), isNull(proposals.deletedAt))))[0];
         if (!p) throw new NotFoundException('Prijava ne postoji');
+        this.authorize(c, { projectId: null, proposalId: p.id }, op, 'Prijava ne postoji');
         return { projectId: null, proposalId: p.id, frozen: ['contracted', 'withdrawn', 'rejected'].includes(p.status) ? 'prijava je zaključena' : null };
       }
     }
   }
 
-  private async row(tx: Tx, id: string): Promise<DocumentRow> {
+  /** Dokument s provjerom pristupa vlasniku i povjerljivosti; bez pristupa 404 kao da ne postoji. */
+  private async row(tx: Tx, id: string, op: Op): Promise<DocumentRow> {
     const d = (await tx.select().from(documents).where(and(eq(documents.id, id), isNull(documents.deletedAt))))[0];
-    if (!d) throw new NotFoundException(`Dokument ${id} ne postoji`);
+    const notFound = `Dokument ${id} ne postoji`;
+    if (!d) throw new NotFoundException(notFound);
+    const c = this.ctx.require();
+    this.authorize(c, d, op, notFound);
+    if (d.confidentiality === 'confidential' && !this.canConfidential(c, d)) throw new NotFoundException(notFound);
     return d;
   }
 
@@ -71,12 +110,22 @@ export class DocumentsService {
 
   async list(tx: Tx, q: z.infer<typeof listQuery>) {
     if (!q.projectId && !q.proposalId && !(q.entityType && q.entityId)) throw new BadRequestException('Navedi projectId, proposalId ili entityType + entityId');
+    // Svaki navedeni opseg mora biti dopušten (uvjeti se zbrajaju, ali tuđi id u upitu nikad ne prolazi tiho).
+    const c = this.ctx.require();
+    if (q.projectId) this.authorize(c, { projectId: q.projectId, proposalId: null }, 'read', `Projekt ${q.projectId} ne postoji`);
+    if (q.proposalId) {
+      const exists = (await tx.select({ id: proposals.id }).from(proposals).where(and(eq(proposals.id, q.proposalId), isNull(proposals.deletedAt)))).length;
+      if (!exists) throw new NotFoundException('Prijava ne postoji');
+      this.authorize(c, { projectId: null, proposalId: q.proposalId }, 'read', 'Prijava ne postoji');
+    }
+    if (q.entityType && q.entityId) await this.owner(tx, q.entityType, q.entityId, 'read');
     const conds = [isNull(documents.deletedAt)];
     if (q.projectId) conds.push(eq(documents.projectId, q.projectId));
     if (q.proposalId) conds.push(eq(documents.proposalId, q.proposalId));
     if (q.entityType) conds.push(eq(documents.entityType, q.entityType));
     if (q.entityId) conds.push(eq(documents.entityId, q.entityId));
-    const docs = await tx.select().from(documents).where(and(...conds)).orderBy(desc(documents.updatedAt));
+    const docs = (await tx.select().from(documents).where(and(...conds)).orderBy(desc(documents.updatedAt)))
+      .filter((d) => d.confidentiality !== 'confidential' || this.canConfidential(c, d));
     if (!docs.length) return [];
     const vers = await tx.select().from(documentVersions).where(inArray(documentVersions.documentId, docs.map((d) => d.id)));
     return docs.map((d) => {
@@ -90,14 +139,15 @@ export class DocumentsService {
   }
 
   async get(tx: Tx, id: string) {
-    const d = await this.row(tx, id);
+    const d = await this.row(tx, id, 'read');
     const vers = await tx.select({ v: documentVersions, by: users.displayName }).from(documentVersions).leftJoin(users, eq(users.id, documentVersions.createdBy))
       .where(eq(documentVersions.documentId, id)).orderBy(desc(documentVersions.version));
     return { ...this.view(d), versions: vers.map(({ v, by }) => ({ version: v.version, fileName: v.fileName, mimeType: v.mimeType, size: v.sizeBytes, sha256: v.sha256, note: v.note, createdAt: v.createdAt, createdBy: by })) };
   }
 
   async create(tx: Tx, tenantId: string, meta: z.infer<typeof uploadMeta>, file: { fileName: string; mime: string; sha256: string; size: number; storageKey: string }, actorId?: string) {
-    const o = await this.owner(tx, meta.entityType, meta.entityId);
+    const o = await this.owner(tx, meta.entityType, meta.entityId, 'write');
+    this.assertMayMarkConfidential(this.ctx.require(), o, meta.confidentiality);
     if (o.frozen) throw new ConflictException(`Dokument se ne može dodati: ${o.frozen}`);
     const [d] = await tx.insert(documents).values({
       tenantId, projectId: o.projectId, proposalId: o.proposalId, entityType: meta.entityType, entityId: meta.entityId, title: meta.title ?? file.fileName.replace(/\.[^.]+$/, ''),
@@ -109,8 +159,8 @@ export class DocumentsService {
   }
 
   async addVersion(tx: Tx, tenantId: string, id: string, note: string | undefined, file: { fileName: string; mime: string; sha256: string; size: number; storageKey: string }, actorId?: string) {
-    const d = await this.row(tx, id);
-    const o = await this.owner(tx, d.entityType, d.entityId);
+    const d = await this.row(tx, id, 'write');
+    const o = await this.owner(tx, d.entityType, d.entityId, 'write');
     if (o.frozen) throw new ConflictException(`Nova verzija nije moguća: ${o.frozen}`);
     const last = (await tx.select().from(documentVersions).where(eq(documentVersions.documentId, id)).orderBy(desc(documentVersions.version)).limit(1))[0]!;
     if (last.sha256 === file.sha256) throw new ConflictException('Datoteka je jednaka trenutnoj verziji');
@@ -122,8 +172,9 @@ export class DocumentsService {
   }
 
   async update(tx: Tx, id: string, patch: z.infer<typeof docPatch>, actorId?: string) {
-    const d = await this.row(tx, id);
-    const o = await this.owner(tx, d.entityType, d.entityId);
+    const d = await this.row(tx, id, 'write');
+    const o = await this.owner(tx, d.entityType, d.entityId, 'write');
+    this.assertMayMarkConfidential(this.ctx.require(), o, patch.confidentiality);
     if (o.frozen) throw new ConflictException(`Dokument se ne mijenja: ${o.frozen}`);
     await tx.update(documents).set({ ...patch, updatedAt: new Date(), updatedBy: actorId }).where(eq(documents.id, id));
     await this.audit.record(tx, { entity: 'document', entityId: id, action: 'update', diff: { before: { title: d.title, kind: d.kind, confidentiality: d.confidentiality }, after: patch } });
@@ -132,8 +183,8 @@ export class DocumentsService {
 
   /** Logičko brisanje; sadržaj i verzije ostaju radi revizijskog traga. */
   async remove(tx: Tx, id: string, actorId?: string) {
-    const d = await this.row(tx, id);
-    const o = await this.owner(tx, d.entityType, d.entityId);
+    const d = await this.row(tx, id, 'write');
+    const o = await this.owner(tx, d.entityType, d.entityId, 'write');
     if (o.frozen) throw new ConflictException(`Dokument se ne briše: ${o.frozen}`);
     await tx.update(documents).set({ deletedAt: new Date(), updatedBy: actorId }).where(eq(documents.id, id));
     await this.audit.record(tx, { entity: 'document', entityId: id, action: 'delete', diff: { before: { title: d.title } } });
@@ -142,7 +193,7 @@ export class DocumentsService {
 
   /** Verzija za preuzimanje (zadano trenutna); preuzimanje se bilježi u reviziju. */
   async version(tx: Tx, id: string, version?: number) {
-    const d = await this.row(tx, id);
+    const d = await this.row(tx, id, 'read');
     const n = version ?? d.currentVersion;
     const v = (await tx.select().from(documentVersions).where(and(eq(documentVersions.documentId, id), eq(documentVersions.version, n))))[0];
     if (!v) throw new NotFoundException(`Verzija ${n} ne postoji`);
@@ -150,11 +201,11 @@ export class DocumentsService {
     return v;
   }
 
-  /** Broj aktivnih dokumenata po entitetu (za oznaku „dokaz priložen”). */
-  async counts(tx: Tx, type: DocumentEntity, ids: string[]): Promise<Map<string, number>> {
+  /** Broj aktivnih dokumenata po entitetu (za oznaku „dokaz priložen”); povjerljivi se broje samo uz `includeConfidential`. */
+  async counts(tx: Tx, type: DocumentEntity, ids: string[], includeConfidential = false): Promise<Map<string, number>> {
     if (!ids.length) return new Map();
     const rows = await tx.select({ id: documents.entityId, n: sql<number>`count(*)::int` }).from(documents)
-      .where(and(eq(documents.entityType, type), inArray(documents.entityId, ids), isNull(documents.deletedAt))).groupBy(documents.entityId);
+      .where(and(eq(documents.entityType, type), inArray(documents.entityId, ids), isNull(documents.deletedAt), includeConfidential ? undefined : ne(documents.confidentiality, 'confidential'))).groupBy(documents.entityId);
     return new Map(rows.map((r) => [r.id, r.n]));
   }
 }

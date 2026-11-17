@@ -63,6 +63,7 @@ Izgradi sve, primijeni migracije i seed, digne API i `vite preview` te Playwrigh
 ## Pravila
 - Moduli API-ja ne čitaju tuđe tablice; komunikacija kroz servise i događaje (ADR-0002, domenski model odj. 1).
 - Izračuni koji ovise o pravilima programa žive u `@arqus/domain`, ne u kontrolerima.
+- Svaka nova ruta dobiva točno jednu oznaku autorizacije (`apps/api/src/identity/auth.guard.ts`): ruta s projektom u putanji `@ProjectPermission(p)` (parametar `:id`), entitet projekta bez projekta u putanji `@ResolvesProject(p)` uz provjeru vlasnika u servisu (`assertProjectPermission`), radnja institucije `@RequirePermission(p)`. Ruta bez oznake se odbija, a `test/route-coverage.e2e.test.ts` pada – novi parametar putanje dodaj u `paramsB` tog testa. Model: `docs/sigurnost/AUTORIZACIJA.md`.
 - Svaki poslovni upit ide kroz `DbService.tx()` (stanar iz konteksta) ili `withTenant()`; `withoutTenant()` samo za prijavu i sistemske poslove.
 - Svaka promjena poslovnih podataka zove `AuditService.record()` u istoj transakciji. Zapis neuspjele radnje ide u zasebnoj transakciji.
 - Tablica koja pokazuje na drugi redak stanara ima kompozitni strani ključ `(tenant_id, <fk>)` → `(tenant_id, id)`; sam RLS ne štiti strane ključeve.

@@ -3,11 +3,15 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { passwordIssues } from '@arqus/domain';
 import { DbService, type Tx } from '../db/db.service';
-import { tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
+import { projects, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
 import { hashPassword, verifyPassword } from './password';
 import { TokenService } from './token.service';
 import { AuditService } from '../audit/audit.service';
-import { SYSTEM_ROLES } from './permissions';
+import { hasPermission, SYSTEM_ROLES } from './permissions';
+import { TenantContext, type RequestContext } from '../common/tenant-context';
+import { canInTenant, canOnProject, projectGrants } from '../common/access';
+import { loadProject } from '../common/project-access';
+import { findRole, grantProjectRole } from './project-grants';
 import { LoginThrottle } from './login-throttle';
 import { generateTotpSecret, otpauthUri, verifyTotp } from './totp';
 import { open, seal } from '../common/crypto-box';
@@ -17,6 +21,8 @@ export interface LoginInput { tenantSlug: string; email: string; password: strin
 export interface CreateUserInput { email: string; displayName: string; password?: string; roleCodes?: string[] }
 export interface UpdateUserInput { displayName?: string; status?: 'active' | 'disabled'; roleCodes?: string[] }
 interface ClientInfo { ip?: string; userAgent?: string }
+/** Dozvole korisnika (WP1.14): na razini institucije i po projektu (id projekta → dozvole). */
+export interface UserAccess { tenant: string[]; projects: Record<string, string[]> }
 
 const publicUser = (u: User) => ({ id: u.id, tenantId: u.tenantId, email: u.email, displayName: u.displayName, status: u.status, mfaEnabled: u.mfaEnabled, lastLoginAt: u.lastLoginAt, createdAt: u.createdAt });
 
@@ -26,14 +32,27 @@ const mfaRequired = (message: string) => new UnauthorizedException({ statusCode:
 @Injectable()
 export class IdentityService {
   private readonly ttl = ttlSeconds(process.env.AUTH_TOKEN_TTL ?? '8h');
-  constructor(private readonly db: DbService, private readonly tokens: TokenService, private readonly audit: AuditService, private readonly throttle: LoginThrottle) {}
+  constructor(private readonly db: DbService, private readonly tokens: TokenService, private readonly audit: AuditService, private readonly throttle: LoginThrottle, private readonly ctx: TenantContext) {}
 
-  /** Skup dozvola korisnika = unija dozvola svih dodijeljenih uloga (stanarskih i sistemskih). */
-  async permissionsOf(tx: Tx, tenantId: string, userId: string): Promise<string[]> {
-    const rows = await tx.select({ permissions: roles.permissions }).from(roleAssignments)
+  /**
+   * Dozvole korisnika (WP1.14): uloge bez projekta daju dozvole na razini institucije (svi projekti),
+   * uloge dodijeljene na projektu samo na tom projektu. Računa se svježe pri svakom zahtjevu (ne iz tokena).
+   */
+  async accessOf(tx: Tx, tenantId: string, userId: string): Promise<UserAccess> {
+    const rows = await tx.select({ projectId: roleAssignments.projectId, permissions: roles.permissions }).from(roleAssignments)
       .innerJoin(roles, eq(roles.id, roleAssignments.roleId))
-      .where(and(eq(roleAssignments.tenantId, tenantId), eq(roleAssignments.userId, userId)));
-    return [...new Set(rows.flatMap((r) => r.permissions))];
+      .where(and(eq(roleAssignments.tenantId, tenantId), eq(roleAssignments.userId, userId), isNull(roles.deletedAt)));
+    const tenant = new Set<string>(); const byProject = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const target = r.projectId ? (byProject.get(r.projectId) ?? byProject.set(r.projectId, new Set()).get(r.projectId)!) : tenant;
+      for (const p of r.permissions) target.add(p);
+    }
+    return { tenant: [...tenant], projects: Object.fromEntries([...byProject].map(([id, set]) => [id, [...set]])) };
+  }
+
+  /** Dozvole na razini institucije. */
+  async permissionsOf(tx: Tx, tenantId: string, userId: string): Promise<string[]> {
+    return (await this.accessOf(tx, tenantId, userId)).tenant;
   }
 
   private checkPolicy(password: string, ctx: { email?: string; displayName?: string; tenantSlug?: string }): void {
@@ -48,7 +67,7 @@ export class IdentityService {
       (await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.slug, input.tenantSlug), isNull(tenants.deletedAt))))[0]);
     if (!tenant) { this.throttle.failed(input.tenantSlug, input.email, ip); throw new UnauthorizedException('Pogrešni podaci za prijavu'); }
 
-    type Outcome = { kind: 'ok'; user: User; permissions: string[]; sid: string } | { kind: 'bad'; userId: string | null; reason: string } | { kind: 'mfa'; message: string; userId: string; count: boolean };
+    type Outcome = { kind: 'ok'; user: User; access: UserAccess; sid: string } | { kind: 'bad'; userId: string | null; reason: string } | { kind: 'mfa'; message: string; userId: string; count: boolean };
     const outcome: Outcome = await this.db.withTenant(tenant.id, async (tx) => {
       const user = (await tx.select().from(users).where(and(eq(users.email, input.email.toLowerCase()), isNull(users.deletedAt))))[0];
       const ok = user && user.status === 'active' && (await verifyPassword(input.password, user.passwordHash));
@@ -59,12 +78,12 @@ export class IdentityService {
         if (step === null) return { kind: 'mfa', message: 'Neispravan ili već iskorišten kod', userId: user.id, count: true };
         await tx.update(users).set({ mfaLastStep: step }).where(eq(users.id, user.id));
       }
-      const permissions = await this.permissionsOf(tx, tenant.id, user.id);
+      const access = await this.accessOf(tx, tenant.id, user.id);
       const sid = randomUUID();
       await tx.insert(sessions).values({ id: sid, tenantId: tenant.id, userId: user.id, expiresAt: new Date(Date.now() + this.ttl * 1000), ip: ip ?? null, userAgent: client.userAgent?.slice(0, 300) ?? null });
       await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
       await this.audit.record(tx, { tenantId: tenant.id, entity: 'user', entityId: user.id, action: 'login.ok', actorType: 'user', actorId: user.id, diff: { meta: { sessionId: sid, mfa: user.mfaEnabled } } });
-      return { kind: 'ok', user, permissions, sid };
+      return { kind: 'ok', user, access, sid };
     });
 
     if (outcome.kind !== 'ok') {
@@ -77,16 +96,17 @@ export class IdentityService {
       throw new UnauthorizedException('Pogrešni podaci za prijavu');
     }
     this.throttle.succeeded(input.tenantSlug, input.email);
-    const accessToken = await this.tokens.sign({ sub: outcome.user.id, tid: tenant.id, perms: outcome.permissions, sid: outcome.sid });
-    return { accessToken, user: publicUser(outcome.user), permissions: outcome.permissions };
+    // `perms` u tokenu je samo informativan; ovlaštenje se uvijek računa svježe iz uloga (AuthGuard).
+    const accessToken = await this.tokens.sign({ sub: outcome.user.id, tid: tenant.id, perms: outcome.access.tenant, sid: outcome.sid });
+    return { accessToken, user: publicUser(outcome.user), permissions: outcome.access.tenant, projectPermissions: outcome.access.projects };
   }
 
-  /** Aktivna sesija + aktivan korisnik → svježe dozvole (promjena uloga vrijedi odmah). Null = sesija ne vrijedi. */
-  async sessionPermissions(tenantId: string, userId: string, sid: string): Promise<string[] | null> {
+  /** Aktivna sesija + aktivan korisnik → svježe dozvole (promjena i opoziv uloga vrijede odmah). Null = sesija ne vrijedi. */
+  async sessionAccess(tenantId: string, userId: string, sid: string): Promise<UserAccess | null> {
     return this.db.withTenant(tenantId, async (tx) => {
       const r = await tx.select({ id: sessions.id }).from(sessions).innerJoin(users, eq(users.id, sessions.userId))
         .where(and(eq(sessions.id, sid), eq(sessions.userId, userId), isNull(sessions.revokedAt), sql`${sessions.expiresAt} > now()`, eq(users.status, 'active'), isNull(users.deletedAt)));
-      return r.length ? this.permissionsOf(tx, tenantId, userId) : null;
+      return r.length ? this.accessOf(tx, tenantId, userId) : null;
     });
   }
 
@@ -104,7 +124,8 @@ export class IdentityService {
     const user = (await tx.select().from(users).where(eq(users.id, userId)))[0];
     if (!user) throw new NotFoundException();
     const tenant = (await tx.select().from(tenants).where(eq(tenants.id, tenantId)))[0];
-    return { user: publicUser(user), tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name, plan: tenant.plan } : null, permissions: await this.permissionsOf(tx, tenantId, userId) };
+    const access = await this.accessOf(tx, tenantId, userId);
+    return { user: publicUser(user), tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name, plan: tenant.plan } : null, permissions: access.tenant, projectPermissions: access.projects };
   }
 
   private async userRow(tx: Tx, id: string): Promise<User> {
@@ -160,8 +181,15 @@ export class IdentityService {
   // ---------- administracija korisnika ----------
   async listUsers(tx: Tx) {
     const list = await tx.select().from(users).where(isNull(users.deletedAt)).orderBy(users.displayName);
-    const assigned = await tx.select({ userId: roleAssignments.userId, code: roles.code }).from(roleAssignments).innerJoin(roles, eq(roles.id, roleAssignments.roleId)).where(isNull(roleAssignments.projectId));
-    return list.map((u) => ({ ...publicUser(u), roles: assigned.filter((a) => a.userId === u.id).map((a) => a.code) }));
+    const assigned = await tx.select({ id: roleAssignments.id, userId: roleAssignments.userId, code: roles.code, projectId: roleAssignments.projectId, acronym: projects.acronym })
+      .from(roleAssignments).innerJoin(roles, eq(roles.id, roleAssignments.roleId)).leftJoin(projects, eq(projects.id, roleAssignments.projectId)).orderBy(projects.acronym);
+    return list.map((u) => ({
+      ...publicUser(u),
+      /** Uloge na razini institucije (vrijede za sve projekte). */
+      roles: assigned.filter((a) => a.userId === u.id && !a.projectId).map((a) => a.code),
+      /** Uloge dodijeljene na pojedinom projektu. */
+      projectRoles: assigned.filter((a) => a.userId === u.id && a.projectId).map((a) => ({ assignmentId: a.id, code: a.code, projectId: a.projectId!, acronym: a.acronym })),
+    }));
   }
 
   async listRoles(tx: Tx) {
@@ -235,6 +263,66 @@ export class IdentityService {
     const missing = codes.filter((c) => !found.some((f) => f.code === c));
     if (missing.length) throw new NotFoundException(`Nepoznate uloge: ${missing.join(', ')}`);
     await tx.insert(roleAssignments).values(found.map((r) => ({ tenantId, userId, roleId: r.id, createdBy: actorId })));
+  }
+
+  // ---------- pristup projektu (WP1.14) ----------
+  /** Upravljati pristupom projektu smije administrator korisnika (users:write) ili tko ima projects:write na tom projektu. */
+  private canManageAccess(c: RequestContext, projectId: string): boolean {
+    return canInTenant(c, 'users:write') || canOnProject(c, 'projects:write', projectId);
+  }
+
+  /** Bez users:write korisnik smije dodijeliti/oduzeti samo ulogu čije sve dozvole i sam ima na tom projektu (nema eskalacije). */
+  private missingRights(c: RequestContext, projectId: string, rolePermissions: string[]): string[] {
+    if (canInTenant(c, 'users:write')) return [];
+    return rolePermissions.filter((p) => (p === '*' ? !(c.permissions.has('*') || projectGrants(c, projectId).has('*')) : !canOnProject(c, p as never, projectId)));
+  }
+
+  private assertWithinOwnRights(c: RequestContext, projectId: string, rolePermissions: string[]): void {
+    const missing = this.missingRights(c, projectId, rolePermissions);
+    if (missing.length) throw new ForbiddenException(`Ne možeš dodijeliti ili oduzeti ulogu s dozvolama koje sam nemaš na projektu: ${missing.join(', ')}`);
+  }
+
+  async projectAccess(tx: Tx, projectId: string) {
+    const c = this.ctx.require();
+    await loadProject(tx, projectId);
+    if (!this.canManageAccess(c, projectId)) throw new ForbiddenException('Pristupom projektu upravlja voditelj projekta ili administrator');
+    const rows = await tx.select({ id: roleAssignments.id, userId: users.id, displayName: users.displayName, email: users.email, status: users.status, projectId: roleAssignments.projectId, code: roles.code, name: roles.name, permissions: roles.permissions })
+      .from(roleAssignments).innerJoin(roles, eq(roles.id, roleAssignments.roleId)).innerJoin(users, eq(users.id, roleAssignments.userId))
+      .where(and(isNull(users.deletedAt), or(eq(roleAssignments.projectId, projectId), isNull(roleAssignments.projectId)))).orderBy(users.displayName);
+    // Uloge institucije koje daju pristup svim projektima (projects:read) + sve dodjele na ovom projektu.
+    const entries = rows.filter((r) => r.projectId === projectId || hasPermission(new Set(r.permissions), 'projects:read')).map((r) => ({
+      assignmentId: r.projectId ? r.id : null, userId: r.userId, displayName: r.displayName, email: r.email, status: r.status,
+      roleCode: r.code, roleName: r.name, scope: r.projectId ? 'project' as const : 'tenant' as const,
+      revocable: !!r.projectId && this.missingRights(c, projectId, r.permissions).length === 0,
+    }));
+    const people = await tx.select({ id: users.id, displayName: users.displayName, email: users.email }).from(users).where(and(isNull(users.deletedAt), ne(users.status, 'disabled'))).orderBy(users.displayName);
+    const roleList = (await this.listRoles(tx)).map((r) => ({ code: r.code, name: r.name, scope: r.scope, grantable: this.missingRights(c, projectId, r.permissions).length === 0 }));
+    return { projectId, entries, users: people, roles: roleList };
+  }
+
+
+  async grantOnProject(tx: Tx, tenantId: string, projectId: string, input: { userId: string; roleCode: string }, actorId?: string) {
+    const c = this.ctx.require();
+    await loadProject(tx, projectId);
+    if (!this.canManageAccess(c, projectId)) throw new ForbiddenException('Pristupom projektu upravlja voditelj projekta ili administrator');
+    const role = await findRole(tx, tenantId, input.roleCode);
+    this.assertWithinOwnRights(c, projectId, role.permissions);
+    const row = await grantProjectRole(tx, this.audit, { tenantId, userId: input.userId, projectId, roleCode: input.roleCode, actorId, reason: 'upravljanje pristupom' });
+    if (!row) throw new ConflictException('Korisnik već ima tu ulogu na projektu');
+    return this.projectAccess(tx, projectId);
+  }
+
+  async revokeOnProject(tx: Tx, projectId: string, assignmentId: string) {
+    const c = this.ctx.require();
+    await loadProject(tx, projectId);
+    if (!this.canManageAccess(c, projectId)) throw new ForbiddenException('Pristupom projektu upravlja voditelj projekta ili administrator');
+    const row = (await tx.select({ id: roleAssignments.id, userId: roleAssignments.userId, code: roles.code, permissions: roles.permissions }).from(roleAssignments).innerJoin(roles, eq(roles.id, roleAssignments.roleId))
+      .where(and(eq(roleAssignments.id, assignmentId), eq(roleAssignments.projectId, projectId))))[0];
+    if (!row) throw new NotFoundException('Dodjela ne postoji na projektu');
+    this.assertWithinOwnRights(c, projectId, row.permissions);
+    await tx.delete(roleAssignments).where(eq(roleAssignments.id, row.id));
+    await this.audit.record(tx, { entity: 'role_assignment', entityId: row.id, action: 'revoke', diff: { before: { userId: row.userId, role: row.code, projectId } } });
+    return this.projectAccess(tx, projectId);
   }
 
   /** Sistemske uloge (tenant_id NULL) – idempotentno, izvodi se pod vlasničkom vezom pri pokretanju/seedu. */

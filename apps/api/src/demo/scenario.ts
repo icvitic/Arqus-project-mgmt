@@ -7,17 +7,18 @@ import { addDays, addMonths, daysInMonth } from '@arqus/domain';
 import { DemoApi } from './client';
 import { demoPdf } from './pdf';
 
-export interface DemoUser { key: string; local: string; displayName: string; role: string; roleLabel: string; note: string }
+/** `project` = uloga se ne dodjeljuje na razini institucije; korisnik dobiva pristup samo projektu na kojem je voditelj ili član tima (WP1.14). */
+export interface DemoUser { key: string; local: string; displayName: string; role: string; scope: 'tenant' | 'project'; roleLabel: string; note: string }
 
 /** Demo korisnici: e-adresa je `<local>@<oznaka>.local`, svi imaju istu demo lozinku. */
 export const DEMO_USERS: DemoUser[] = [
-  { key: 'admin', local: 'admin', displayName: 'Nikola Radić', role: 'tenant-admin', roleLabel: 'Administrator stanara', note: 'korisnici, uloge, sve postavke' },
-  { key: 'office', local: 'ured', displayName: 'Ana Kovačević', role: 'project-office', roleLabel: 'Voditeljica ureda za projekte', note: 'radar, odluke go/no-go, prijave, svi projekti – glavni račun za demonstraciju' },
-  { key: 'pm', local: 'voditelj', displayName: 'doc. dr. sc. Petra Horvat', role: 'project-manager', roleLabel: 'Voditeljica projekta (Horizon Europe)', note: 'BLUESENSE i prijava AQUAREST, odobrava timesheetove' },
-  { key: 'pm2', local: 'voditelj2', displayName: 'Josip Barić', role: 'project-manager', roleLabel: 'Voditelj projekta (NPOO)', note: 'ZELENI-LAB' },
-  { key: 'member', local: 'clan', displayName: 'Luka Novak', role: 'team-member', roleLabel: 'Član tima', note: 'vlastiti timesheetovi (jedan čeka odobrenje)' },
-  { key: 'finance', local: 'financije', displayName: 'Maja Jurić', role: 'finance', roleLabel: 'Financije / računovodstvo', note: 'troškovi, timovi s plaćama, ZNS' },
-  { key: 'board', local: 'uprava', displayName: 'prof. dr. sc. Tomislav Perić', role: 'reader', roleLabel: 'Uprava (samo čitanje)', note: 'pregled projekata i financija' },
+  { key: 'admin', local: 'admin', displayName: 'Nikola Radić', role: 'tenant-admin', scope: 'tenant', roleLabel: 'Administrator stanara', note: 'korisnici, uloge, sve postavke' },
+  { key: 'office', local: 'ured', displayName: 'Ana Kovačević', role: 'project-office', scope: 'tenant', roleLabel: 'Voditeljica ureda za projekte', note: 'radar, odluke go/no-go, prijave, svi projekti – glavni račun za demonstraciju' },
+  { key: 'pm', local: 'voditelj', displayName: 'doc. dr. sc. Petra Horvat', role: 'project-manager', scope: 'project', roleLabel: 'Voditeljica projekta – samo BLUESENSE', note: 'vidi samo BLUESENSE; struktura, tim, odobrava timesheetove (ne vlastite)' },
+  { key: 'pm2', local: 'voditelj2', displayName: 'Josip Barić', role: 'project-manager', scope: 'project', roleLabel: 'Voditelj projekta – samo ZELENI-LAB', note: 'vidi samo ZELENI-LAB' },
+  { key: 'member', local: 'clan', displayName: 'Luka Novak', role: 'team-member', scope: 'project', roleLabel: 'Član tima – samo BLUESENSE', note: 'vlastiti timesheetovi (jedan čeka odobrenje); ne vidi plaće ni povjerljive dokumente' },
+  { key: 'finance', local: 'financije', displayName: 'Maja Jurić', role: 'finance', scope: 'tenant', roleLabel: 'Financije / računovodstvo', note: 'svi projekti: troškovi s dokazima, plaće u timovima, ZNS' },
+  { key: 'board', local: 'uprava', displayName: 'prof. dr. sc. Tomislav Perić', role: 'reader', scope: 'tenant', roleLabel: 'Uprava (samo čitanje)', note: 'pregled projekata i financija' },
 ];
 
 export const demoEmail = (local: string, slug: string): string => `${local}@${slug}.local`;
@@ -68,7 +69,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   const existing = await admin.get<{ id: string; email: string }[]>('/users');
   userIds.admin = existing.find((u) => u.email === demoEmail('admin', slug))!.id;
   for (const u of DEMO_USERS.filter((x) => x.key !== 'admin')) {
-    const r = await admin.post<Row>('/users', { email: demoEmail(u.local, slug), displayName: u.displayName, password, roleCodes: [u.role] });
+    // Voditelji i član tima nemaju ulogu na razini institucije: pristup dobivaju na projektu (imenovanjem za voditelja, dodavanjem u tim).
+    const r = await admin.post<Row>('/users', { email: demoEmail(u.local, slug), displayName: u.displayName, password, roleCodes: u.scope === 'tenant' ? [u.role] : [] });
     userIds[u.key] = r.id;
   }
   const as = async (key: string): Promise<Api> => DemoApi.login(base, slug, demoEmail(DEMO_USERS.find((u) => u.key === key)!.local, slug), password);
@@ -151,23 +153,23 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   const self = (await office.get<Row[]>('/organisations')).find((o) => o.isSelf)!;
   await office.patch(`/organisations/${self.id}`, { name: DEMO_TENANT_NAME, shortName: 'PSU', type: 'university', nonProfit: true });
   sum.organisations++;
-  const p = await pm2.post<{ members: Row[] }>(`/proposals/${npooPid}/members`, { organisationId: orgs.hr!.id, role: 'partner', confirmed: true });
+  const p = await office.post<{ members: Row[] }>(`/proposals/${npooPid}/members`, { organisationId: orgs.hr!.id, role: 'partner', confirmed: true });
   const nSelf = p.members.find((m) => m.isSelf)!.id; const nAgency = p.members.find((m) => !m.isSelf)!.id;
   for (const w of [
     { title: 'Upravljanje projektom', leadMemberId: nSelf, startMonth: 1, endMonth: 24, personMonths: 6 },
     { title: 'Nabava i postavljanje opreme laboratorija', leadMemberId: nSelf, startMonth: 1, endMonth: 12, personMonths: 10 },
     { title: 'Istraživanje i pilot-mjerenja na zgradama', leadMemberId: nSelf, startMonth: 6, endMonth: 24, personMonths: 18 },
     { title: 'Promidžba i prijenos znanja', leadMemberId: nAgency, startMonth: 1, endMonth: 24, personMonths: 4 },
-  ]) await pm2.post(`/proposals/${npooPid}/work-packages`, w);
-  await pm2.put(`/proposals/${npooPid}/budget/lines`, { lines: [
+  ]) await office.post(`/proposals/${npooPid}/work-packages`, w);
+  await office.put(`/proposals/${npooPid}/budget/lines`, { lines: [
     { memberId: nSelf, categoryCode: 'OS', amount: 9_600_000 }, { memberId: nSelf, categoryCode: 'VU', amount: 4_500_000 }, { memberId: nSelf, categoryCode: 'OP', amount: 8_200_000 },
     { memberId: nSelf, categoryCode: 'PUT', amount: 600_000 }, { memberId: nSelf, categoryCode: 'UP', amount: 1_800_000 }, { memberId: nSelf, categoryCode: 'PV', amount: 700_000 },
     { memberId: nAgency, categoryCode: 'OS', amount: 2_400_000 }, { memberId: nAgency, categoryCode: 'VU', amount: 900_000 }, { memberId: nAgency, categoryCode: 'PV', amount: 800_000 },
   ] });
-  await upload(pm2, 'proposal', npooPid, 'ZELENI-LAB-obrazac-prijave.pdf', 'Obrazac prijave ZELENI-LAB', 'proposal', ['Prijavitelj: Pokazno sveučilište', 'Partner: Razvojna agencija Velebitsko primorje', 'Trajanje: 24 mjeseca']);
-  await pm2.post(`/proposals/${npooPid}/budget/lock`);
-  await pm2.post(`/proposals/${npooPid}/transition`, { to: 'preparation' });
-  await pm2.post(`/proposals/${npooPid}/transition`, { to: 'internal_review' });
+  await upload(office, 'proposal', npooPid, 'ZELENI-LAB-obrazac-prijave.pdf', 'Obrazac prijave ZELENI-LAB', 'proposal', ['Prijavitelj: Pokazno sveučilište', 'Partner: Razvojna agencija Velebitsko primorje', 'Trajanje: 24 mjeseca']);
+  await office.post(`/proposals/${npooPid}/budget/lock`);
+  await office.post(`/proposals/${npooPid}/transition`, { to: 'preparation' });
+  await office.post(`/proposals/${npooPid}/transition`, { to: 'internal_review' });
   await office.post(`/proposals/${npooPid}/submit`, { portal: 'eNPOO (fondovieu.gov.hr)', reference: 'ZDP-2025-0147', submittedAt: `${addMonths(npooStart, -4)}T10:30:00Z` });
   await office.post(`/proposals/${npooPid}/transition`, { to: 'in_evaluation' });
   await office.post(`/proposals/${npooPid}/outcome`, { result: 'funded', score: '87/100', note: 'Odluka o financiranju – puni iznos.' });
@@ -207,7 +209,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     await timesheet(pm2, office, npoo, josip, month, timesheetEntries(month, m, [120, 180, 90, 240, 120], nWp, 1));
     await timesheet(pm2, pm2, npoo, marina, month, timesheetEntries(month, m, [360, 420, 300, 480, 240, 360], nWp, 3));
   }
-  // Ručni troškovi RP1 s dokazima (dokaze prilaže voditelj projekta – uloga financija nema pravo prijenosa dokumenata).
+  // Ručni troškovi RP1 s dokazima (trošak i dokaz unose financije).
   const expense = async (projectId: string, body: Record<string, unknown>, evidence?: { api: Api; file: string }) => {
     const e = await finance.post<Row>(`/projects/${projectId}/expenses`, body);
     sum.expenses++;
@@ -220,7 +222,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     { categoryCode: 'PUT', date: dayOf(npooStart, 5, 21), description: 'Studijsko putovanje – posjet laboratoriju za zgradarstvo', supplier: 'Putnički nalog 14/2026', amount: 86_500, evidenceRef: 'PN-14/2026' },
     { categoryCode: 'PV', date: dayOf(npooStart, 2, 17), description: 'Vizualni identitet i informativne ploče projekta', supplier: 'Studio Kvadrat d.o.o.', amount: 245_000, evidenceRef: 'R-31/2026' },
   ];
-  for (const e of rp1) await expense(npoo, e, { api: pm2, file: `${e.evidenceRef.replace(/[^A-Za-z0-9-]/g, '-')}.pdf` });
+  for (const e of rp1) await expense(npoo, e, { api: finance, file: `${e.evidenceRef.replace(/[^A-Za-z0-9-]/g, '-')}.pdf` });
   // ZNS za RP1: predaja → djelomično odobren → isplaćen.
   const claim1 = await finance.post<Row>(`/projects/${npoo}/claims`, { period: 1 });
   const submitted = await finance.post<{ requested: number }>(`/projects/${npoo}/claims/${claim1.id}/submit`);
@@ -229,7 +231,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   await finance.post(`/projects/${npoo}/claims/${claim1.id}/payment`, { paidAmount: approvedAmount, paidAt: todayIso });
   await upload(pm2, 'claim', claim1.id, 'ZNS-1-odluka.pdf', 'Odluka posredničkog tijela o ZNS-u 1', 'correspondence', [`Odobreno: ${eur(approvedAmount)}`, 'Nepriznat trošak: studijsko putovanje (865,00 EUR)']);
   // RP2 u tijeku: dva troška (jedan bez dokaza) i nacrt ZNS-a.
-  await expense(npoo, { categoryCode: 'VU', date: dayOf(npooStart, 7, 15), description: 'Kalibracija mjernih senzora', supplier: 'Mjerna tehnika d.o.o.', amount: 320_000, evidenceRef: 'R-655/2026' }, { api: pm2, file: 'R-655-2026.pdf' });
+  await expense(npoo, { categoryCode: 'VU', date: dayOf(npooStart, 7, 15), description: 'Kalibracija mjernih senzora', supplier: 'Mjerna tehnika d.o.o.', amount: 320_000, evidenceRef: 'R-655/2026' }, { api: finance, file: 'R-655-2026.pdf' });
   await expense(npoo, { categoryCode: 'PV', date: dayOf(npooStart, 8, 6), description: 'Tisak brošura za info-dan', supplier: 'Tiskara Primorje d.o.o.', amount: 118_000, evidenceRef: 'R-702/2026' });
   await finance.post(`/projects/${npoo}/claims`, { period: 2 });
   sum.claims += 2;
@@ -311,6 +313,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   const ivana = (await finance.post<Row>(`/projects/${heId}/team`, { fullName: 'Ivana Marić', role: 'poslijedoktorandica', annualCost: 4_500_000 })).id;
   await upload(office, 'project', heId, 'BLUESENSE-grant-agreement.pdf', 'Ugovor o dodjeli (Grant Agreement)', 'contract', ['Projekt: BLUESENSE (RIA)', 'Broj ugovora: GA-DEMO-2025-0117', `Početak: ${heStart}, trajanje 36 mjeseci`], 'confidential');
   await upload(office, 'project', heId, 'BLUESENSE-sporazum-o-konzorciju.pdf', 'Sporazum o konzorciju', 'contract', ['Partneri: Pokazno sveučilište, Hochschule Nordwald, Politecnico di Valmarina, Fundación Tecnológica Montesol, Polder Analytics B.V.']);
+  // Povjerljivo (WP1.14): vide ga ured, voditeljica i financije; član tima i uprava ga ne vide ni u popisu.
+  await upload(finance, 'project', heId, 'BLUESENSE-place-tima.pdf', 'Odluka o plaćama projektnog tima', 'contract', ['Godišnji bruto trošak po članu tima', 'Petra Horvat · Luka Novak · Ivana Marić', 'Povjerljivo – osobni podaci'], 'confidential');
   await office.post(`/projects/${heId}/transition`, { to: 'active' });
   await upload(pm, 'deliverable', d11, 'D1.1-plan-upravljanja-projektom.pdf', 'D1.1 Plan upravljanja projektom', 'deliverable', ['Isporuka D1.1, mjesec 3', 'Status: prihvaćena'], 'public');
 
@@ -338,9 +342,9 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   log('HE: BLUESENSE aktivan, timesheetovi i troškovi uneseni');
 
   // ---------- prijava u pripremi (iz odluke go na radaru) ----------
-  const aq = await pm.post<Row>(`/calls/${calls.heA!.id}/proposal`, { acronym: 'AQUAREST', title: 'Obnova obalnih staništa uz podvodne senzorske mreže i digitalne blizance', durationMonths: 48, internalDeadline: inDays(27), leadUserId: userIds.pm });
-  for (const [org, confirmed] of [['de', true], ['si', true], ['es', false], ['it', false]] as const) await pm.post(`/proposals/${aq.id}/members`, { organisationId: orgs[org]!.id, role: 'partner', confirmed });
-  const aqd = await pm.get<{ members: Row[] }>(`/proposals/${aq.id}`);
+  const aq = await office.post<Row>(`/calls/${calls.heA!.id}/proposal`, { acronym: 'AQUAREST', title: 'Obnova obalnih staništa uz podvodne senzorske mreže i digitalne blizance', durationMonths: 48, internalDeadline: inDays(27), leadUserId: userIds.pm });
+  for (const [org, confirmed] of [['de', true], ['si', true], ['es', false], ['it', false]] as const) await office.post(`/proposals/${aq.id}/members`, { organisationId: orgs[org]!.id, role: 'partner', confirmed });
+  const aqd = await office.get<{ members: Row[] }>(`/proposals/${aq.id}`);
   const mem = (org: string) => aqd.members.find((m) => m.organisationId === orgs[org]!.id)!.id;
   const aSelf = aqd.members.find((m) => m.isSelf)!.id;
   for (const w of [
@@ -349,13 +353,13 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     { title: 'Digitalni blizanac obalnog ekosustava', leadMemberId: mem('si'), startMonth: 6, endMonth: 42, personMonths: 36 },
     { title: 'Obnova staništa na pilot-lokacijama', leadMemberId: mem('es'), startMonth: 12, endMonth: 46, personMonths: 30 },
     { title: 'Diseminacija i iskorištavanje', leadMemberId: aSelf, startMonth: 1, endMonth: 48, personMonths: 10 },
-  ]) await pm.post(`/proposals/${aq.id}/work-packages`, w);
-  await pm.put(`/proposals/${aq.id}/budget/lines`, { lines: [
+  ]) await office.post(`/proposals/${aq.id}/work-packages`, w);
+  await office.put(`/proposals/${aq.id}/budget/lines`, { lines: [
     { memberId: aSelf, categoryCode: 'A.1', amount: 52_000_000 }, { memberId: aSelf, categoryCode: 'C.1', amount: 4_000_000 }, { memberId: aSelf, categoryCode: 'C.3', amount: 3_500_000 },
     { memberId: mem('de'), categoryCode: 'A.1', amount: 61_000_000 }, { memberId: mem('de'), categoryCode: 'C.2', amount: 12_000_000 },
   ] });
-  await pm.post(`/proposals/${aq.id}/transition`, { to: 'preparation' });
-  await upload(pm, 'proposal', aq.id, 'AQUAREST-Part-B-nacrt-v3.pdf', 'Part B – nacrt v3', 'proposal', ['Odjeljci 1 (Izvrsnost) i 2 (Učinak) – nacrt', 'Odjeljak 3 (Provedba) – u izradi']);
+  await office.post(`/proposals/${aq.id}/transition`, { to: 'preparation' });
+  await upload(office, 'proposal', aq.id, 'AQUAREST-Part-B-nacrt-v3.pdf', 'Part B – nacrt v3', 'proposal', ['Odjeljci 1 (Izvrsnost) i 2 (Učinak) – nacrt', 'Odjeljak 3 (Provedba) – u izradi']);
   sum.proposals.push('AQUAREST (u pripremi)');
   log('prijava AQUAREST u pripremi');
 

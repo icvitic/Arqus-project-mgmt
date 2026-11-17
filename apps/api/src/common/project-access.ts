@@ -2,9 +2,16 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Tx } from '../db/db.service';
 import { projectPartners, projects, type Project } from '../db/schema';
+import { currentContext } from './tenant-context';
+import { canSeeProject } from './access';
 
-/** Projekt pod RLS-om (tuđi = 404). `editable` odbija zatvorene/prekinute/arhivirane projekte. */
+/**
+ * Projekt pod RLS-om (tuđi stanar = 404). Druga linija obrane (WP1.14): u zahtjevu korisnika projekt bez pristupa
+ * također je 404 – i ako bi ruta zaboravila provjeru dozvole. `editable` odbija zatvorene/prekinute/arhivirane projekte.
+ */
 export async function loadProject(tx: Tx, id: string, opts: { editable?: boolean } = {}): Promise<Project> {
+  const ctx = currentContext();
+  if (ctx?.userId && !canSeeProject(ctx, id)) throw new NotFoundException(`Projekt ${id} ne postoji`);
   const p = (await tx.select().from(projects).where(and(eq(projects.id, id), isNull(projects.deletedAt))))[0];
   if (!p) throw new NotFoundException(`Projekt ${id} ne postoji`);
   if (opts.editable && ['closed', 'terminated', 'archived'].includes(p.status)) throw new ConflictException(`Projekt u statusu "${p.status}" se ne mijenja`);

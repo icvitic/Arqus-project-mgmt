@@ -5,7 +5,7 @@ import type { Response } from 'express';
 import { MAX_DOCUMENT_BYTES } from '@arqus/domain';
 import { DocumentsService, docPatch, listQuery, uploadMeta, versionMeta, type UploadedFile as File } from './documents.service';
 import { DocumentStorage } from './document-storage';
-import { RequirePermission } from '../identity/auth.guard';
+import { ResolvesProject } from '../identity/auth.guard';
 import { DbService, type Tx } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
 import { parseBody } from '../common/validation';
@@ -27,27 +27,27 @@ export class DocumentsController {
     try { return await this.db.tx((tx) => fn({ ...info, size: file!.size, storageKey }, tx, c.tenantId, c.userId)); } catch (e) { await this.storage.discard(storageKey); throw e; }
   }
 
-  @Get() @RequirePermission('documents:read') list(@Query() q: unknown) { const i = parseBody(listQuery, q); return this.run((tx) => this.docs.list(tx, i)); }
-  @Get(':id') @RequirePermission('documents:read') get(@Param('id', uuid) id: string) { return this.run((tx) => this.docs.get(tx, id)); }
+  @Get() @ResolvesProject('documents:read') list(@Query() q: unknown) { const i = parseBody(listQuery, q); return this.run((tx) => this.docs.list(tx, i)); }
+  @Get(':id') @ResolvesProject('documents:read') get(@Param('id', uuid) id: string) { return this.run((tx) => this.docs.get(tx, id)); }
 
-  @Post() @RequirePermission('documents:write') @UseInterceptors(upload)
+  @Post() @ResolvesProject('documents:write') @UseInterceptors(upload)
   create(@UploadedFile() file: File | undefined, @Body() b: unknown) {
     const meta = parseBody(uploadMeta, b);
     return this.stored(file, (f, tx, t, u) => this.docs.create(tx, t, meta, f, u));
   }
 
-  @Post(':id/versions') @RequirePermission('documents:write') @UseInterceptors(upload)
+  @Post(':id/versions') @ResolvesProject('documents:write') @UseInterceptors(upload)
   addVersion(@Param('id', uuid) id: string, @UploadedFile() file: File | undefined, @Body() b: unknown) {
     const { note } = parseBody(versionMeta, b ?? {});
     return this.stored(file, (f, tx, t, u) => this.docs.addVersion(tx, t, id, note, f, u));
   }
 
-  @Patch(':id') @RequirePermission('documents:write') update(@Param('id', uuid) id: string, @Body() b: unknown) { const i = parseBody(docPatch, b); return this.run((tx, _t, u) => this.docs.update(tx, id, i, u)); }
-  @Delete(':id') @RequirePermission('documents:write') remove(@Param('id', uuid) id: string) { return this.run((tx, _t, u) => this.docs.remove(tx, id, u)); }
+  @Patch(':id') @ResolvesProject('documents:write') update(@Param('id', uuid) id: string, @Body() b: unknown) { const i = parseBody(docPatch, b); return this.run((tx, _t, u) => this.docs.update(tx, id, i, u)); }
+  @Delete(':id') @ResolvesProject('documents:write') remove(@Param('id', uuid) id: string) { return this.run((tx, _t, u) => this.docs.remove(tx, id, u)); }
 
-  @Get(':id/download') @RequirePermission('documents:read')
+  @Get(':id/download') @ResolvesProject('documents:read')
   download(@Param('id', uuid) id: string, @Res({ passthrough: true }) res: Response) { return this.send(id, undefined, res); }
-  @Get(':id/versions/:n/download') @RequirePermission('documents:read')
+  @Get(':id/versions/:n/download') @ResolvesProject('documents:read')
   downloadVersion(@Param('id', uuid) id: string, @Param('n', ParseIntPipe) n: number, @Res({ passthrough: true }) res: Response) { return this.send(id, n, res); }
 
   /** Uvijek kao privitak (nikad prikaz u pregledniku); provjera hasha otkriva oštećenje ili izmjenu u pohrani. */

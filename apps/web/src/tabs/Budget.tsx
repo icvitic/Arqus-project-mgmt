@@ -10,7 +10,7 @@ import { can, type TabProps } from '../pages/ProjectDetail';
 export function BudgetTab({ project: p, me }: TabProps) {
   const b = useLoad(() => api<Budget>('GET', `/projects/${p.id}/budget`), [p.id]);
   const [cells, setCells] = useState<Record<string, string>>({});
-  const editable = can(me, 'finance:write') && b.data?.status !== 'locked' && !['closed', 'terminated', 'archived'].includes(p.status);
+  const editable = can(me, 'finance:write', p.id) && b.data?.status !== 'locked' && !['closed', 'terminated', 'archived'].includes(p.status);
   const cats = b.data ? enterable(b.data.categories) : [];
   const key = (partnerId: string, code: string) => `${partnerId}|${code}`;
   useEffect(() => {

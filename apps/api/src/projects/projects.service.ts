@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { generateReportingPeriods, transitionIssues, type ProjectStatus, type ProgrammePackage } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
@@ -7,6 +7,10 @@ import { organisations, projectBudgets, projectPartners, projects, reportingPeri
 import { AuditService } from '../audit/audit.service';
 import { OrganisationsService } from '../organisations/organisations.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
+import { currentContext } from '../common/tenant-context';
+import { projectsWith } from '../common/access';
+import { loadProject } from '../common/project-access';
+import { ensureManagerAccess } from '../identity/project-grants';
 
 const PARTNER_ROLES = ['coordinator', 'partner', 'associated', 'third_party'] as const;
 const STATUSES = ['contracting', 'active', 'suspended', 'closing', 'closed', 'terminated', 'archived'] as const;
@@ -55,17 +59,17 @@ const projectView = (p: Project) => ({
 export class ProjectsService {
   constructor(private readonly audit: AuditService, private readonly orgs: OrganisationsService, private readonly packages: ProgrammePackagesService) {}
 
+  /** Samo projekti koje korisnik smije vidjeti: svi uz projects:read na razini institucije, inače oni s dodjelom (WP1.14). */
   async list(tx: Tx) {
+    const ctx = currentContext();
+    const visible = ctx ? projectsWith(ctx, 'projects:read') : 'all';
+    if (visible !== 'all' && !visible.length) return [];
     const rows = await tx.select({ p: projects, partnerCount: sql<number>`(select count(*)::int from project_partners pp where pp.project_id = ${projects.id})` })
-      .from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.createdAt));
+      .from(projects).where(and(isNull(projects.deletedAt), visible === 'all' ? undefined : inArray(projects.id, visible))).orderBy(desc(projects.createdAt));
     return rows.map((r) => ({ ...projectView(r.p), partnerCount: r.partnerCount }));
   }
 
-  private async getRow(tx: Tx, id: string): Promise<Project> {
-    const row = (await tx.select().from(projects).where(and(eq(projects.id, id), isNull(projects.deletedAt))))[0];
-    if (!row) throw new NotFoundException(`Projekt ${id} ne postoji`);
-    return row;
-  }
+  private getRow(tx: Tx, id: string): Promise<Project> { return loadProject(tx, id); }
 
   async get(tx: Tx, id: string) {
     const p = await this.getRow(tx, id);
@@ -128,6 +132,8 @@ export class ProjectsService {
       beneficiaryType: this.beneficiaryTypeFor(pkg, input.actionType, self), orderNo: input.role === 'coordinator' ? 1 : 2, createdBy: actorId,
     });
     for (const partner of input.partners.filter((x) => x.organisationId !== self.id)) await this.insertPartner(tx, tenantId, project, pkg, partner, actorId);
+    // Imenovani voditelj dobiva pristup projektu (WP1.14) – vrijedi i za ugovaranje prijave, koje projekt stvara ovdje.
+    if (input.managerUserId) await ensureManagerAccess(tx, this.audit, tenantId, project.id, input.managerUserId, actorId);
     await this.audit.record(tx, { entity: 'project', entityId: project.id, action: 'create', diff: { after: projectView(project), meta: { partners: input.partners.length + 1 } } });
     return this.get(tx, project.id);
   }
@@ -181,6 +187,7 @@ export class ProjectsService {
     await this.assertManager(tx, patch.managerUserId);
     await this.assertContractNoFree(tx, patch.contractNo, id);
     const [after] = await tx.update(projects).set({ ...patch, updatedAt: new Date(), updatedBy: actorId }).where(eq(projects.id, id)).returning();
+    if (patch.managerUserId && patch.managerUserId !== before.managerUserId) await ensureManagerAccess(tx, this.audit, before.tenantId, id, patch.managerUserId, actorId);
     await this.audit.record(tx, { entity: 'project', entityId: id, action: 'update', diff: { before: projectView(before), after: projectView(after!) } });
     return this.get(tx, id);
   }
