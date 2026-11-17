@@ -14,17 +14,16 @@ import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { TenantContext, tenantTimeZone, tenantToday } from '../common/tenant-context';
 import { canInTenant, canOnProject, projectsWith } from '../common/access';
-import { notSelectedInDraft, strandedExpense } from '../finance/finance-common';
+import {
+  highRisksCount, OPEN_DELIVERABLE_STATUSES, OPEN_MILESTONE_STATUSES, OPEN_PROJECT_STATUSES as OPEN, OPEN_PROPOSAL_STATUSES as OPEN_PROPOSAL, periodSubmitted, RUNNING_PROJECT_STATUSES as RUNNING,
+  strandedCount, timesheetsToApproveCount, withoutEvidenceCount,
+} from './facts';
 
-/** Projekt „u provedbi” (aktivni projekti u brojkama portfelja; troškovi se smiju evidentirati). */
-const RUNNING = ['active', 'suspended', 'closing'];
-/** Projekti za koje se prikazuju rokovi i upozorenja (nisu zatvoreni, prekinuti ni arhivirani). */
-const OPEN = ['contracting', 'active', 'suspended', 'closing'];
 const STATUS_ORDER = ['active', 'suspended', 'closing', 'contracting', 'closed', 'terminated'];
-const OPEN_PROPOSAL = ['idea', 'preparation', 'internal_review'];
-const SUBMISSION_KINDS = ['submission', 'stage1', 'stage2'];
+export const SUBMISSION_KINDS = ['submission', 'stage1', 'stage2'];
 
-type Deadline = DeadlineInput & { link: string; projectId?: string; acronym?: string; callId?: string; proposalId?: string; at?: string; detail?: string };
+/** Rok portfelja; `key` – stabilan identifikator roka (WP1.18: UID događaja u osobnom kalendaru). */
+export type Deadline = DeadlineInput & { key: string; link: string; projectId?: string; acronym?: string; callId?: string; proposalId?: string; at?: string; detail?: string };
 type Lines = { partnerId: string; categoryCode: string; amount: number }[];
 
 /**
@@ -82,6 +81,18 @@ export class PortfolioService {
   }
 
   async overview(tx: Tx, opts: { days: number; now?: Date }) {
+    return (await this.build(tx, opts)).view;
+  }
+
+  /**
+   * WP1.18: svi rokovi koje korisnik smije vidjeti (bez prozora; prošli i budući), za osobni kalendar. Ista pravila pristupa
+   * i isti izvori kao popis rokova na portfelju; novac i opterećenje ljudi se ne računaju.
+   */
+  async deadlines(tx: Tx, now?: Date): Promise<Deadline[]> {
+    return (await this.build(tx, { days: 365, now, deadlinesOnly: true })).deadlines;
+  }
+
+  private async build(tx: Tx, opts: { days: number; now?: Date; deadlinesOnly?: boolean }) {
     const ctx = this.ctx.require();
     const today = tenantToday(opts.now ?? new Date()); // WP1.14b: kalendarski dan institucije (Europe/Zagreb), ne UTC
     const full = canInTenant(ctx, 'portfolio:read');
@@ -109,10 +120,10 @@ export class PortfolioService {
       if (!pkgCache.has(k)) pkgCache.set(k, await this.packages.get(tx, id, version));
       return pkgCache.get(k)!;
     };
-    for (const { p } of projRows) await pkg(p.packageId, p.packageVersion);
+    if (!opts.deadlinesOnly) for (const { p } of projRows) await pkg(p.packageId, p.packageVersion);
 
-    const finIds = ids.filter(seesFinance);
-    const partners = ids.length ? await tx.select({ id: projectPartners.id, projectId: projectPartners.projectId, beneficiaryType: projectPartners.beneficiaryType, isSelf: organisations.isSelf })
+    const finIds = opts.deadlinesOnly ? [] : ids.filter(seesFinance);
+    const partners = finIds.length ? await tx.select({ id: projectPartners.id, projectId: projectPartners.projectId, beneficiaryType: projectPartners.beneficiaryType, isSelf: organisations.isSelf })
       .from(projectPartners).innerJoin(organisations, eq(organisations.id, projectPartners.organisationId)).where(inArray(projectPartners.projectId, ids)).orderBy(asc(projectPartners.orderNo)) : [];
     // Ugovoreno: zadnja verzija proračuna (kao „Ugovoreno / ostvareno” na projektu). Ostvareno: prije odluke traženi iznos troška,
     // nakon odluke priznati (odbijen = 0); nepriznato = isti izračun s traženim iznosima − ostvareno (`docs/domena/zns-pravila.md`).
@@ -127,31 +138,25 @@ export class PortfolioService {
     const actual = expenseSums.map((r) => ({ projectId: r.projectId, partnerId: r.partnerId, categoryCode: r.categoryCode, amount: r.amount }));
     const claimedBasis = expenseSums.map((r) => ({ projectId: r.projectId, partnerId: r.partnerId, categoryCode: r.categoryCode, amount: r.claimed }));
     const periods = ids.length ? await tx.select({
-      projectId: reportingPeriods.projectId, number: reportingPeriods.number, endDate: reportingPeriods.endDate, dueDate: reportingPeriods.dueDate,
+      id: reportingPeriods.id, projectId: reportingPeriods.projectId, number: reportingPeriods.number, endDate: reportingPeriods.endDate, dueDate: reportingPeriods.dueDate,
       // Predan ZNS vlastite organizacije za razdoblje (sve osim nacrta). WP1.17: razdoblje s troškovima vlastite organizacije
       // potraživanim izvan sustava (ZNS predan prije ArQusa, uvezen iz Excela) također je predano – nije „razdoblje bez ZNS-a”.
-      submitted: sql<boolean>`(exists (select 1 from reimbursement_claims c join project_partners pp on pp.id = c.partner_id join organisations o on o.id = pp.organisation_id
-        where c.reporting_period_id = "reporting_periods"."id" and o.is_self and c.status <> 'draft')
-        or exists (select 1 from expenses he join project_partners pp on pp.id = he.partner_id join organisations o on o.id = pp.organisation_id
-        where he.project_id = "reporting_periods"."project_id" and o.is_self and he.status = 'historic' and he.date between "reporting_periods"."start_date" and "reporting_periods"."end_date"))`,
+      submitted: periodSubmitted,
     }).from(reportingPeriods).where(inArray(reportingPeriods.projectId, ids)).orderBy(asc(reportingPeriods.projectId), asc(reportingPeriods.number)) : [];
     const delivs = ids.length ? await tx.select({ id: deliverables.id, projectId: deliverables.projectId, wp: workPackages.number, number: deliverables.number, title: deliverables.title, dueMonth: deliverables.dueMonth })
       .from(deliverables).innerJoin(workPackages, eq(workPackages.id, deliverables.workPackageId))
-      .where(and(inArray(deliverables.projectId, ids), isNull(deliverables.deletedAt), inArray(deliverables.status, ['planned', 'in_progress', 'rejected']))) : [];
+      .where(and(inArray(deliverables.projectId, ids), isNull(deliverables.deletedAt), inArray(deliverables.status, [...OPEN_DELIVERABLE_STATUSES]))) : [];
     const mss = ids.length ? await tx.select({ id: milestones.id, projectId: milestones.projectId, number: milestones.number, title: milestones.title, dueMonth: milestones.dueMonth })
-      .from(milestones).where(and(inArray(milestones.projectId, ids), isNull(milestones.deletedAt), eq(milestones.status, 'planned'))) : [];
-    const counters = ids.length ? await tx.select({
+      .from(milestones).where(and(inArray(milestones.projectId, ids), isNull(milestones.deletedAt), inArray(milestones.status, [...OPEN_MILESTONE_STATUSES]))) : [];
+    const counters = ids.length && !opts.deadlinesOnly ? await tx.select({
       id: projects.id,
-      highRisks: sql<number>`(select count(*)::int from risks r where r.project_id = "projects"."id" and r.deleted_at is null and r.status in ('open','occurred') and r.likelihood * r.impact >= 6)`,
-      toApprove: sql<number>`(select count(*)::int from timesheets t where t.project_id = "projects"."id" and t.status = 'submitted')`,
-      // Ručno uneseni troškovi bez dokaza (trošak osoblja dokazuje se timesheetom). Povjerljiv dokaz broji se samo tko ga smije vidjeti (WP1.14).
-      // WP1.17: trošak potraživan izvan sustava (prije ArQusa) nije otvorena stavka – dokazi su već predani financijeru.
-      noEvidence: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and e.source = 'manual' and e.status not in ('rejected', 'historic')
-        and not exists (select 1 from documents d where d.entity_type = 'expense' and d.entity_id = e.id and d.deleted_at is null))`,
-      noVisibleEvidence: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and e.source = 'manual' and e.status not in ('rejected', 'historic')
-        and not exists (select 1 from documents d where d.entity_type = 'expense' and d.entity_id = e.id and d.deleted_at is null and d.confidentiality <> 'confidential'))`,
+      highRisks: highRisksCount,
+      toApprove: timesheetsToApproveCount,
+      // Ručno uneseni troškovi bez dokaza; povjerljiv dokaz broji se samo tko ga smije vidjeti (WP1.14). Definicije: ./facts.ts.
+      noEvidence: withoutEvidenceCount(false),
+      noVisibleEvidence: withoutEvidenceCount(true),
       // WP1.16b: nepredani troškovi iz ranijih razdoblja (razdoblje već predano, trošak nije odabran ni u jednom nacrtu).
-      stranded: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and ${strandedExpense('e')} and ${notSelectedInDraft('e')})`,
+      stranded: strandedCount,
     }).from(projects).where(inArray(projects.id, ids)) : [];
 
     const deadlines: Deadline[] = [];
@@ -163,7 +168,7 @@ export class PortfolioService {
       const tab = (t: string) => `projekti/${p.id}/${t}`;
 
       let budget = null;
-      if (seesFinance(p.id)) {
+      if (!opts.deadlinesOnly && seesFinance(p.id)) {
         const parts = partners.filter((x) => x.projectId === p.id);
         const lines = (rows: typeof planned): Lines => rows.filter((r) => r.projectId === p.id).map((r) => ({ partnerId: r.partnerId, categoryCode: r.categoryCode, amount: Number(r.amount) }));
         const pl = computeProjectBudget(pk, p.actionType, parts, lines(planned));
@@ -193,12 +198,12 @@ export class PortfolioService {
       if (open) {
         const reportLink = seesFinance(p.id) ? tab('zns') : `projekti/${p.id}`;
         for (const r of owed) {
-          deadlines.push({ kind: 'period_end', date: r.endDate, overdueRelevant: false, title: `RP${r.number} – kraj izvještajnog razdoblja`, link: `projekti/${p.id}`, projectId: p.id, acronym: p.acronym, scope: p.acronym });
-          deadlines.push({ kind: 'claim_due', date: r.dueDate, overdueRelevant: true, title: `RP${r.number} – rok za zahtjev za nadoknadu i izvještaj`, link: reportLink, projectId: p.id, acronym: p.acronym, scope: p.acronym });
+          deadlines.push({ key: `rp-${r.id}-end`, kind: 'period_end', date: r.endDate, overdueRelevant: false, title: `RP${r.number} – kraj izvještajnog razdoblja`, link: `projekti/${p.id}`, projectId: p.id, acronym: p.acronym, scope: p.acronym });
+          deadlines.push({ key: `rp-${r.id}-due`, kind: 'claim_due', date: r.dueDate, overdueRelevant: true, title: `RP${r.number} – rok za zahtjev za nadoknadu i izvještaj`, link: reportLink, projectId: p.id, acronym: p.acronym, scope: p.acronym });
         }
         if (p.startDate) {
-          for (const d of delivs.filter((x) => x.projectId === p.id)) deadlines.push({ kind: 'deliverable', date: monthEndDate(p.startDate, d.dueMonth), overdueRelevant: true, title: `D${d.wp}.${d.number} ${d.title}`, link: tab('struktura'), projectId: p.id, acronym: p.acronym, scope: p.acronym });
-          for (const m of mss.filter((x) => x.projectId === p.id)) deadlines.push({ kind: 'milestone', date: monthEndDate(p.startDate, m.dueMonth), overdueRelevant: true, title: `MS${m.number} ${m.title}`, link: tab('struktura'), projectId: p.id, acronym: p.acronym, scope: p.acronym });
+          for (const d of delivs.filter((x) => x.projectId === p.id)) deadlines.push({ key: `deliverable-${d.id}`, kind: 'deliverable', date: monthEndDate(p.startDate, d.dueMonth), overdueRelevant: true, title: `D${d.wp}.${d.number} ${d.title}`, link: tab('struktura'), projectId: p.id, acronym: p.acronym, scope: p.acronym });
+          for (const m of mss.filter((x) => x.projectId === p.id)) deadlines.push({ key: `milestone-${m.id}`, kind: 'milestone', date: monthEndDate(p.startDate, m.dueMonth), overdueRelevant: true, title: `MS${m.number} ${m.title}`, link: tab('struktura'), projectId: p.id, acronym: p.acronym, scope: p.acronym });
         }
       }
       return {
@@ -225,12 +230,14 @@ export class PortfolioService {
         .where(and(isNull(calls.deletedAt), eq(calls.cancelled, false), inArray(callTracking.decision, ['go', 'watch'])));
       for (const c of tracked) {
         const detail = c.decision === 'go' ? 'odluka go' : 'pratimo';
+        const seen = new Map<string, number>();
         for (const d of (c.deadlines as CallDeadline[]).filter((x) => SUBMISSION_KINDS.includes(x.kind))) {
           const at = new Date(d.at);
           if (Number.isNaN(at.getTime())) continue;
-          deadlines.push({ kind: 'call_submission', date: dateIn(tenantTimeZone(), at), at: d.at, overdueRelevant: false, title: c.title, detail: `${d.label ?? 'rok predaje'} · ${detail}`, link: `radar/${c.id}`, callId: c.id, scope: c.code });
+          const n = (seen.get(d.kind) ?? 0) + 1; seen.set(d.kind, n);
+          deadlines.push({ key: `call-${c.id}-${d.kind}${n > 1 ? `-${n}` : ''}`, kind: 'call_submission', date: dateIn(tenantTimeZone(), at), at: d.at, overdueRelevant: false, title: c.title, detail: `${d.label ?? 'rok predaje'} · ${detail}`, link: `radar/${c.id}`, callId: c.id, scope: c.code });
         }
-        if (c.internal) deadlines.push({ kind: 'call_internal', date: c.internal, overdueRelevant: false, title: c.title, detail, link: `radar/${c.id}`, callId: c.id, scope: c.code });
+        if (c.internal) deadlines.push({ key: `call-${c.id}-internal`, kind: 'call_internal', date: c.internal, overdueRelevant: false, title: c.title, detail, link: `radar/${c.id}`, callId: c.id, scope: c.code });
       }
     }
 
@@ -240,11 +247,11 @@ export class PortfolioService {
       const rows = await tx.select({ p: proposals, callCode: calls.code }).from(proposals).leftJoin(calls, eq(calls.id, proposals.callId))
         .where(and(isNull(proposals.deletedAt), ownProposals ? inArray(proposals.id, ownProposals) : undefined));
       const pids = rows.map((r) => r.p.id);
-      const members = pids.length ? await tx.select({ id: proposalMembers.id, proposalId: proposalMembers.proposalId, beneficiaryType: proposalMembers.beneficiaryType, isSelf: organisations.isSelf })
+      const members = pids.length && !opts.deadlinesOnly ? await tx.select({ id: proposalMembers.id, proposalId: proposalMembers.proposalId, beneficiaryType: proposalMembers.beneficiaryType, isSelf: organisations.isSelf })
         .from(proposalMembers).innerJoin(organisations, eq(organisations.id, proposalMembers.organisationId)).where(inArray(proposalMembers.proposalId, pids)).orderBy(asc(proposalMembers.orderNo)) : [];
-      const plines = pids.length ? await tx.select({ proposalId: proposalBudgetLines.proposalId, memberId: proposalBudgetLines.memberId, categoryCode: proposalBudgetLines.categoryCode, amount: sql<string>`sum(${proposalBudgetLines.amountCents})` })
+      const plines = pids.length && !opts.deadlinesOnly ? await tx.select({ proposalId: proposalBudgetLines.proposalId, memberId: proposalBudgetLines.memberId, categoryCode: proposalBudgetLines.categoryCode, amount: sql<string>`sum(${proposalBudgetLines.amountCents})` })
         .from(proposalBudgetLines).where(inArray(proposalBudgetLines.proposalId, pids)).groupBy(proposalBudgetLines.proposalId, proposalBudgetLines.memberId, proposalBudgetLines.categoryCode) : [];
-      for (const { p } of rows) await pkg(p.packageId, p.packageVersion);
+      if (!opts.deadlinesOnly) for (const { p } of rows) await pkg(p.packageId, p.packageVersion);
       const list = rows.map(({ p, callCode }) => {
         const ms = members.filter((m) => m.proposalId === p.id);
         let requested = 0, requestedOwn = 0;
@@ -253,7 +260,7 @@ export class PortfolioService {
           requested = b.totals.requested;
           const i = ms.findIndex((m) => m.isSelf); requestedOwn = i >= 0 ? b.partners[i]!.requested : 0;
         } catch { /* proračun prijave koji ne odgovara paketu ne ruši portfelj */ }
-        if (OPEN_PROPOSAL.includes(p.status) && p.internalDeadline) deadlines.push({ kind: 'proposal_internal', date: p.internalDeadline, overdueRelevant: true, title: p.title, link: `prijave/${p.id}`, proposalId: p.id, scope: p.acronym });
+        if (OPEN_PROPOSAL.includes(p.status) && p.internalDeadline) deadlines.push({ key: `proposal-${p.id}-internal`, kind: 'proposal_internal', date: p.internalDeadline, overdueRelevant: true, title: p.title, link: `prijave/${p.id}`, proposalId: p.id, scope: p.acronym });
         return { id: p.id, acronym: p.acronym, title: p.title, status: p.status, callCode, internalDeadline: p.internalDeadline, requested, requestedOwn };
       });
       const order = [...PIPELINE_STATUSES, 'contracted', 'rejected', 'withdrawn'] as string[];
@@ -272,7 +279,7 @@ export class PortfolioService {
 
     // ---------- opterećenje ljudi ----------
     let people = null;
-    if (access.people && ids.length) {
+    if (access.people && ids.length && !opts.deadlinesOnly) {
       const months = lastMonths(today, 6);
       const year = today.slice(0, 4);
       const from = [months[0]!, `${year}-01`].sort()[0]!;
@@ -294,7 +301,7 @@ export class PortfolioService {
 
     const counts = deadlineCounts(deadlines, today);
     const running = projectViews.filter((p) => RUNNING.includes(p.status));
-    return {
+    const view = {
       today, days: opts.days, thresholdPp: PROGRESS_THRESHOLD_PP,
       access: { ...access, finance: finIds.length === ids.length ? (ids.length ? 'all' : 'none') : finIds.length ? 'partial' : 'none' },
       summary: {
@@ -317,6 +324,7 @@ export class PortfolioService {
       people,
       pipeline,
     };
+    return { view, deadlines };
   }
 }
 

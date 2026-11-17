@@ -13,6 +13,7 @@ import { ensureTeamMemberAccess } from '../identity/project-grants';
 import { assertSpendable, projectEnd, selfPartner } from './finance-common';
 import { loadTimesheetRecords, renderTimesheetRecord } from './timesheet-record';
 import { assertRevision, bump, revisionField } from '../common/revision';
+import { notify } from '../notifications/notify';
 
 export const memberInput = z.object({
   fullName: z.string().trim().min(2).max(200), userId: z.string().uuid().optional(), partnerId: z.string().uuid().optional(),
@@ -194,6 +195,8 @@ export class TimesheetsService {
     }
     await tx.update(timesheets).set({ status: 'approved', approvedAt: new Date(), approvedBy: actorId ?? null, revision: bump(timesheets), updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
     await this.audit.record(tx, { entity: 'timesheet', entityId: ts.id, action: 'approve', diff: { meta: { month, memberId, submittedBy: ts.submittedBy, expenses: created } } });
+    // WP1.18: obavijest članu tima povezanom s računom (bez iznosa).
+    await notify(tx, { userId: m.userId, kind: 'timesheet_approved', projectId, data: { acronym: p.acronym, month }, link: `projekti/${projectId}/tim/${m.id}/${month}`, requires: 'timesheets:read' });
     // WP1.19: odobravatelj bez personnel:read (npr. voditelj projekta) dobiva sate po radnom paketu, ne iznos (satnica).
     const canSee = this.seesCost(projectId);
     return { ...(await this.get(tx, projectId, memberId, month)), personnelCost: created.map((x) => (canSee ? { ...x, amountHidden: false } : { ...x, amount: null, amountHidden: true })) };
@@ -201,13 +204,16 @@ export class TimesheetsService {
 
   /** Povrat u nacrt: iz predanog, ili iz odobrenog dok troškovi osoblja nisu u zahtjevu za nadoknadu (brišu se). */
   async reopen(tx: Tx, projectId: string, memberId: string, month: string, actorId?: string) {
-    await loadProject(tx, projectId, { editable: true });
+    const p = await loadProject(tx, projectId, { editable: true });
+    const m = await this.member(tx, projectId, memberId);
     const ts = await this.load(tx, projectId, memberId, month);
     if (ts.status === 'locked') throw new ConflictException('Timesheet je u zahtjevu za nadoknadu i zaključan je');
     if (ts.status === 'draft') throw new ConflictException('Timesheet je već nacrt');
     if (ts.status === 'approved') await tx.delete(expenses).where(and(eq(expenses.timesheetId, ts.id), eq(expenses.status, 'recorded')));
     await tx.update(timesheets).set({ status: 'draft', submittedAt: null, submittedBy: null, approvedAt: null, approvedBy: null, revision: bump(timesheets), updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
     await this.audit.record(tx, { entity: 'timesheet', entityId: ts.id, action: 'reopen', diff: { before: { status: ts.status }, after: { status: 'draft' } } });
+    // WP1.18: povrat nema razloga u modelu – obavijest kaže da je timesheet vraćen i vodi na njega.
+    await notify(tx, { userId: m.userId, kind: 'timesheet_reopened', projectId, data: { acronym: p.acronym, month }, link: `projekti/${projectId}/tim/${m.id}/${month}`, requires: 'timesheets:read' });
     return this.get(tx, projectId, memberId, month);
   }
 }

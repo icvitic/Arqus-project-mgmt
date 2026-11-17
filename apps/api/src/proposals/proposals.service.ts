@@ -4,6 +4,7 @@ import { canInTenant, canSeeProposal } from '../common/access';
 import { assertRevision, bump, revisionField } from '../common/revision';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { notify } from '../notifications/notify';
 import {
   budgetLineIssues, callStatus, computeProjectBudget, isProposalEditable, isReady, OUTCOME_FROM, packageAvailabilityIssue, packageDeviations, PROPOSAL_TRANSITIONS, proposalReadiness,
   type CallDeadline, type ProposalStatus,
@@ -123,6 +124,7 @@ export class ProposalsService {
     }).returning();
     await tx.insert(proposalMembers).values({ tenantId, proposalId: p!.id, organisationId: self.id, role: input.role === 'coordinator' ? 'coordinator' : 'partner', beneficiaryType: this.beneficiaryType(pkg, input.actionType, self.nonProfit), confirmed: true, orderNo: input.role === 'coordinator' ? 1 : 2, createdBy: actorId });
     await this.audit.record(tx, { entity: 'proposal', entityId: p!.id, action: 'create', diff: { after: { acronym: p!.acronym, callId, packageId: p!.packageId } } });
+    await notify(tx, { userId: p!.leadUserId, kind: 'proposal_lead', proposalId: p!.id, data: { acronym: p!.acronym }, link: `prijave/${p!.id}` });
     return this.get(tx, p!.id);
   }
 
@@ -151,6 +153,7 @@ export class ProposalsService {
     if (patch.leadUserId && !(await tx.select({ id: users.id }).from(users).where(eq(users.id, patch.leadUserId))).length) throw new NotFoundException('Voditelj ne postoji');
     await tx.update(proposals).set({ ...patch, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'update', diff: { before: Object.fromEntries(Object.keys(patch).map((k) => [k, p[k as keyof Proposal]])), after: patch } });
+    if (patch.leadUserId && patch.leadUserId !== p.leadUserId) await notify(tx, { userId: patch.leadUserId, kind: 'proposal_lead', proposalId: id, data: { acronym: patch.acronym ?? p.acronym }, link: `prijave/${id}` });
     return this.get(tx, id);
   }
 

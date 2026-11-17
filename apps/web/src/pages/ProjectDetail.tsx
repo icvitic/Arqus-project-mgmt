@@ -29,17 +29,18 @@ const TABS: [string, string, (me: Me, projectId: string) => boolean][] = [
   ['pristup', 'Pristup', (me, id) => canManageAccess(me, id)],
 ];
 
-export interface TabProps { project: Project; pkg: PackageDetail; me: Me; reloadProject: () => Promise<void> }
+/** `sub` – dodatni dijelovi putanje kartice (WP1.18: `tim/<član>/<mjesec>` otvara timesheet iz „Moj rad” i obavijesti). */
+export interface TabProps { project: Project; pkg: PackageDetail; me: Me; reloadProject: () => Promise<void>; sub?: string[] }
 /** Dozvola na ovom projektu (institucijska ili dodijeljena na projektu). */
 export const can = (me: Me, p: string, projectId: string) => canOn(me, p, projectId);
 
-export function ProjectDetail({ id, tab, me }: { id: string; tab: string; me: Me }) {
+export function ProjectDetail({ id, tab, me, sub }: { id: string; tab: string; me: Me; sub?: string[] }) {
   const project = useLoad(() => api<Project>('GET', `/projects/${id}`), [id]);
   const pkg = useLoad(() => (project.data ? api<PackageDetail>('GET', `/programme-packages/${encodeURIComponent(project.data.package.id)}?version=${project.data.package.version}`) : Promise.resolve(null)), [project.data?.package.id, project.data?.package.version]);
   if (project.error) return <ErrorBox error={project.error} />;
   if (!project.data || !pkg.data) return <><ErrorBox error={pkg.error} /><Loading what="projekt" /></>;
   const p = project.data;
-  const props: TabProps = { project: p, pkg: pkg.data, me, reloadProject: project.reload };
+  const props: TabProps = { project: p, pkg: pkg.data, me, reloadProject: project.reload, sub };
   const tabs = TABS.filter(([, , allowed]) => allowed(me, p.id));
   const active = tabs.some(([k]) => k === tab) ? tab : 'pregled';
   return (

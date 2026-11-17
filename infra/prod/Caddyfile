@@ -5,8 +5,15 @@
 {$DOMAIN} {
 	encode zstd gzip
 	reverse_proxy app:3000
+	# WP1.18: osobni kalendar rokova adresira se tajnim tokenom u putanji (/api/calendar/<token>.ics) – token se ne smije
+	# zapisati u zapis pristupa. Putanja se u zapisu zamjenjuje oznakom; ostali zahtjevi bilježe se kao i prije.
 	log {
 		output stdout
-		format json
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp ^/api/calendar/[^?]* /api/calendar/[token]
+			}
+		}
 	}
 }

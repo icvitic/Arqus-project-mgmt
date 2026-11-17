@@ -133,7 +133,8 @@ describe('Demo okruženje (WP1.13)', () => {
     const c2 = claims[1] as unknown as { checklist: { canSubmit: boolean; blocking: { key: string; details: string[] }[] } };
     expect(c2.checklist.canSubmit).toBe(false);
     expect(c2.checklist.blocking.map((b) => b.key)).toEqual(['timesheets_approved', 'evidence']);
-    expect(c2.checklist.blocking[0]!.details).toEqual([expect.stringMatching(/^Josip Barić, \d{4}-\d{2} \(čeka odobrenje/)]);
+    // WP1.18: i Marinin timesheet za isti mjesec (unio ga je ured) čeka odobrenje voditelja Josipa.
+    expect(c2.checklist.blocking[0]!.details).toEqual([expect.stringMatching(/^Josip Barić, \d{4}-\d{2} \(čeka odobrenje/), expect.stringMatching(/^Marina Šimić, \d{4}-\d{2} \(čeka odobrenje/)]);
     expect((await http().get(`/api/documents?projectId=${npoo.id}`).set(as('office')).expect(200)).body.length).toBeGreaterThanOrEqual(6);
     // WP1.16b: kasno evidentiran račun za RP1 – nacrt ZNS-a 2 ga nudi (nije uključen dok ga priprematelj ne odabere); sati pripreme ZNS-a 1.
     const c2b = claims[1] as unknown as { earlierCandidates: { description: string; period: number; selected: boolean }[]; expenses: { description: string }[] };
@@ -204,6 +205,39 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(nDetail.deviations.map((d: { key: string }) => d.key)).toEqual(['rule:npoo-end-date']);
     expect(heDetail.deviations).toEqual([]);
     expect(prep.deviations).toEqual([]);
+    // WP1.18 – „Moj rad”: svaki demo račun ima smislen popis (bez iznosa), uprava i administrator nemaju ništa alarmantno.
+    type W = { items: { kind: string; title: string; detail?: string; acronym?: string; urgency: string }[]; summary: { attention: number } };
+    const mw = async (k: string) => (await http().get('/api/me/work').set(as(k)).expect(200)).body as W;
+    const kinds = (w: W) => w.items.map((i) => i.kind);
+    const memberW = await mw('member');
+    expect(kinds(memberW)).toEqual(expect.arrayContaining(['timesheet_current', 'timesheet_submitted', 'risk_owned']));
+    expect(memberW.items.every((i) => i.acronym === 'BLUESENSE')).toBe(true);
+    const pmW = await mw('pm');
+    expect(kinds(pmW)).toEqual(expect.arrayContaining(['timesheet_to_approve', 'deliverable_due', 'risks_high', 'proposal_deadline', 'expenses_without_evidence', 'risk_owned']));
+    expect(pmW.items.filter((i) => i.kind === 'timesheet_to_approve').map((i) => i.title)).toEqual([expect.stringMatching(/^Odobri timesheet: Luka Novak/)]);
+    expect(pmW.items.some((i) => i.acronym === 'ZELENI-LAB')).toBe(false);
+    const pm2W = await mw('pm2');
+    expect(kinds(pm2W)).toEqual(expect.arrayContaining(['timesheet_to_approve', 'deliverable_due', 'milestone_due', 'deviations', 'claim_draft', 'expenses_without_evidence', 'expenses_stranded', 'timesheet_submitted']));
+    expect(pm2W.items.filter((i) => i.kind === 'timesheet_to_approve').map((i) => i.title)).toEqual([expect.stringMatching(/^Odobri timesheet: Marina Šimić/)]); // ne vlastiti
+    expect(pm2W.items.find((i) => i.kind === 'claim_draft')!.detail).toMatch(/2 stavke blokiraju predaju/);
+    const finW = await mw('finance');
+    expect(kinds(finW)).toEqual(expect.arrayContaining(['claim_draft', 'expenses_without_evidence', 'expenses_stranded']));
+    const officeW = await mw('office');
+    expect(kinds(officeW).sort()).toEqual(['call_decision', 'proposal_deadline', 'risk_owned']); // ured je i nositeljica jednog rizika BLUESENSE
+    expect(officeW.items.find((i) => i.kind === 'proposal_deadline')!.detail).toMatch(/2 stavke spremnosti nisu ispunjene/);
+    for (const k of ['admin', 'board']) expect((await mw(k)).items).toEqual([]);
+    for (const k of ['member', 'pm', 'pm2', 'finance', 'office']) expect(JSON.stringify(await mw(k))).not.toMatch(/EUR|€/);
+    // WP1.18 – obavijesti iz stvarnih tokova seedera; nepročitane su najnovije tri.
+    type N = { items: { kind: string; read: boolean }[]; unread: number };
+    const nt = async (k: string) => (await http().get('/api/me/notifications?limit=100').set(as(k)).expect(200)).body as N;
+    const memberN = await nt('member');
+    expect(new Set(memberN.items.map((n) => n.kind))).toEqual(new Set(['timesheet_approved', 'access_granted']));
+    expect(memberN.unread).toBe(3);
+    expect((await nt('pm')).items.map((n) => n.kind)).toEqual(expect.arrayContaining(['project_manager', 'proposal_lead', 'timesheet_approved']));
+    expect((await nt('pm2')).items.map((n) => n.kind)).toEqual(expect.arrayContaining(['project_manager', 'proposal_lead', 'timesheet_approved']));
+    expect((await nt('finance')).items.map((n) => n.kind).sort()).toEqual(['claim_decided', 'claim_paid']);
+    for (const k of ['admin', 'office', 'board']) expect((await nt(k)).items).toEqual([]);
+
     // WP1.14b – revizija: povijest odluka i promjena; promjena plaće s iznosom vidljiva administratoru.
     const audit = (await http().get('/api/audit?entity=team_member&action=update').set(as('admin')).expect(200)).body as { diff: { after: { annualCostCents?: unknown } } }[];
     expect(audit[0]!.diff.after.annualCostCents).toBe(4_680_000);

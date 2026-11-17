@@ -23,6 +23,7 @@ import { memberInput } from '../finance/timesheets.service';
 import { expenseInput } from '../finance/expenses.service';
 import { deliverableInput, milestoneInput, wpInput } from '../implementation/implementation.service';
 import { ensureTeamMemberAccess } from '../identity/project-grants';
+import { notify } from '../notifications/notify';
 import type { Permission } from '../identity/permissions';
 import { importTemplate, type TemplateContext } from './import-template';
 import { isBlankRow, readImportSource, type ImportSource, type SourceSheet } from './import-source';
@@ -639,6 +640,8 @@ export class ProjectImportService {
       projectId: c.project.id, fileName: plan.fileName, sha256: plan.sha256, size: plan.size, format: plan.format, warningsAcknowledged: plan.warnings,
       historic: ops.expenses.filter((e) => e.historic).length, skipped: plan.sheets.filter((s) => s.status === 'skipped').map((s) => s.key),
     } } });
+    // WP1.18: voditelj projekta saznaje da je netko drugi uvezao podatke na njegov projekt.
+    await notify(tx, { userId: c.project.managerUserId, kind: 'import_applied', projectId: c.project.id, data: { acronym: c.project.acronym, fileName: plan.fileName.slice(0, 120) }, link: `projekti/${c.project.id}/uvoz`, requires: 'projects:read' });
     return { importId, counts, links: plan.sheets.filter((s) => s.status === 'ready' && s.created + s.updated > 0).map((s) => ({ sheet: s.key, label: s.label, tab: IMPORT_SHEET_TAB[s.key] })) };
   }
 
@@ -716,7 +719,7 @@ export class ProjectImportService {
 
   async undo(tx: Tx, projectId: string, importId: string, actorId?: string) {
     this.assertMayImport(projectId);
-    await loadProject(tx, projectId, { editable: true });
+    const project = await loadProject(tx, projectId, { editable: true });
     await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).for('update');
     const imp = (await tx.select().from(projectImports).where(and(eq(projectImports.id, importId), eq(projectImports.projectId, projectId))).for('update'))[0];
     if (!imp) throw new NotFoundException('Uvoz ne postoji na projektu');
@@ -731,7 +734,9 @@ export class ProjectImportService {
       await tx.delete(expenses).where(and(inArray(expenses.id, cr.expenses), eq(expenses.importId, imp.id), eq(expenses.projectId, projectId)));
       await tx.execute(sql`select set_config('app.import_undo', '', true)`);
     }
+    const lost = cr.roleAssignments.length ? await tx.select({ userId: roleAssignments.userId, roleId: roleAssignments.roleId }).from(roleAssignments).where(and(inArray(roleAssignments.id, cr.roleAssignments), eq(roleAssignments.projectId, projectId))) : [];
     if (cr.roleAssignments.length) await tx.delete(roleAssignments).where(and(inArray(roleAssignments.id, cr.roleAssignments), eq(roleAssignments.projectId, projectId)));
+    for (const l of lost) await notify(tx, { userId: l.userId, kind: 'access_revoked', projectId, data: { acronym: project.acronym, role: 'team-member' } });
     if (cr.teamMembers.length) await tx.delete(teamMembers).where(and(inArray(teamMembers.id, cr.teamMembers), eq(teamMembers.projectId, projectId)));
     if (cr.budget) {
       await tx.delete(budgetLines).where(eq(budgetLines.budgetId, cr.budget.budgetId));
@@ -747,6 +752,10 @@ export class ProjectImportService {
     await tx.update(projects).set({ revision: bump(projects), updatedAt: now, updatedBy: actorId }).where(eq(projects.id, projectId));
     await tx.update(projectImports).set({ status: 'undone', undoneAt: now, undoneBy: actorId ?? null }).where(eq(projectImports.id, imp.id));
     await this.audit.record(tx, { entity: 'project_import', entityId: imp.id, action: 'undo', diff: { before: { status: 'applied', counts: imp.counts }, after: { status: 'undone' }, meta: { projectId, fileName: imp.fileName, sha256: imp.fileSha256 } } });
+    // WP1.18: voditelj projekta i autor uvoza (ako ga nije sam poništio) saznaju za poništavanje.
+    for (const userId of new Set([project.managerUserId, imp.createdBy].filter((x): x is string => !!x))) {
+      await notify(tx, { userId, kind: 'import_undone', projectId, data: { acronym: project.acronym, fileName: imp.fileName.slice(0, 120) }, link: `projekti/${projectId}/uvoz`, requires: 'projects:read' });
+    }
     return { undone: true, importId: imp.id };
   }
 }

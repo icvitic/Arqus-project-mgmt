@@ -44,7 +44,22 @@ export function defaultPeriod(free: { number: number; endDate: string }[], today
   return (sorted.find((r) => r.endDate < today) ?? sorted[0])?.number ?? null;
 }
 
-/** Današnji datum (GGGG-MM-DD) u lokalnoj zoni preglednika. */
-export function localToday(now = new Date()): string {
+let institutionZone: string | undefined;
+/** Vremenska zona institucije (iz `/me`): „danas” se u pregledniku računa u njoj, kao na poslužitelju. */
+export function setInstitutionTimeZone(timeZone: string | undefined): void { institutionZone = timeZone; }
+
+/**
+ * Današnji datum (GGGG-MM-DD) u vremenskoj zoni institucije; bez nje (ili uz nepoznatu zonu) u lokalnoj zoni preglednika.
+ * Poslužitelj „danas” računa u zoni institucije, pa bi preglednik u drugoj zoni oko ponoći predlagao datum koji poslužitelj odbija.
+ */
+export function localToday(now = new Date(), timeZone: string | undefined = institutionZone): string {
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+      const part = (type: string) => parts.find((x) => x.type === type)?.value ?? '';
+      const out = `${part('year')}-${part('month')}-${part('day')}`;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(out)) return out;
+    } catch { /* nepoznata zona – lokalna zona preglednika */ }
+  }
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }

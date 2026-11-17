@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultPeriod, groupExpenses } from './claims';
+import { defaultPeriod, groupExpenses, localToday } from './claims';
 
 const e = (id: string, date: string, over: Partial<Parameters<typeof groupExpenses>[0][number]> = {}) => ({ id, date, source: 'manual', timesheetId: null, person: null, month: null, amount: 100, recognised: null, ...over });
 
@@ -37,4 +37,17 @@ describe('zadano razdoblje novog ZNS-a', () => {
     expect(defaultPeriod([{ number: 2, endDate: '2027-06-30' }, { number: 3, endDate: '2027-09-30' }], '2027-06-30')).toBe(2);
   });
   it('bez slobodnih razdoblja: null', () => { expect(defaultPeriod([], '2027-01-01')).toBeNull(); });
+});
+
+describe('današnji datum u zoni institucije', () => {
+  it('oko ponoći daje datum institucije, a ne datum po UTC-u', () => {
+    const now = new Date('2026-11-17T23:30:00Z');
+    expect(localToday(now, 'Europe/Zagreb')).toBe('2026-11-18');
+    expect(localToday(now, 'UTC')).toBe('2026-11-17');
+    expect(localToday(new Date('2026-07-01T21:59:00Z'), 'Europe/Zagreb')).toBe('2026-07-01');
+    expect(localToday(new Date('2026-07-01T22:00:00Z'), 'Europe/Zagreb')).toBe('2026-07-02');
+  });
+  it('nepoznata zona ne ruši prikaz (lokalna zona preglednika)', () => {
+    expect(localToday(new Date('2026-11-17T12:00:00Z'), 'Nema/Zone')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
 });

@@ -183,6 +183,20 @@
       "when": 1794950768354,
       "tag": "0025_uvoz_projekta_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794955315402,
+      "tag": "0026_obavijesti_kalendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794955316389,
+      "tag": "0027_obavijesti_kalendar_rls",
+      "breakpoints": true
     }
   ]
 }

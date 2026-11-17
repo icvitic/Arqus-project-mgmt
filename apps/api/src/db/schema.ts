@@ -731,3 +731,40 @@ export type Organisation = typeof organisations.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type ProjectPartner = typeof projectPartners.$inferSelect;
 export type ReportingPeriod = typeof reportingPeriods.$inferSelect;
+
+/**
+ * WP1.18 – obavijesti u aplikaciji: događaji koji su se dogodili korisniku (odobren timesheet, vraćen ZNS, dodijeljen pristup…).
+ * Upisuje ih servis u istoj transakciji kao događaj, nikad samom akteru. Bez iznosa i bez slobodnog teksta drugih korisnika
+ * osim razloga koji primatelj ionako vidi na entitetu. RLS: stanar za upis; čitanje, označavanje i brisanje samo vlastitih
+ * redaka (`app.user_id`, migracija 0027).
+ */
+export const notifications = pgTable('notifications', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  kind: text('kind').notNull(),
+  actorId: uuid('actor_id'),
+  projectId: uuid('project_id'),
+  proposalId: uuid('proposal_id'),
+  data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+  link: text('link'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  readAt: timestamp('read_at', { withTimezone: true }),
+}, (t) => [
+  index('notifications_user_idx').on(t.tenantId, t.userId, t.id),
+  foreignKey({ name: 'notifications_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }).onDelete('cascade'),
+]);
+
+/**
+ * WP1.18 – tajni token osobnog kalendara rokova (iCalendar). Jedan po korisniku; čuva se samo SHA-256 tokena (token ima
+ * 256 bita iz CSPRNG-a, pa spori hash nije potreban). Ponovno stvaranje zamjenjuje redak (stari token prestaje vrijediti).
+ */
+export const calendarTokens = pgTable('calendar_tokens', {
+  tenantId: uuid('tenant_id').notNull(),
+  userId: uuid('user_id').primaryKey(),
+  tokenHash: text('token_hash').notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+}, (t) => [
+  foreignKey({ name: 'calendar_tokens_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }).onDelete('cascade'),
+]);

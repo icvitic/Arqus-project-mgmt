@@ -7,7 +7,7 @@ import {
 } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
 import {
-  budgetLines, documents, expenses, projectBudgets, projectPartners, reimbursementClaims, reportingPeriods, teamMembers, timesheetEntries, timesheets, workPackages,
+  auditEntries, budgetLines, documents, expenses, projectBudgets, projectPartners, reimbursementClaims, reportingPeriods, teamMembers, timesheetEntries, timesheets, workPackages,
 } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
@@ -17,6 +17,8 @@ import { tenantTimeZone, tenantToday } from '../common/tenant-context';
 import { selfPartner, strandedExpense } from './finance-common';
 import { evidenceCount, seesConfidential } from './expenses.service';
 import { assertMayDecidePersonnel, hidesAmount, seesPersonnelAmounts } from '../common/personnel';
+import { notify } from '../notifications/notify';
+import type { NotificationData, NotificationKind } from '@arqus/domain';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const note = z.string().trim().max(2000);
@@ -69,6 +71,19 @@ export class ClaimsService {
       .where(and(eq(reimbursementClaims.id, id), eq(reimbursementClaims.projectId, projectId))))[0];
     if (!r) throw new NotFoundException('Zahtjev za nadoknadu ne postoji na projektu');
     return r;
+  }
+
+  /**
+   * WP1.18: obavijest korisniku koji je zahtjev (zadnji put) predao – iz revizijskog zapisa predaje. Bez iznosa; primatelj
+   * mora i dalje vidjeti financije projekta (inače obavijest ne nastaje).
+   */
+  private async notifySubmitter(tx: Tx, c: ClaimRow, period: number, kind: NotificationKind, data: NotificationData = {}) {
+    const sub = (await tx.select({ actorId: auditEntries.actorId }).from(auditEntries)
+      .where(and(eq(auditEntries.entity, 'claim'), eq(auditEntries.entityId, c.id), inArray(auditEntries.action, ['submit', 'submit.early'])))
+      .orderBy(desc(auditEntries.id)).limit(1))[0];
+    if (!sub?.actorId) return;
+    const p = await loadProject(tx, c.projectId);
+    await notify(tx, { userId: sub.actorId, kind, projectId: c.projectId, data: { acronym: p.acronym, period, ...data }, link: `projekti/${c.projectId}/zns`, requires: 'finance:read' });
   }
 
   /** Paket, vrsta akcije i vrsta korisnika partnera – ulaz za izračun traženog i priznatog iznosa. */
@@ -367,7 +382,7 @@ export class ClaimsService {
 
   async decide(tx: Tx, projectId: string, id: string, input: z.infer<typeof decisionInput>, actorId?: string) {
     await loadProject(tx, projectId, { editable: true });
-    const { c } = await this.claim(tx, projectId, id);
+    const { c, rp } = await this.claim(tx, projectId, id);
     if (c.status !== 'submitted') throw new ConflictException(`Odluka se donosi samo za predan zahtjev (trenutno "${c.status}")`);
     const now = new Date();
     if (input.decision === 'returned') {
@@ -378,6 +393,8 @@ export class ClaimsService {
       if (tsIds.length) await tx.update(timesheets).set({ status: 'approved', updatedAt: now }).where(inArray(timesheets.id, tsIds));
       await tx.update(reimbursementClaims).set({ revision: bump(reimbursementClaims), status: 'draft', totals: null, requestedCents: null, submittedAt: null, earlyReason: null, submission: null, note: input.note, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
       await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: 'decision.returned', diff: { before: { requested: c.requestedCents, submission: c.submission }, meta: { note: input.note } } });
+      // Razlog povrata primatelj vidi i na zahtjevu (`note`).
+      await this.notifySubmitter(tx, c, rp.number, 'claim_returned', { reason: input.note.trim() });
       return this.get(tx, projectId, id);
     }
     const today = tenantToday(now);
@@ -390,6 +407,7 @@ export class ClaimsService {
       after: { status: d.outcome, approved: d.approved, computed: d.computed, funderTotal: d.funderTotal, decisionDate },
       meta: { note: input.note ?? null, reduced: d.expenses.filter((x) => x.status !== 'accepted').map((x) => ({ id: x.id, amount: x.amount, recognised: x.recognised, reason: x.reason })) },
     } });
+    await this.notifySubmitter(tx, c, rp.number, 'claim_decided', { outcome: d.outcome });
     return this.get(tx, projectId, id);
   }
 
@@ -424,7 +442,7 @@ export class ClaimsService {
   /** Isplata: datum ne prije odluke i ne u budućnosti; razlika prema odobrenom traži napomenu. */
   async pay(tx: Tx, projectId: string, id: string, input: z.infer<typeof paymentInput>, actorId?: string) {
     await loadProject(tx, projectId, { editable: true });
-    const { c } = await this.claim(tx, projectId, id);
+    const { c, rp } = await this.claim(tx, projectId, id);
     if (!['approved', 'partially_approved'].includes(c.status)) throw new ConflictException('Isplata se bilježi samo za odobren zahtjev');
     if (c.paidCents !== null) throw new ConflictException('Isplata je već zabilježena');
     const decisionDate = c.decisionDate ?? (c.decidedAt ? dateIn(tenantTimeZone(), c.decidedAt) : null);
@@ -432,6 +450,7 @@ export class ClaimsService {
     if (issues.length) throw new BadRequestException({ message: 'Isplata nije valjana', issues });
     await tx.update(reimbursementClaims).set({ revision: bump(reimbursementClaims), paidCents: input.paidAmount, paidAt: input.paidAt, paymentNote: input.note?.trim() || null, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
     await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: 'payment', diff: { after: input, meta: { approved: c.approvedCents, difference: input.paidAmount - (c.approvedCents ?? 0) } } });
+    await this.notifySubmitter(tx, c, rp.number, 'claim_paid');
     return this.get(tx, projectId, id);
   }
 }

@@ -8,7 +8,7 @@ Stariji scenarij iz faze 0 (klikabilni prototip) ostaje u [faza-0/scenarij-demon
 
 1. `demo.cmd reset` – svježi datumi, bez tragova prethodnog razgovora.
 2. Preglednik na http://localhost:8080, prijava: institucija `demo`, `ured@demo.local`, lozinka `Plavi-Jadran-2026` – otvara se **Portfelj**. (Ako je na razgovoru prodekan, isto pokazuje i `uprava@demo.local` – samo čitanje; za korake s odobravanjem ostani na računu ureda.)
-3. U drugoj kartici (privatni prozor) spremna prijava `clan@demo.local` za korak 5.
+3. U drugoj kartici (privatni prozor) spremna prijava `clan@demo.local` za korak 5 (u njoj ćeš se poslije prijaviti i kao `voditelj@demo.local`).
 4. Datoteka `docs/primjeri/uvoz-projekta-DIGI-ARHIV.xlsx` na radnoj površini (za korak 8b); po želji otvorena u Excelu da se vidi da je to „obična tablica”.
 5. Sugovornika prije razgovora pitaj (ili zapamti iz razgovora): koliko projekata vode, koje programe, u čemu vode evidenciju rada i kako pripremaju ZNS. Na to se vraćaš u koracima 6 i 8.
 
@@ -72,9 +72,12 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 
 - Tim s **godišnjim troškom** (vidljiv samo ulogama s pravom na podatke o plaćama).
   *Ako je prisutan netko iz financija:* „Član tima i voditelj projekta ne vide plaće – samo ured i financije. Ni iz troškova osoblja ne mogu izračunati satnicu: voditelj vidi sate, iznos po osobi vidi samo ured i financije, i to provjerava poslužitelj, ne samo zaslon.”
-- U drugoj kartici (prijavljen **Luka Novak**, `clan@demo.local`) otvori isti projekt → **Tim i timesheetovi**: tekući mjesec je nacrt, Luka unosi sate po danu i radnom paketu; prošli mjesec je **predan** i čeka odobrenje. Luka ne može uređivati tuđe timesheetove.
-- Natrag u karticu ureda: odaberi **Luka Novak** i prošli mjesec → **Odobri (stvara trošak osoblja)**.
+- **„Moj rad” – član tima (WP1.18).** U drugoj kartici prijavi **Luku Novaka** (`clan@demo.local`): otvara se **Moj rad**, ne popis projekata. Na vrhu je *Timesheet za <tekući mjesec>* („u tijeku”, predaje se do kraja mjeseca), ispod *Timesheet za <prošli mjesec> čeka odobrenje* i rizik terenskih mjerenja kojem je Luka nositelj; zvonce pokazuje nepročitane obavijesti (odobreni timesheetovi).
+  *„Istraživač ne traži projekt ni karticu – nakon prijave vidi što danas treba napraviti.”*
+- Klik na stavku tekućeg mjeseca otvara točno taj timesheet: upiši sate za danas → **Spremi** → **Predaj na odobrenje**. Cijeli put traje manje od minute. Luka ne može uređivati tuđe timesheetove.
+- U istoj kartici odjava → prijava **Petre Horvat** (`voditelj@demo.local`): u njezinom **Moj rad** su *Odobri timesheet: Luka Novak* – i prošli i upravo predani mjesec – uz isporuku koja kasni, visoke rizike i interni rok prijave AQUAREST. Klik na stavku → **Odobri (stvara trošak osoblja)** → natrag na **Moj rad**: stavka je nestala, a Luka u zvoncu dobiva „Timesheet … je odobren”.
   *„U trenutku odobrenja sustav po pravilu programa izračuna trošak osoblja po radnom paketu – za Horizon godišnji trošak / 215 dana. Nema ručnog prepisivanja sati u financijsku tablicu.”*
+- Jedna rečenica: *„U Moj račun svatko može dobiti poveznicu pa mu rokovi njegovih projekata (izvještaji, isporuke, interni rokovi prijava) stoje u Outlooku ili Google Kalendaru, bez otvaranja ArQusa.”*
 
 ## 6. Troškovi i dokazi (1 min)
 
@@ -143,7 +146,8 @@ Rečenica: *„Vi već imate projekte u tijeku – u Excelu. Ne prepisujete ih: 
 | „Tko što smije?” | odjava → prijava `uprava@demo.local` (samo čitanje: nema gumba za izmjene); **Korisnici** kao `admin@demo.local` – uloge institucije i uloge na projektima, dodjela uloge na projektu |
 | „Imamo i druge programe” | **Paketi programa** → Novi paket po pozivu (nasljeđuje NPOO/HE, mijenjaju se samo razlike) |
 | „A ako je naša tablica drugačija?” | **Uvoz** na DIGI-ARHIV: stupci se prepoznaju po nazivu (smiju biti drugim redoslijedom, vlastiti stupci se zanemaruju), CSV po listu; upute u `docs/UVOZ-PROJEKTA.md` |
-| „Kako izgleda za voditelja NPOO projekta?” | prijava `voditelj2@demo.local` → vidi samo ZELENI-LAB |
+| „Kako izgleda za voditelja NPOO projekta?” | prijava `voditelj2@demo.local` → **Moj rad**: Marinin timesheet za odobriti (unio ga je ured), isporuka i prekretnica koje kasne, odstupanje od pravila programa, ZNS za RP2 s dvije blokade; vidi samo ZELENI-LAB |
+| „A financije – što one vide ujutro?” | prijava `financije@demo.local` → **Moj rad**: ZNS za RP2 ZELENI-LAB-a čeka predaju (2 blokade), troškovi bez dokaza, nepredani trošak iz ranijeg razdoblja; za DIGI-ARHIV „RP1 je završilo, a ZNS nije otvoren” – nestaje nakon uvoza iz koraka 8b (troškovi potraživani prije ArQusa); zvonce: ZNS 1 odlučen i isplaćen |
 | „A dvofaktorska prijava?” | ime korisnika gore desno → **Moj račun** → Uključi MFA; institucija je može učiniti obveznom za povlaštene uloge ili sve (`admin@demo.local` → **Korisnici**) |
 
 **Nakon razgovora:** `demo.cmd reset` (ili `demo.cmd stop`).

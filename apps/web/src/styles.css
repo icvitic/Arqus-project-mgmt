@@ -92,3 +92,29 @@ header.top nav{display:flex;flex-wrap:wrap;gap:2px;min-width:0;max-width:100%}na
 .blockers summary{cursor:pointer;color:var(--warn);font-size:13px}.blockers ul{margin:4px 0;padding-left:18px;font-size:13px}
 @media(max-width:620px){.issue-table thead,.import-history thead{display:none}.issue-table tr,.import-history tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}
 .issue-table td,.import-history td{display:block;border:0;padding:2px 4px}.issue-table td::before,.import-history td[data-l]:not([data-l=""])::before{content:attr(data-l) ": ";color:var(--muted);font-size:12px}}
+/* Moj rad, obavijesti, kalendar (WP1.18) */
+.badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:999px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
+.nav-badge{margin-left:6px;vertical-align:1px}
+.bell-wrap{position:relative}
+.bell{position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:34px;padding:0}
+.bell .badge{position:absolute;top:-6px;right:-7px}
+.dropdown{position:absolute;right:0;top:calc(100% + 6px);width:min(380px,calc(100vw - 32px));max-height:min(70vh,520px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:20;padding:8px 0}
+.dropdown-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 12px 8px;border-bottom:1px solid var(--line)}
+.dropdown-empty{padding:8px 12px;font-size:13px;margin:0}
+.notes{list-style:none;margin:0;padding:0}.notes li{border-bottom:1px solid var(--line)}.notes li:last-child{border-bottom:0}
+.note{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;border:0;border-radius:0;background:none;padding:8px 12px}.note:hover{background:var(--chip)}
+.notes li.unread .note-title{font-weight:600}.note-title{display:flex;gap:6px;align-items:baseline;font-size:14px;overflow-wrap:anywhere}
+.note-detail,.note-when{font-size:12px;overflow-wrap:anywhere}
+.dot{display:inline-block;flex:none;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.work-summary{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px}
+.work-group h2{margin:0 0 6px;font-size:15px}.work-group.overdue{border-left:3px solid var(--bad)}.work-group.due_soon{border-left:3px solid var(--warn)}
+.work-list{list-style:none;margin:0;padding:0}.work-list li{border-top:1px solid var(--line)}.work-list li:first-child{border-top:0}
+.work-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 4px;color:var(--fg);text-decoration:none;border-radius:6px}.work-item:hover{background:var(--bg)}
+.work-main{display:flex;flex-direction:column;gap:2px;min-width:0}.work-title{overflow-wrap:anywhere}.work-detail{font-size:13px}
+.chip.acr{margin-right:6px;font-weight:600}
+.work-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none}.work-role{font-size:12px;white-space:nowrap}
+.work-empty ul{margin:6px 0;padding-left:20px}.work-empty li{margin:3px 0}
+.calendar-card{max-width:860px}.calendar-link{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 12px;margin:8px 0}
+.copy-row{display:flex;gap:8px;flex-wrap:wrap}.copy-row input{flex:1 1 280px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+@media(max-width:520px){.work-item{flex-direction:column;align-items:flex-start}.work-meta{flex-direction:row;align-items:center}}
+@media(max-width:620px){.dropdown{position:fixed;left:16px;right:16px;top:64px;width:auto;max-height:calc(100vh - 80px)}}
