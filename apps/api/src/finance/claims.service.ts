@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
-  categoryNames, claimChecklist, claimDecision, claimTotals, computePartnerBudget, hoursToMinutes, isoToday, monthsInPeriod, paymentIssues, preparationMeasures,
+  categoryNames, claimChecklist, claimDecision, claimTotals, computePartnerBudget, hoursToMinutes, dateIn, monthsInPeriod, paymentIssues, preparationMeasures,
   type ClaimChecklist, type ProgrammePackage,
 } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
@@ -12,6 +12,8 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { assertPartnerOnProject, loadProject } from '../common/project-access';
+import { assertRevision, bump, revisionField } from '../common/revision';
+import { tenantTimeZone, tenantToday } from '../common/tenant-context';
 import { selfPartner, strandedExpense } from './finance-common';
 import { evidenceCount, seesConfidential } from './expenses.service';
 
@@ -26,7 +28,7 @@ export const submitInput = z.object({
   preparationHours: z.number().min(0).max(10_000).nullable().optional(),
 }).strict();
 /** WP1.16b: izričit odabir troškova iz ranijih razdoblja u nacrtu (zamjenjuje dosadašnji odabir). */
-export const earlierInput = z.object({ expenseIds: z.array(z.string().uuid()).max(5000) }).strict();
+export const earlierInput = z.object({ expenseIds: z.array(z.string().uuid()).max(5000), revision: revisionField }).strict();
 /** WP1.16b: naknadni upis ili ispravak sati pripreme predanog zahtjeva. */
 export const preparationInput = z.object({ hours: z.number().min(0).max(10_000).nullable() }).strict();
 const expenseDecision = z.object({ id: z.string().uuid(), recognised: z.number().int().min(0), reason: z.string().trim().max(1000).nullable().optional() }).strict();
@@ -143,7 +145,7 @@ export class ClaimsService {
     const codes = new Set([...planned.map((x) => x.code), ...before.map((x) => x.code)]);
     const asItem = (e: ExpenseRow) => ({ id: e.id, date: e.date, description: e.description, amount: e.amountCents, categoryCode: e.categoryCode, source: e.source, documents: docs(e.id) });
     return claimChecklist({
-      today: isoToday(), period: { startDate: rp.startDate, endDate: rp.endDate },
+      today: tenantToday(), period: { startDate: rp.startDate, endDate: rp.endDate },
       expenses: rows.map(asItem),
       earlier: earlier.map(asItem),
       earlierNotSelected: notSelected.map((x) => ({ date: x.e.date, description: x.e.description, amount: x.e.amountCents, period: x.period ?? 0 })),
@@ -176,6 +178,7 @@ export class ClaimsService {
     }) : null;
     return {
       id: c.id, projectId, period: { number: rp.number, startDate: rp.startDate, endDate: rp.endDate, dueDate: rp.dueDate }, partnerId: c.partnerId, status: c.status,
+      revision: c.revision, updatedAt: c.updatedAt,
       expenses: rows.map((e) => {
         const x = info.get(e.id);
         return {
@@ -259,12 +262,12 @@ export class ClaimsService {
     const earlier = rows.filter((e) => e.date < rp.startDate).map((e) => e.id);
     // Snimka popisa za provjeru kakav je bio pri predaji (stavke, upozorenja, potvrde) – ulazi u paket za predaju (kontrolna lista).
     const submission = {
-      checkedOn: isoToday(now), early: check.early, earlyReason, acknowledgedWithoutEvidence: acknowledged, earlierExpenses: earlier,
+      checkedOn: tenantToday(now), early: check.early, earlyReason, acknowledgedWithoutEvidence: acknowledged, earlierExpenses: earlier,
       warnings: check.warnings.map((w) => ({ key: w.key, title: w.title, details: w.details })),
       items: check.items.map((i) => ({ key: i.key, ok: i.ok, severity: i.severity, title: i.title, details: i.details })),
     };
     const preparationMinutes = input.preparationHours === undefined ? c.preparationMinutes : hoursToMinutes(input.preparationHours);
-    await tx.update(reimbursementClaims).set({ status: 'submitted', totals: t as unknown as Record<string, unknown>, requestedCents: t.requested, submittedAt: now, earlyReason, submission, preparationMinutes, note: null, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+    await tx.update(reimbursementClaims).set({ revision: bump(reimbursementClaims), status: 'submitted', totals: t as unknown as Record<string, unknown>, requestedCents: t.requested, submittedAt: now, earlyReason, submission, preparationMinutes, note: null, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
     await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: check.early ? 'submit.early' : 'submit', diff: {
       after: { requested: t.requested, expenses: ids.length, preparationMinutes },
       meta: { earlyReason, acknowledgedWithoutEvidence: acknowledged.map((a) => a.id), earlierExpenses: earlier, warnings: submission.warnings.map((w) => w.title) },
@@ -279,6 +282,7 @@ export class ClaimsService {
   async selectEarlier(tx: Tx, projectId: string, id: string, input: z.infer<typeof earlierInput>, actorId?: string) {
     await loadProject(tx, projectId, { editable: true });
     const { c, rp } = await this.claim(tx, projectId, id);
+    await assertRevision(tx, reimbursementClaims, c.id, input.revision, 'Zahtjev za nadoknadu');
     if (c.status !== 'draft') throw new ConflictException('Troškovi iz ranijih razdoblja biraju se samo u nacrtu zahtjeva');
     const candidates = new Map((await this.earlierCandidates(tx, c, rp)).map((x) => [x.e.id, x]));
     const ids = [...new Set(input.expenseIds)];
@@ -289,7 +293,7 @@ export class ClaimsService {
       else if (x.selectedElsewhere !== null) issues.push(`trošak „${x.e.description}” već je odabran u nacrtu ZNS-a za RP${x.selectedElsewhere}`);
     }
     if (issues.length) throw new BadRequestException({ message: 'Odabir nije valjan', issues });
-    await tx.update(reimbursementClaims).set({ earlierExpenseIds: ids, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+    await tx.update(reimbursementClaims).set({ revision: bump(reimbursementClaims), earlierExpenseIds: ids, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
     await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: 'earlier.select', diff: { before: { expenseIds: c.earlierExpenseIds ?? [] }, after: { expenseIds: ids } } });
     return this.get(tx, projectId, id);
   }
@@ -300,14 +304,14 @@ export class ClaimsService {
     const { c } = await this.claim(tx, projectId, id);
     if (c.status === 'draft') throw new ConflictException('Sati pripreme upisuju se pri predaji zahtjeva');
     const minutes = hoursToMinutes(input.hours);
-    await tx.update(reimbursementClaims).set({ preparationMinutes: minutes, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+    await tx.update(reimbursementClaims).set({ revision: bump(reimbursementClaims), preparationMinutes: minutes, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
     await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: 'preparation.update', diff: { before: { preparationMinutes: c.preparationMinutes }, after: { preparationMinutes: minutes } } });
     return this.get(tx, projectId, id);
   }
 
   private assertDecisionDate(c: ClaimRow, decisionDate: string, today: string): void {
     if (decisionDate > today) throw new BadRequestException({ message: 'Odluka nije valjana', issues: [`datum odluke (${decisionDate}) je u budućnosti`] });
-    const submitted = c.submittedAt ? isoToday(c.submittedAt) : null;
+    const submitted = c.submittedAt ? dateIn(tenantTimeZone(), c.submittedAt) : null;
     if (submitted && decisionDate < submitted) throw new BadRequestException({ message: 'Odluka nije valjana', issues: [`datum odluke (${decisionDate}) je prije predaje zahtjeva (${submitted})`] });
   }
 
@@ -327,7 +331,7 @@ export class ClaimsService {
       await tx.update(expenses).set({ status: x.status, recognisedCents: x.recognised, decisionReason: x.reason, updatedAt: now, updatedBy: actorId }).where(eq(expenses.id, x.id));
     }
     const decision = { computed: d.computed, funderTotal: d.funderTotal, difference: d.difference, claimed: d.claimed, recognised: d.recognised, unrecognised: d.unrecognised, ratePercent: d.ratePercent };
-    await tx.update(reimbursementClaims).set({ status: d.outcome, approvedCents: d.approved, decidedAt: now, decisionDate: input.decisionDate, decision, note: input.note?.trim() || null, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+    await tx.update(reimbursementClaims).set({ revision: bump(reimbursementClaims), status: d.outcome, approvedCents: d.approved, decidedAt: now, decisionDate: input.decisionDate, decision, note: input.note?.trim() || null, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
     return d;
   }
 
@@ -361,11 +365,11 @@ export class ClaimsService {
       await tx.update(expenses).set({ claimId: null, status: 'recorded', updatedAt: now, updatedBy: actorId }).where(eq(expenses.claimId, c.id));
       const tsIds = [...new Set(rows.map((r) => r.ts).filter((x): x is string => !!x))];
       if (tsIds.length) await tx.update(timesheets).set({ status: 'approved', updatedAt: now }).where(inArray(timesheets.id, tsIds));
-      await tx.update(reimbursementClaims).set({ status: 'draft', totals: null, requestedCents: null, submittedAt: null, earlyReason: null, submission: null, note: input.note, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+      await tx.update(reimbursementClaims).set({ revision: bump(reimbursementClaims), status: 'draft', totals: null, requestedCents: null, submittedAt: null, earlyReason: null, submission: null, note: input.note, updatedAt: now, updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
       await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: 'decision.returned', diff: { before: { requested: c.requestedCents, submission: c.submission }, meta: { note: input.note } } });
       return this.get(tx, projectId, id);
     }
-    const today = isoToday(now);
+    const today = tenantToday(now);
     const decisionDate = input.decisionDate ?? today;
     this.assertDecisionDate(c, decisionDate, today);
     const rows = await tx.select().from(expenses).where(eq(expenses.claimId, c.id));
@@ -387,7 +391,7 @@ export class ClaimsService {
     const { c } = await this.claim(tx, projectId, id);
     if (!(DECIDED as readonly string[]).includes(c.status)) throw new ConflictException('Ispravlja se samo odluka o odlučenom zahtjevu');
     if (c.paidCents !== null) throw new ConflictException('Zahtjev je isplaćen – odluka se više ne ispravlja');
-    const today = isoToday();
+    const today = tenantToday();
     const decisionDate = input.decisionDate ?? c.decisionDate ?? today;
     this.assertDecisionDate(c, decisionDate, today);
     const rows = await tx.select().from(expenses).where(eq(expenses.claimId, c.id));
@@ -410,10 +414,10 @@ export class ClaimsService {
     const { c } = await this.claim(tx, projectId, id);
     if (!['approved', 'partially_approved'].includes(c.status)) throw new ConflictException('Isplata se bilježi samo za odobren zahtjev');
     if (c.paidCents !== null) throw new ConflictException('Isplata je već zabilježena');
-    const decisionDate = c.decisionDate ?? (c.decidedAt ? isoToday(c.decidedAt) : null);
-    const issues = paymentIssues({ paidAt: input.paidAt, paidAmount: input.paidAmount, decisionDate, approved: c.approvedCents, today: isoToday(), note: input.note });
+    const decisionDate = c.decisionDate ?? (c.decidedAt ? dateIn(tenantTimeZone(), c.decidedAt) : null);
+    const issues = paymentIssues({ paidAt: input.paidAt, paidAmount: input.paidAmount, decisionDate, approved: c.approvedCents, today: tenantToday(), note: input.note });
     if (issues.length) throw new BadRequestException({ message: 'Isplata nije valjana', issues });
-    await tx.update(reimbursementClaims).set({ paidCents: input.paidAmount, paidAt: input.paidAt, paymentNote: input.note?.trim() || null, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
+    await tx.update(reimbursementClaims).set({ revision: bump(reimbursementClaims), paidCents: input.paidAmount, paidAt: input.paidAt, paymentNote: input.note?.trim() || null, updatedAt: new Date(), updatedBy: actorId }).where(eq(reimbursementClaims.id, c.id));
     await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: 'payment', diff: { after: input, meta: { approved: c.approvedCents, difference: input.paidAmount - (c.approvedCents ?? 0) } } });
     return this.get(tx, projectId, id);
   }

@@ -3,7 +3,7 @@
  * kao u sučelju, pa su podaci valjani po konstrukciji. Datumi su relativni prema „danas”, da demo uvijek izgleda aktualno.
  * Sva imena institucija, osoba, poziva i brojeva ugovora su izmišljena.
  */
-import { addDays, addMonths, daysInMonth } from '@arqus/domain';
+import { addDays, addMonths, daysInMonth, DEFAULT_TIME_ZONE, todayIn } from '@arqus/domain';
 import { DemoApi } from './client';
 import { demoPdf } from './pdf';
 
@@ -12,9 +12,9 @@ export interface DemoUser { key: string; local: string; displayName: string; rol
 
 /** Demo korisnici: e-adresa je `<local>@<oznaka>.local`, svi imaju istu demo lozinku. */
 export const DEMO_USERS: DemoUser[] = [
-  { key: 'admin', local: 'admin', displayName: 'Nikola Radić', role: 'tenant-admin', scope: 'tenant', roleLabel: 'Administrator stanara', note: 'korisnici, uloge, sve postavke' },
-  { key: 'office', local: 'ured', displayName: 'Ana Kovačević', role: 'project-office', scope: 'tenant', roleLabel: 'Voditeljica ureda za projekte', note: 'radar, odluke go/no-go, prijave, svi projekti – glavni račun za demonstraciju' },
-  { key: 'pm', local: 'voditelj', displayName: 'doc. dr. sc. Petra Horvat', role: 'project-manager', scope: 'project', roleLabel: 'Voditeljica projekta – samo BLUESENSE', note: 'vidi samo BLUESENSE; struktura, tim, odobrava timesheetove (ne vlastite)' },
+  { key: 'admin', local: 'admin', displayName: 'Nikola Radić', role: 'tenant-admin', scope: 'tenant', roleLabel: 'Administrator stanara', note: 'korisnici, uloge, sve postavke, revizija' },
+  { key: 'office', local: 'ured', displayName: 'Ana Kovačević', role: 'project-office', scope: 'tenant', roleLabel: 'Voditeljica ureda za projekte', note: 'radar, odluke go/no-go, prijave, svi projekti, revizija – glavni račun za demonstraciju' },
+  { key: 'pm', local: 'voditelj', displayName: 'doc. dr. sc. Petra Horvat', role: 'project-manager', scope: 'project', roleLabel: 'Voditeljica projekta – samo BLUESENSE; voditeljica prijave AQUAREST', note: 'vidi samo BLUESENSE i svoju prijavu AQUAREST; struktura, tim, odobrava timesheetove (ne vlastite ni one koje je sama predala)' },
   { key: 'pm2', local: 'voditelj2', displayName: 'Josip Barić', role: 'project-manager', scope: 'project', roleLabel: 'Voditelj projekta – samo ZELENI-LAB', note: 'vidi samo ZELENI-LAB' },
   { key: 'member', local: 'clan', displayName: 'Luka Novak', role: 'team-member', scope: 'project', roleLabel: 'Član tima – samo BLUESENSE', note: 'vlastiti timesheetovi (jedan čeka odobrenje); ne vidi plaće ni povjerljive dokumente' },
   { key: 'finance', local: 'financije', displayName: 'Maja Jurić', role: 'finance', scope: 'tenant', roleLabel: 'Financije / računovodstvo', note: 'svi projekti: troškovi s dokazima, plaće u timovima, ZNS' },
@@ -33,9 +33,8 @@ type Api = DemoApi;
 interface Wp { id: string; start: number; end: number }
 
 const pad = (n: number): string => String(n).padStart(2, '0');
-const isoDay = (d: Date): string => d.toISOString().slice(0, 10);
-/** Prvi dan mjeseca pomaknut za `offset` mjeseci od tekućeg. */
-const firstOfMonth = (today: Date, offset: number): string => isoDay(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset, 1)));
+/** Prvi dan mjeseca pomaknut za `offset` mjeseci od tekućeg (`todayIso` – današnji dan institucije). */
+const firstOfMonth = (todayIso: string, offset: number): string => addMonths(`${todayIso.slice(0, 7)}-01`, offset);
 /** Mjesec (GGGG-MM) n-tog mjeseca projekta (1 = mjesec početka). */
 const projectMonth = (start: string, n: number): string => addMonths(start, n - 1).slice(0, 7);
 const dayOf = (start: string, n: number, day: number): string => `${projectMonth(start, n)}-${pad(Math.min(day, daysInMonth(projectMonth(start, n))))}`;
@@ -63,7 +62,8 @@ export interface DemoSummary { projects: string[]; proposals: string[]; calls: n
 export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   const { base, slug, password, today, log } = ctx;
   const sum: DemoSummary = { projects: [], proposals: [], calls: 0, organisations: 0, timesheets: 0, expenses: 0, documents: 0, claims: 0 };
-  const todayIso = isoDay(today);
+  // WP1.14b: „danas” demo institucije je kalendarski dan u Europe/Zagreb (kao u aplikaciji), ne UTC – oko ponoći isti dan.
+  const todayIso = todayIn(DEFAULT_TIME_ZONE, today);
   const inDays = (n: number): string => addDays(todayIso, n);
 
   // ---------- korisnici ----------
@@ -86,8 +86,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   };
 
   // ---------- radar poziva ----------
-  const npooStart = firstOfMonth(today, -12); // NPOO projekt u 13. mjesecu: RP1 (mj. 1–6) isplaćen, RP2 (mj. 7–12) završio prošli mjesec, ZNS još nije predan
-  const heStart = firstOfMonth(today, -10); // HE projekt: u 11. mjesecu provedbe
+  const npooStart = firstOfMonth(todayIso, -12); // NPOO projekt u 13. mjesecu: RP1 (mj. 1–6) isplaćen, RP2 (mj. 7–12) završio prošli mjesec, ZNS još nije predan
+  const heStart = firstOfMonth(todayIso, -10); // HE projekt: u 11. mjesecu provedbe
   const npooPackageId = 'npoo-poziv-zdp-2025';
   const pkgRow = await office.post<Row>('/programme-packages', {
     meta: { id: npooPackageId, extends: 'npoo-2021-2026', programme: 'NPOO – Zeleni i digitalni prijelaz visokih učilišta (pokazni poziv)', funder: 'Ministarstvo znanosti, obrazovanja i mladih', version: '1.0.0', validFrom: addMonths(npooStart, -14), language: 'hr' },
@@ -213,7 +213,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     const month = projectMonth(npooStart, m);
     const mEntries = timesheetEntries(month, m, [360, 420, 300, 480, 240, 360], nWp, 3);
     await timesheet(pm2, office, npoo, josip, month, timesheetEntries(month, m, [120, 180, 90, 240, 120], nWp, 1), m < 12);
-    await timesheet(pm2, pm2, npoo, marina, month, mEntries);
+    // WP1.14b – četiri oka: voditelj unosi i predaje sate člana bez korisničkog računa, ured za projekte ih odobrava.
+    await timesheet(pm2, office, npoo, marina, month, mEntries);
     if (m === 12) marinaLast = mEntries;
   }
   // Ručni troškovi RP1 s dokazima (trošak i dokaz unose financije).
@@ -348,14 +349,14 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     const month = projectMonth(heStart, m);
     await timesheet(pm, office, heId, petra, month, timesheetEntries(month, m, [180, 240, 120, 240, 300], hWp, 2));
     await timesheet(member, pm, heId, luka, month, timesheetEntries(month, m, [360, 420, 480, 300, 420, 360], hWp, 5), m < curMonth - 1);
-    await timesheet(pm, pm, heId, ivana, month, timesheetEntries(month, m, [300, 360, 240, 420], hWp, 7));
+    await timesheet(pm, office, heId, ivana, month, timesheetEntries(month, m, [300, 360, 240, 420], hWp, 7));
   }
   // Marina na BLUESENSE prošli mjesec: dva dana po 2 h; jedan od njih je dan s 8 h na ZELENI-LAB → 10 h kroz dva projekta (provjera dvostrukog financiranja).
   const fullDay = marinaLast.find((e) => e.minutes === 480) ?? marinaLast[0]!;
   const lightDay = marinaLast.find((e) => e.minutes <= 300 && e.day !== fullDay.day) ?? marinaLast.find((e) => e.day !== fullDay.day)!;
-  await timesheet(pm, pm, heId, marinaHe, projectMonth(heStart, curMonth - 1), [fullDay, lightDay].sort((a, b) => a.day - b.day).map((e) => ({ day: e.day, minutes: 120, workPackageId: hWps[3]!.id })));
+  await timesheet(pm, office, heId, marinaHe, projectMonth(heStart, curMonth - 1), [fullDay, lightDay].sort((a, b) => a.day - b.day).map((e) => ({ day: e.day, minutes: 120, workPackageId: hWps[3]!.id })));
   const thisMonth = projectMonth(heStart, curMonth);
-  const draft = timesheetEntries(thisMonth, curMonth, [360, 420, 480, 300], hWp, 5, today.getUTCDate() - 1);
+  const draft = timesheetEntries(thisMonth, curMonth, [360, 420, 480, 300], hWp, 5, Number(todayIso.slice(8, 10)) - 1);
   if (draft.length) await member.put(`/projects/${heId}/team/${luka}/timesheets/${thisMonth}`, { entries: draft });
   // Ručni troškovi koordinatora; jedan namjerno bez dokaza.
   const heExpenses = [
@@ -367,6 +368,9 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   ];
   for (const e of heExpenses) await expense(heId, { ...e, workPackageId: e.categoryCode === 'B' ? hWps[4]!.id : hWps[1]!.id }, { api: pm, file: `${e.evidenceRef.replace(/[^A-Za-z0-9-]/g, '-')}.pdf` });
   await expense(heId, { categoryCode: 'C.1', workPackageId: hWps[3]!.id, date: dayOf(heStart, 9, 25), description: 'Smještaj – terenska mjerenja na pilot-lokaciji', supplier: 'Hotel Lungomare', amount: 54_000 });
+  // WP1.14b – revizija: financije usklađuju godišnji trošak (povišica od idućeg mjeseca; već odobreni troškovi osoblja ostaju).
+  // Na stranici Revizija promjenu plaće s iznosima vide samo uloge s pristupom podacima o osoblju.
+  await finance.patch(`/projects/${heId}/team/${ivana}`, { annualCost: 4_680_000 });
   log('HE: BLUESENSE aktivan, timesheetovi i troškovi uneseni');
 
   // ---------- prijava u pripremi (iz odluke go na radaru) ----------
@@ -382,12 +386,13 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     { title: 'Obnova staništa na pilot-lokacijama', leadMemberId: mem('es'), startMonth: 12, endMonth: 46, personMonths: 30 },
     { title: 'Diseminacija i iskorištavanje', leadMemberId: aSelf, startMonth: 1, endMonth: 48, personMonths: 10 },
   ]) await office.post(`/proposals/${aq.id}/work-packages`, w);
-  await office.put(`/proposals/${aq.id}/budget/lines`, { lines: [
+  // WP1.14b: voditeljica prijave (Petra, bez uloge institucije) sama unosi proračun i pokreće pripremu vlastite prijave.
+  await pm.put(`/proposals/${aq.id}/budget/lines`, { lines: [
     { memberId: aSelf, categoryCode: 'A.1', amount: 52_000_000 }, { memberId: aSelf, categoryCode: 'C.1', amount: 4_000_000 }, { memberId: aSelf, categoryCode: 'C.3', amount: 3_500_000 },
     { memberId: mem('de'), categoryCode: 'A.1', amount: 61_000_000 }, { memberId: mem('de'), categoryCode: 'C.2', amount: 12_000_000 },
   ] });
-  await office.post(`/proposals/${aq.id}/transition`, { to: 'preparation' });
-  await upload(office, 'proposal', aq.id, 'AQUAREST-Part-B-nacrt-v3.pdf', 'Part B – nacrt v3', 'proposal', ['Odjeljci 1 (Izvrsnost) i 2 (Učinak) – nacrt', 'Odjeljak 3 (Provedba) – u izradi']);
+  await pm.post(`/proposals/${aq.id}/transition`, { to: 'preparation' });
+  await upload(pm, 'proposal', aq.id, 'AQUAREST-Part-B-nacrt-v3.pdf', 'Part B – nacrt v3', 'proposal', ['Odjeljci 1 (Izvrsnost) i 2 (Učinak) – nacrt', 'Odjeljak 3 (Provedba) – u izradi']);
   sum.proposals.push('AQUAREST (u pripremi)');
   log('prijava AQUAREST u pripremi');
 

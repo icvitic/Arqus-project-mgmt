@@ -15,6 +15,7 @@ Težina: **L** = samo pisanje/uređivanje dokumenata iz postojećeg znanja; **M*
 | 2026-11-09 | 2 (ručno) | WP0.3 dio 2, v0.2.0 | 4 / 6 | 0 | M | |
 | 2026-11-09 | 3 (ručno) | WP0.4 domenski model, v0.3.0 | 0 / 0 | 0 | L | |
 | 2026-11-09 | 3 (nastavak) | skripta verzija + preglednik, test u pregledniku, v0.3.1 | 0 / 0 | 0 | M | |
+| 2026-11-17 | 13 (podagent) | WP1.14b dorade prije pilota (revizija retka i obavijest o sukobu, stranica Revizija s CSV-om i skrivanjem plaća, četiri oka, voditelj vlastite prijave s razvrstavanjem ruta, valjanost paketa i odstupanja, „danas” po zoni, migracija 0023, demo, e2e, snimke u pregledniku); točka zaustavljanja; v0.25.0 | 0 / 0 | 0 | H | |
 | 2026-11-17 | 12 (podagent) | WP1.16b ZNS paket za predaju (vlastiti ZIP i XLSX pisač s testovima, izvoz s provjerom SHA-256 i strujanjem, evidencije rada za potpis, troškovi iz ranijih razdoblja, mjerenje pripreme i izvještaj uštede, demo, e2e, provjera paketa openpyxl/LibreOffice/Playwright PDF); v0.24.0 | 0 / 0 | 0 | H | |
 | 2026-11-17 | 11 (podagent) | WP1.16a ZNS – ispravnost (domena: popis za provjeru, odluka po trošku, isplata; migracije 0020/0021 s okidačem; API, web, demo priča, e2e, snimke zaslona); v0.23.0 | 0 / 0 | 0 | H | |
 | 2026-11-17 | 10 (podagent) | WP1.15 portfelj (API agregat, domena s testovima, stranica Portfelj, demo signali, scenarij, e2e, snimke zaslona u pregledniku); v0.22.0 | 0 / 0 | 0 | H | |

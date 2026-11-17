@@ -178,9 +178,28 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(pf.summary.successRate).toEqual({ funded: 1, rejected: 1, percent: 50 });
     expect(pf.summary.overdue).toBeGreaterThanOrEqual(2);
     expect(pf.deadlines.some((d: Row) => d.kind === 'claim_due' && !d.overdue)).toBe(true);
-    // Voditeljica BLUESENSE vidi samo svoj projekt, bez ljudi i prijava.
+    // Voditeljica BLUESENSE vidi samo svoj projekt, bez ljudi; od prijava samo vlastitu (WP1.14b: voditeljica je prijave AQUAREST).
     const pmPf = (await http().get('/api/portfolio').set(as('pm')).expect(200)).body;
-    expect(pmPf.projects.map((x: Row) => x.acronym)).toEqual(['BLUESENSE']); expect(pmPf.people).toBeNull(); expect(pmPf.pipeline).toBeNull();
+    expect(pmPf.projects.map((x: Row) => x.acronym)).toEqual(['BLUESENSE']); expect(pmPf.people).toBeNull();
+    expect(pmPf.pipeline.proposals.map((x: Row) => x.acronym)).toEqual(['AQUAREST']);
+
+    // WP1.14b: voditeljica prijave bez uloge institucije otvara i priprema vlastitu prijavu; tuđa prijava je 404.
+    const pmProposals = (await http().get('/api/proposals').set(as('pm')).expect(200)).body as Row[];
+    expect(pmProposals.map((p) => p.acronym)).toEqual(['AQUAREST']);
+    expect((await http().get(`/api/proposals/${pmProposals[0]!.id}`).set(as('pm')).expect(200)).body.budget.totals.total).toBeGreaterThan(0);
+    await http().get(`/api/proposals/${contracted.id}`).set(as('pm')).expect(404);
+    await http().get('/api/proposals').set(as('member')).expect(403);
+    // WP1.14b – četiri oka: nijedan odobren timesheet nije odobrila osoba koja ga je predala.
+    const { rows: [self4] } = await pool.query<{ n: number }>(`select count(*)::int as n from timesheets t join projects p on p.id = t.project_id where p.tenant_id = $1 and t.approved_by is not null and (t.submitted_by is null or t.submitted_by = t.approved_by)`, [firstTenantId]);
+    expect(self4!.n).toBe(0);
+    // WP1.14b – odstupanja od pravila programa: namjerni primjer na NPOO projektu (RRF – završetak nakon 30. 6. 2026.), ostalo bez odstupanja.
+    expect(nDetail.deviations.map((d: { key: string }) => d.key)).toEqual(['rule:npoo-end-date']);
+    expect(heDetail.deviations).toEqual([]);
+    expect(prep.deviations).toEqual([]);
+    // WP1.14b – revizija: povijest odluka i promjena; promjena plaće s iznosom vidljiva administratoru.
+    const audit = (await http().get('/api/audit?entity=team_member&action=update').set(as('admin')).expect(200)).body as { diff: { after: { annualCostCents?: unknown } } }[];
+    expect(audit[0]!.diff.after.annualCostCents).toBe(4_680_000);
+    expect(((await http().get('/api/audit/facets').set(as('office')).expect(200)).body.entities as string[])).toEqual(expect.arrayContaining(['proposal', 'timesheet', 'claim', 'project', 'call_tracking']));
   }, 120_000);
 
   it('drugo pokretanje ne mijenja ništa (idempotentno)', async () => {

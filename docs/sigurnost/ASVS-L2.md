@@ -1,6 +1,6 @@
 # Sigurnosni pregled prema OWASP ASVS 4.0.3, razina 2 (WP1.9)
 
-Stanje v0.14.0, kontrola pristupa (V4, V8) ažurirana u v0.21.0 (WP1.14). Oznake: **da** · **djelomično** · **nedostaje** · **n/p** (ne primjenjuje se). Ovo je samoprocjena tima, ne zamjena za penetracijski test.
+Stanje v0.14.0, kontrola pristupa (V4, V8) ažurirana u v0.21.0 (WP1.14), revizija, razdvajanje dužnosti i istovremenost u v0.25.0 (WP1.14b). Oznake: **da** · **djelomično** · **nedostaje** · **n/p** (ne primjenjuje se). Ovo je samoprocjena tima, ne zamjena za penetracijski test.
 
 | Područje | Zahtjev (sažeto) | Stanje | Dokaz / napomena |
 | --- | --- | --- | --- |
@@ -13,12 +13,13 @@ Stanje v0.14.0, kontrola pristupa (V4, V8) ažurirana u v0.21.0 (WP1.14). Oznake
 | V4.1.1, V4.1.3 Kontrola pristupa | Provjera na poslužitelju, najmanje ovlasti | da | Dozvole se računaju pri svakom zahtjevu iz uloga (ne iz tokena). Uloga se dodjeljuje na razini institucije ili na projektu; uloga na projektu vrijedi samo za taj projekt (WP1.14, `docs/sigurnost/AUTORIZACIJA.md`) |
 | V4.1.5 | Sigurno prema zadanome (deny by default) | da | Svaka ruta mora imati točno jednu oznaku autorizacije (javna / prijava / institucija / projekt / razriješen projekt / bilo koji opseg); ruta bez oznake odbija se za sve. Test `route-coverage.e2e.test.ts` popisuje sve rute i pada na nerazvrstanoj |
 | V4.2.1 IDOR | Zaštita od izravnog pristupa tuđim objektima | da | Projekt bez pristupa = 404 (kao druga institucija); entitet iz putanje traži se zajedno s projektom iz putanje; id-jevi u tijelu provjeravaju se prema istom projektu; dokumenti razrješavaju vlasnika. Test `project-access.e2e.test.ts` (voditelj/član tima samo na A, financije i čitatelj institucije) i automatska provjera svih projektnih ruta s id-jevima projekta B; `loadProject` kao druga linija obrane |
-| V4.1.2 / V4.3 | Zaštita od eskalacije, razdvajanje dužnosti | da | Bez `users:write` dodjeljuje se samo uloga čije dozvole dodjeljivač ima na projektu; nitko ne odobrava vlastiti timesheet; zaštita zadnjeg administratora. Pregled revizije u sučelju – WP1.14b |
+| V4.1.2 / V4.3 | Zaštita od eskalacije, razdvajanje dužnosti | da | Bez `users:write` dodjeljuje se samo uloga čije dozvole dodjeljivač ima na projektu; nitko ne odobrava vlastiti timesheet ni timesheet koji je sam predao (četiri oka, v0.25.0); zaštita zadnjeg administratora; jedinstvenost dodjele uloge u bazi. Voditelj prijave bez uloge institucije radi samo na vlastitoj prijavi (tuđa 404, test pokrivenosti ruta). Pregled revizije u sučelju (stranica Revizija, `audit:read`) |
 | V4 (popisi) | Popisi i zbrojevi ne otkrivaju nedopušteno | da | `/projects` i popisi dokumenata samo s pristupom; povjerljivi dokumenti izostavljeni iz popisa i brojanja dokaza |
 | V4 (baza) | Izolacija projekata i u bazi | djelomično | RLS izolira stanare; izolacija projekata unutar stanara provodi se u aplikaciji – politike po projektu u bazi nisu napravljene |
 | V5 Validacija | Shema za svaki ulaz | da | Zod/ParseUUIDPipe na svim tijelima i parametrima; paketi JSON Schema 2020-12 |
 | V5.3 Injekcije | Parametrizirani upiti | da | Drizzle/pg parametri; jedini dinamički SQL (`ALTER ROLE`) koristi `format(%L)` |
-| V7 Zapisi | Revizija sigurnosnih događaja | da | `audit_entries` (append-only), login.ok/failed s IP-om |
+| V7 Zapisi | Revizija sigurnosnih događaja | da | `audit_entries` (append-only), login.ok/failed s IP-om; pregled s filtrima i CSV izvozom (izvoz se revidira); tajne se uklanjaju pri upisu (V7.1.1) i prikazu; plaće u pregledu samo uz `personnel:read` |
+| V1.11.2 / V11 Poslovna logika | Istovremene izmjene, redoslijed | djelomično | Revizija retka (optimistička istovremenost) na proračunu, prijavi, projektu, timesheetu i odabiru troškova ZNS-a: istovremeno spremanje → 409 s imenom i vremenom, ništa se ne zapisuje. Provjera je obavezna samo kad klijent pošalje reviziju (sučelje uvijek šalje) |
 | V8 Zaštita podataka | Bez osjetljivih podataka u odgovorima | djelomično | lozinke i MFA tajne nikad u odgovoru; godišnji trošak osoblja čita se, upisuje i mijenja samo uz `personnel:read` na projektu (ured, financije, administrator); povjerljivi dokumenti samo uz `documents:confidential` (inače 404, izostavljeni iz popisa). Nedostaje: iznosi troškova osoblja iz odobrenih timesheetova vidljivi su uz `finance:read` (iz njih se može izračunati satnica) |
 | V9 Komunikacija | TLS, HSTS | da | Caddy (TLS 1.2+/1.3, automatski certifikati), HSTS 1 god. |
 | V10 Zlonamjerni kod | Ovisnosti | da | lockfile u gitu; `pnpm audit --prod --audit-level high` ruši CI (v0.14.0: nadograđeni drizzle-orm 0.45 i zod 4 zbog dvije visoke ranjivosti) |
@@ -32,4 +33,4 @@ Stanje v0.14.0, kontrola pristupa (V4, V8) ažurirana u v0.21.0 (WP1.14). Oznake
 2. Obvezni MFA za uloge s pristupom financijama i administraciji (postavka stanara).
 3. Provjera lozinki protiv HIBP popisa (k-anonimnost, bez slanja lozinke).
 4. Vanjski penetracijski test (WP1.14 – pristup po projektu – je gotov; opseg testa: `docs/sigurnost/AUTORIZACIJA.md`).
-5. Skrivanje iznosa troškova osoblja bez `personnel:read`; zaštita od istovremenog prepisivanja proračuna i pregled revizije u sučelju (WP1.14b).
+5. Skrivanje iznosa troškova osoblja bez `personnel:read` na karticama projekta (u reviziji napravljeno u v0.25.0). Zaštita od istovremenog prepisivanja i pregled revizije napravljeni su u v0.25.0 (WP1.14b).

@@ -162,6 +162,13 @@
       "when": 1794925932460,
       "tag": "0022_zns_paket",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794929323925,
+      "tag": "0023_dorade_prije_pilota",
+      "breakpoints": true
     }
   ]
 }

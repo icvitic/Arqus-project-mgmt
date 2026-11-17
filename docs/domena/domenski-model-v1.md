@@ -164,6 +164,8 @@ Paket je JSON dokument validiran JSON Shemom (nacrt sheme: `docs/domena/paketi/s
 | `consortiumRules` | min. broj partnera i država, prihvatljive vrste organizacija |
 | `validations` | deklarativna pravila (npr. „subcontracting ≤ 15 % izravnih troškova zahtijeva obrazloženje”) |
 
+**Valjanost i pravila pri stvaranju (WP1.14b, `packages/domain/src/package-rules.ts`).** Zastario paket i paket koji još ne vrijedi (`validFrom` poslije današnjeg dana institucije) blokiraju novi projekt i prijavu. Razdoblje `validFrom`–`validTo` odnosi se na **početak** projekta (ugovaranje u razdoblju programa) – projekti Obzora Europa ugovoreni 2027. traju do 2031.; ograničenje kraja provedbe izražava se pravilom (`project.endDate > 2026-06-30` u NPOO-u). Projekt koji počinje izvan razdoblja valjanosti, projekt bez početka ili otvorena prijava na isteklom paketu, prijava s internim rokom izvan razdoblja i kršenje provjerljivog pravila `validations` (razine `error` i `warning`) prihvaćaju se, ali nose **odstupanja od pravila programa** – računaju se pri svakom čitanju i vide na pregledu projekta i prijave. Provjerljiv podskup izraza: usporedbe (`> >= < <= == !=`) brojeva, datuma i `null` s `project.startDate`, `project.endDate`, `package.extends`, `sum(KOD)` (kategorija s podkategorijama), `sum(direct)` i umnoškom `broj * operand`; pravilo izvan toga se preskače (nikad lažno odstupanje). Pravilo opisuje kršenje.
+
 Primjeri: `docs/domena/paketi/horizon-europe-2021-2027.v1.json` i `docs/domena/paketi/npoo-2021-2026.v1.json`. NPOO primjer je ilustrativan – stope i kategorije u NPOO-u ovise o pojedinom pozivu, pa se u praksi radi **paket po pozivu** koji nasljeđuje programski paket (`extends`).
 
 ## 5. Dijagram odnosa (pojednostavljen)

@@ -58,7 +58,7 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
     const m = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = m.createNestApplication(); app.setGlobalPrefix('api'); await app.init();
     routes = enumerateRoutes(app);
-    f = await buildAccessFixture(app, `rc-${tag}`);
+    f = await buildAccessFixture(app, `rc-${tag}`, { proposals: true });
   }, 60_000);
   afterAll(async () => { await app.close(); });
 
@@ -76,6 +76,12 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
     // Ruta s :id pod /projects mora biti projektna (ili institucijska) – nikad "samo prijava" ili javna.
     const weak = routes.filter((r) => r.path.startsWith('/api/projects/:id') && !['project'].includes(r.access.kind)).map((r) => `${r.method} ${r.path} (${r.access.kind})`);
     expect(weak).toEqual([]);
+    // WP1.14b: rute prijave s :id su „prijava” (institucija ili voditelj te prijave) ili radnja institucije – nikad slabije.
+    const weakProposal = routes.filter((r) => r.path.startsWith('/api/proposals/:id') && !['proposal', 'tenant'].includes(r.access.kind)).map((r) => `${r.method} ${r.path} (${r.access.kind})`);
+    expect(weakProposal).toEqual([]);
+    // Radnje institucije na prijavi: predaja, ishod, ugovaranje; nova prijava.
+    expect(routes.filter((r) => r.path.startsWith('/api/proposals') && r.access.kind === 'tenant').map((r) => `${r.method} ${r.path}`).sort())
+      .toEqual(['POST /api/proposals', 'POST /api/proposals/:id/contract', 'POST /api/proposals/:id/outcome', 'POST /api/proposals/:id/submit'].sort());
     // Rute s projektnim entitetom izvan /projects (dokumenti) razrješavaju projekt u servisu.
     expect(routes.filter((r) => r.path.startsWith('/api/documents')).every((r) => r.access.kind === 'resolves-project')).toBe(true);
     // Javne rute: samo health i prijava.
@@ -133,6 +139,29 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
       }
     }
     expect(leaks).toEqual([]);
+  });
+
+  it('svaka ruta prijave (WP1.14b): voditelj prijave X i korisnik bez prijava za tuđu prijavu dobivaju 404; voditelj vlastitu vidi', async () => {
+    const proposal = routes.filter((r) => r.access.kind === 'proposal' && (r.access as { param: string | null }).param);
+    expect(proposal.length).toBeGreaterThanOrEqual(11);
+    const leaks: string[] = [];
+    for (const r of proposal) {
+      for (const token of [f.tokens.lead, f.tokens.pm, f.tokens.tm]) {
+        const res = await call(r.method, fill(r.path, { id: f.proposals.other, mid: f.proposals.otherMember, wpId: randomUUID() }), token);
+        if (res.status !== 404) leaks.push(`${r.method} ${r.path} → ${res.status}`);
+      }
+    }
+    expect(leaks).toEqual([]);
+    for (const r of proposal.filter((x) => x.method === 'GET')) {
+      const res = await call('GET', fill(r.path, { id: f.proposals.mine }), f.tokens.lead);
+      expect(res.status).toBe(200);
+    }
+    // Popis: voditelj vidi samo vlastitu prijavu; bez prijava i bez dozvole institucije 403.
+    expect(((await http().get('/api/proposals').set({ Authorization: `Bearer ${f.tokens.lead}` }).expect(200)).body as { id: string }[]).map((p) => p.id)).toEqual([f.proposals.mine]);
+    await http().get('/api/proposals').set({ Authorization: `Bearer ${f.tokens.pm}` }).expect(403);
+    // Dokumenti tuđe prijave: 404 i za voditelja druge prijave.
+    await http().get(`/api/documents?proposalId=${f.proposals.other}`).set({ Authorization: `Bearer ${f.tokens.lead}` }).expect(404);
+    await http().get(`/api/documents?proposalId=${f.proposals.mine}`).set({ Authorization: `Bearer ${f.tokens.lead}` }).expect(200);
   });
 
   it('svaka ruta institucije: uloga samo na projektu ne dostaje (403)', async () => {

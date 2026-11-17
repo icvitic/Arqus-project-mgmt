@@ -1,5 +1,8 @@
 /** `permissions` – dozvole na razini institucije; `projectPermissions` – dozvole po projektu (WP1.14). */
-export interface Me { user: { id: string; email: string; displayName: string; mfaEnabled: boolean }; tenant: { id: string; slug: string; name: string } | null; permissions: string[]; projectPermissions: Record<string, string[]> }
+/** WP1.14b: `leadProposals` – prijave kojima je korisnik voditelj (radi na njima i bez uloge institucije). */
+export interface Me { user: { id: string; email: string; displayName: string; mfaEnabled: boolean }; tenant: { id: string; slug: string; name: string; timeZone?: string } | null; permissions: string[]; projectPermissions: Record<string, string[]>; leadProposals?: string[] }
+/** WP1.14b: odstupanje od pravila programa (valjanost paketa, pravilo `validations`). */
+export interface Deviation { key: string; severity: 'error' | 'warning' | 'info'; message: string }
 export interface PackageSummary { id: string; packageId: string; version: string; programme: string; funder: string | null; status: string; scope: 'global' | 'tenant'; extendsId: string | null; validFrom: string; validTo: string | null; publishedAt: string | null }
 export interface Category { code: string; name: string; kind: string; calculation?: { ratePercent?: number; baseCategories?: string[]; excludeCategories?: string[] }; children?: Category[] }
 export interface ActionType { code: string; name: string; fundingRates: { beneficiaryType: string; ratePercent: number }[] }
@@ -16,7 +19,7 @@ export interface Organisation { id: string; name: string; country: string; type:
 export interface ProjectSummary { id: string; acronym: string; title: string; status: string; role: string; actionType: string; package: { id: string; version: string }; contractNo: string | null; startDate: string | null; durationMonths: number | null; partnerCount: number }
 export interface Partner { id: string; organisationId: string; name: string; country: string; isSelf: boolean; role: string; beneficiaryType: string; orderNo: number }
 export interface Period { number: number; startDate: string; endDate: string; dueDate: string }
-export interface Project extends Omit<ProjectSummary, 'partnerCount'> { partners: Partner[]; reportingPeriods: Period[] }
+export interface Project extends Omit<ProjectSummary, 'partnerCount'> { partners: Partner[]; reportingPeriods: Period[]; revision: number; deviations: Deviation[] }
 export interface Task { id: string; code: string; title: string; startMonth: number; endMonth: number; status: string }
 export interface Deliverable { id: string; code: string; title: string; type: string; dissemination: string; dueMonth: number; dueDate: string | null; status: string }
 export interface WorkPackage { id: string; code: string; number: number; title: string; startMonth: number; endMonth: number; leadPartnerId: string | null; tasks: Task[]; deliverables: Deliverable[] }
@@ -26,12 +29,12 @@ export interface Structure {
 }
 export interface PartnerBudget { partnerId: string; name?: string; directTotal: number; indirectTotal: number; total: number; ratePercent: number; requested: number }
 export interface Budget {
-  version: number | null; status: string; categories: Category[]; lines: { partnerId: string; categoryCode: string; workPackageId: string | null; amount: number }[];
+  version: number | null; status: string; revision: number; categories: Category[]; lines: { partnerId: string; categoryCode: string; workPackageId: string | null; amount: number }[];
   partners: PartnerBudget[]; totals: { direct: number; indirect: number; total: number; requested: number }; warnings: string[];
 }
 /** `annualCost` je null bez dozvole personnel:read; `costSet` kaže je li trošak upisan. */
 export interface TeamMember { id: string; fullName: string; userId: string | null; partnerId: string; role: string | null; annualCost: number | null; costSet: boolean; active: boolean }
-export interface Timesheet { status: string; entries: { day: number; minutes: number; workPackageId: string | null }[]; totalMinutes: number; warnings: string[] }
+export interface Timesheet { status: string; revision: number; submittedBy: string | null; entries: { day: number; minutes: number; workPackageId: string | null }[]; totalMinutes: number; warnings: string[] }
 /** Trošak; `person`/`month`/`workPackage` za troškove osoblja (grupiranje po osobi i mjesecu). `recognised` – priznati iznos nakon odluke o ZNS-u. */
 export interface Expense {
   id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number; recognised: number | null; decisionReason: string | null;
@@ -50,7 +53,7 @@ export interface EarlierCandidate { id: string; date: string; categoryCode: stri
 /** WP1.16b: automatske mjere pripreme predanog zahtjeva. */
 export interface PreparationMeasures { daysAfterPeriodEnd: number; daysInPreparation: number; returns: number; expenses: number; evidenceFiles: number; timesheets: number; earlierExpenses: number }
 export interface Claim {
-  id: string; period: Period; status: string; expenses: ClaimExpense[]; missingEvidence: number;
+  id: string; period: Period; status: string; revision: number; expenses: ClaimExpense[]; missingEvidence: number;
   totals: Money & { ratePercent: number }; recognised: Money | null; unrecognised: Money | null;
   checklist: { items: ChecklistItem[]; canSubmit: boolean; early: boolean } | null;
   earlyReason: string | null; submission: { early: boolean; earlyReason: string | null; acknowledgedWithoutEvidence: { id: string; date: string; description: string; amount: number }[]; warnings: { key: string; title: string; details: string[] }[] } | null;
@@ -99,10 +102,12 @@ export interface Proposal {
   readiness: { key: string; label: string; ok: boolean; detail?: string }[]; ready: boolean;
   submission: { portal: string; reference: string; at: string; requested: number; total: number; budgetVersion: number } | null;
   outcome: { result: string; score?: string; note?: string; at: string } | null; projectId: string | null;
+  revision: number; deviations: Deviation[];
 }
 
 export interface DocVersion { version: number; fileName: string; mimeType: string; size: number; sha256: string; note?: string | null; createdAt: string; createdBy?: string | null }
-export interface DocumentSummary { id: string; title: string; kind: string; confidentiality: string; aiGenerated: boolean; entityType: string; entityId: string; projectId: string | null; proposalId: string | null; currentVersion: number; updatedAt: string; current: DocVersion }
+/** `frozen` – razlog zbog kojeg se dokument više ne mijenja (WP1.14b: sučelje tada ne nudi uklanjanje ni novu verziju). */
+export interface DocumentSummary { id: string; title: string; kind: string; confidentiality: string; aiGenerated: boolean; entityType: string; entityId: string; projectId: string | null; proposalId: string | null; currentVersion: number; updatedAt: string; frozen: string | null; current: DocVersion }
 export interface DocumentDetail extends Omit<DocumentSummary, 'current'> { versions: DocVersion[] }
 
 /* ---------- Portfelj (WP1.15) ---------- */
@@ -141,3 +146,13 @@ export interface Portfolio {
   people: { months: string[]; year: string; dailyLimitHours: number; persons: PortfolioPerson[] } | null;
   pipeline: { open: number; requested: number; requestedOwn: number; byStatus: PortfolioStatusRow[]; proposals: PortfolioProposal[] } | null;
 }
+
+/* ---------- Revizija (WP1.14b) ---------- */
+export interface AuditEntry {
+  id: number; at: string; actorType: 'user' | 'system' | 'ai'; actorId: string | null; actor: { id: string; displayName: string | null } | null;
+  entity: string; entityId: string | null; action: string; ip: string | null;
+  diff: { before?: unknown; after?: unknown; meta?: Record<string, unknown> } | null;
+  /** Dio vrijednosti skriven (plaće bez dozvole personnel:read). */
+  redacted: boolean;
+}
+export interface AuditFacets { entities: string[]; actions: string[]; actors: { id: string; displayName: string }[] }

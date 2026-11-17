@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { auditEntries } from '../db/schema';
 import type { Tx } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
+import { scrubSecrets } from './audit-redaction';
 
 export interface AuditInput {
   tenantId?: string; entity: string; entityId?: string | null; action: string;
@@ -19,7 +20,9 @@ export class AuditService {
     const tenantId = input.tenantId ?? c?.tenantId;
     if (!tenantId) throw new Error('Revizijski zapis bez stanara');
     await tx.insert(auditEntries).values({
-      tenantId, entity: input.entity, entityId: input.entityId ?? null, action: input.action, diff: input.diff ?? null,
+      tenantId, entity: input.entity, entityId: input.entityId ?? null, action: input.action,
+      // WP1.14b: tajne (lozinke, hashevi, MFA tajne, tokeni) nikad ne ulaze u revizijski zapis, ni greškom pozivatelja.
+      diff: input.diff ? scrubSecrets(input.diff) : null,
       actorType: input.actorType ?? (c?.userId ? 'user' : 'system'), actorId: input.actorId ?? c?.userId ?? null,
       ip: c?.ip ?? null, sessionId: c?.sessionId ?? null,
     });

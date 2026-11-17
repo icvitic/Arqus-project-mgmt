@@ -10,6 +10,7 @@ import { seedDemo } from '../src/db/seed';
  *  - fin     – financije na razini institucije
  *  - rdr     – čitatelj (uprava) na razini institucije
  *  - extra   – bez ikakve uloge (za dodjele kroz upravljanje pristupom)
+ *  - lead    – bez ikakve uloge, voditelj prijave `proposals.mine` (WP1.14b); `proposals.other` vodi netko drugi
  */
 export const PDF = Buffer.from('%PDF-1.7\n1 0 obj << >> endobj\n%%EOF\n');
 const ADMIN_URL = process.env.TEST_DATABASE_MIGRATE_URL ?? 'postgres://arqus@127.0.0.1:5433/arqus_test';
@@ -18,21 +19,22 @@ const PW = 'Plava-Staza-2027-x';
 export interface ProjectIds { id: string; self: string; wp: string; task: string; deliverable: string; milestone: string; risk: string; member: string; expense: string; claim: string; doc: string; confidentialDoc: string; evidence: string }
 export interface AccessFixture {
   slug: string;
-  tokens: { admin: string; pm: string; tm: string; fin: string; rdr: string; extra: string };
-  users: { pm: string; tm: string; fin: string; rdr: string; extra: string };
+  tokens: { admin: string; pm: string; tm: string; fin: string; rdr: string; extra: string; lead: string };
+  users: { pm: string; tm: string; fin: string; rdr: string; extra: string; lead: string };
+  proposals: { mine: string; other: string; otherMember: string };
   A: ProjectIds & { pmMember: string };
   B: ProjectIds;
   month: string;
 }
 
-export async function buildAccessFixture(app: INestApplication, slug: string): Promise<AccessFixture> {
+export async function buildAccessFixture(app: INestApplication, slug: string, opts: { proposals?: boolean } = {}): Promise<AccessFixture> {
   const http = () => request(app.getHttpServer());
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
   const login = async (email: string, pw = PW) => (await http().post('/api/auth/login').send({ tenantSlug: slug, email, password: pw }).expect(201)).body.accessToken as string;
   await seedDemo({ url: ADMIN_URL, tenantSlug: slug, adminEmail: `a@${slug}.hr`, adminPassword: 'Lozinka-123456' });
   const admin = await login(`a@${slug}.hr`, 'Lozinka-123456');
   const mk = async (local: string, roleCodes: string[]) => (await http().post('/api/users').set(auth(admin)).send({ email: `${local}@${slug}.hr`, displayName: `Korisnik ${local}`, password: PW, roleCodes }).expect(201)).body.id as string;
-  const users = { pm: await mk('pm', []), tm: await mk('tm', []), fin: await mk('fin', ['finance']), rdr: await mk('rdr', ['reader']), extra: await mk('extra', []) };
+  const users = { pm: await mk('pm', []), tm: await mk('tm', []), fin: await mk('fin', ['finance']), rdr: await mk('rdr', ['reader']), extra: await mk('extra', []), lead: await mk('lead', []) };
   const month = '2027-02';
 
   const project = async (acronym: string, managerUserId?: string) => {
@@ -70,11 +72,20 @@ export async function buildAccessFixture(app: INestApplication, slug: string): P
   await http().put(`/api/projects/${B.id}/team/${B.member}/timesheets/${month}`).set(auth(admin)).send({ entries: [{ day: 1, minutes: 480, workPackageId: B.wp }] }).expect(200);
   await http().post(`/api/projects/${B.id}/team/${B.member}/timesheets/${month}/submit`).set(auth(admin)).expect(201);
 
-  const tokens = { admin, pm: await login(`pm@${slug}.hr`), tm: await login(`tm@${slug}.hr`), fin: await login(`fin@${slug}.hr`), rdr: await login(`rdr@${slug}.hr`), extra: await login(`extra@${slug}.hr`) };
+  const tokens = { admin, pm: await login(`pm@${slug}.hr`), tm: await login(`tm@${slug}.hr`), fin: await login(`fin@${slug}.hr`), rdr: await login(`rdr@${slug}.hr`), extra: await login(`extra@${slug}.hr`), lead: await login(`lead@${slug}.hr`) };
+  // WP1.14b (samo uz `opts.proposals`, da ne mijenja brojke drugih testova): prijave – vlastita (voditelj `lead`) i tuđa, s dokumentom.
+  const proposal = async (acronym: string, leadUserId?: string) => (await http().post('/api/proposals').set(auth(admin)).send({ packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', acronym, title: `Prijava ${acronym}`, ...(leadUserId ? { leadUserId } : {}) }).expect(201)).body as { id: string; members: { id: string }[] };
+  let proposals = { mine: '', other: '', otherMember: '' };
+  if (opts.proposals) {
+    const mine = await proposal(`PM${slug.slice(-4)}`, users.lead);
+    const other = await proposal(`PO${slug.slice(-4)}`);
+    await http().post('/api/documents').set(auth(admin)).field({ entityType: 'proposal', entityId: other.id, title: 'Tuđa prijava' }).attach('file', PDF, 'prijava.pdf').expect(201);
+    proposals = { mine: mine.id, other: other.id, otherMember: other.members[0]!.id };
+  }
   // Član tima A unosi i predaje vlastiti timesheet; voditelj također (vlastiti, ne smije ga sam odobriti).
   await http().put(`/api/projects/${A.id}/team/${tmMember}/timesheets/${month}`).set(auth(tokens.tm)).send({ entries: [{ day: 1, minutes: 480, workPackageId: A.wp }] }).expect(200);
   await http().post(`/api/projects/${A.id}/team/${tmMember}/timesheets/${month}/submit`).set(auth(tokens.tm)).expect(201);
   await http().put(`/api/projects/${A.id}/team/${pmMember}/timesheets/${month}`).set(auth(tokens.pm)).send({ entries: [{ day: 2, minutes: 240, workPackageId: A.wp }] }).expect(200);
   await http().post(`/api/projects/${A.id}/team/${pmMember}/timesheets/${month}/submit`).set(auth(tokens.pm)).expect(201);
-  return { slug, tokens, users, A: { ...A, member: tmMember }, B, month };
+  return { slug, tokens, users, A: { ...A, member: tmMember }, B, month, proposals };
 }

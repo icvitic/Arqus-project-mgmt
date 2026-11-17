@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { passwordIssues } from '@arqus/domain';
+import { passwordIssues, timeZoneOr } from '@arqus/domain';
 import { DbService, type Tx } from '../db/db.service';
-import { projects, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
+import { projects, proposals, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
 import { hashPassword, verifyPassword } from './password';
 import { TokenService } from './token.service';
 import { AuditService } from '../audit/audit.service';
@@ -21,8 +21,8 @@ export interface LoginInput { tenantSlug: string; email: string; password: strin
 export interface CreateUserInput { email: string; displayName: string; password?: string; roleCodes?: string[] }
 export interface UpdateUserInput { displayName?: string; status?: 'active' | 'disabled'; roleCodes?: string[] }
 interface ClientInfo { ip?: string; userAgent?: string }
-/** Dozvole korisnika (WP1.14): na razini institucije i po projektu (id projekta → dozvole). */
-export interface UserAccess { tenant: string[]; projects: Record<string, string[]> }
+/** Dozvole korisnika (WP1.14): na razini institucije i po projektu (id projekta → dozvole); WP1.14b: prijave kojima je voditelj. */
+export interface UserAccess { tenant: string[]; projects: Record<string, string[]>; leadProposals: string[] }
 
 const publicUser = (u: User) => ({ id: u.id, tenantId: u.tenantId, email: u.email, displayName: u.displayName, status: u.status, mfaEnabled: u.mfaEnabled, lastLoginAt: u.lastLoginAt, createdAt: u.createdAt });
 
@@ -47,7 +47,9 @@ export class IdentityService {
       const target = r.projectId ? (byProject.get(r.projectId) ?? byProject.set(r.projectId, new Set()).get(r.projectId)!) : tenant;
       for (const p of r.permissions) target.add(p);
     }
-    return { tenant: [...tenant], projects: Object.fromEntries([...byProject].map(([id, set]) => [id, [...set]])) };
+    // WP1.14b: voditelj prijave radi na vlastitoj prijavi i bez uloge institucije (zaključene prijave se i dalje čitaju).
+    const leads = await tx.select({ id: proposals.id }).from(proposals).where(and(eq(proposals.tenantId, tenantId), eq(proposals.leadUserId, userId), isNull(proposals.deletedAt)));
+    return { tenant: [...tenant], projects: Object.fromEntries([...byProject].map(([id, set]) => [id, [...set]])), leadProposals: leads.map((l) => l.id) };
   }
 
   /** Dozvole na razini institucije. */
@@ -98,15 +100,17 @@ export class IdentityService {
     this.throttle.succeeded(input.tenantSlug, input.email);
     // `perms` u tokenu je samo informativan; ovlaštenje se uvijek računa svježe iz uloga (AuthGuard).
     const accessToken = await this.tokens.sign({ sub: outcome.user.id, tid: tenant.id, perms: outcome.access.tenant, sid: outcome.sid });
-    return { accessToken, user: publicUser(outcome.user), permissions: outcome.access.tenant, projectPermissions: outcome.access.projects };
+    return { accessToken, user: publicUser(outcome.user), permissions: outcome.access.tenant, projectPermissions: outcome.access.projects, leadProposals: outcome.access.leadProposals };
   }
 
   /** Aktivna sesija + aktivan korisnik → svježe dozvole (promjena i opoziv uloga vrijede odmah). Null = sesija ne vrijedi. */
-  async sessionAccess(tenantId: string, userId: string, sid: string): Promise<UserAccess | null> {
+  async sessionAccess(tenantId: string, userId: string, sid: string): Promise<(UserAccess & { timeZone: string }) | null> {
     return this.db.withTenant(tenantId, async (tx) => {
       const r = await tx.select({ id: sessions.id }).from(sessions).innerJoin(users, eq(users.id, sessions.userId))
         .where(and(eq(sessions.id, sid), eq(sessions.userId, userId), isNull(sessions.revokedAt), sql`${sessions.expiresAt} > now()`, eq(users.status, 'active'), isNull(users.deletedAt)));
-      return r.length ? this.accessOf(tx, tenantId, userId) : null;
+      if (!r.length) return null;
+      const t = (await tx.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, tenantId)))[0];
+      return { ...(await this.accessOf(tx, tenantId, userId)), timeZone: timeZoneOr(t?.settings?.timeZone) };
     });
   }
 
@@ -125,7 +129,7 @@ export class IdentityService {
     if (!user) throw new NotFoundException();
     const tenant = (await tx.select().from(tenants).where(eq(tenants.id, tenantId)))[0];
     const access = await this.accessOf(tx, tenantId, userId);
-    return { user: publicUser(user), tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name, plan: tenant.plan } : null, permissions: access.tenant, projectPermissions: access.projects };
+    return { user: publicUser(user), tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name, plan: tenant.plan, timeZone: timeZoneOr(tenant.settings?.timeZone) } : null, permissions: access.tenant, projectPermissions: access.projects, leadProposals: access.leadProposals };
   }
 
   private async userRow(tx: Tx, id: string): Promise<User> {
@@ -257,7 +261,8 @@ export class IdentityService {
     return { ok: true };
   }
 
-  async assignRoles(tx: Tx, tenantId: string, userId: string, codes: string[], actorId?: string): Promise<void> {
+  async assignRoles(tx: Tx, tenantId: string, userId: string, requested: string[], actorId?: string): Promise<void> {
+    const codes = [...new Set(requested)]; // ista uloga dvaput u zahtjevu = jedna dodjela (WP1.14b: jedinstvenost i u bazi)
     const found = await tx.select({ id: roles.id, code: roles.code }).from(roles)
       .where(and(inArray(roles.code, codes), or(isNull(roles.tenantId), eq(roles.tenantId, tenantId))));
     const missing = codes.filter((c) => !found.some((f) => f.code === c));

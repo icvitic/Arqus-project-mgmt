@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, ilike, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { callStatus, daysUntil, fitScore, nextDeadline, type CallDeadline } from '@arqus/domain';
+import { callStatus, daysBetween, daysUntil, fitScore, nextDeadline, todayIn, type CallDeadline } from '@arqus/domain';
+import { tenantTimeZone } from '../common/tenant-context';
 import type { Tx } from '../db/db.service';
 import { auditEntries, callTracking, calls, users, type CallRow } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
@@ -22,11 +23,12 @@ export type CallInput = z.infer<typeof callInput>;
 type Tracking = typeof callTracking.$inferSelect;
 const view = (c: CallRow, t?: Tracking | null, now = new Date()) => {
   const deadlines = c.deadlines as CallDeadline[];
+  const tz = tenantTimeZone(); // WP1.14b: status i „još N dana” po kalendarskom danu institucije
   const next = nextDeadline(deadlines, now);
   return {
     id: c.id, scope: c.tenantId ? 'tenant' as const : 'global' as const, code: c.code, title: c.title, summary: c.summary, programme: c.programme, funder: c.funder,
     packageId: c.packageId, actionTypes: c.actionTypes, budget: c.budgetCents, expectedGrants: c.expectedGrants, opensAt: c.opensAt, deadlines, url: c.url, tags: c.tags, source: c.source, syncedAt: c.syncedAt,
-    status: callStatus({ opensAt: c.opensAt, deadlines, cancelled: c.cancelled }, now), nextDeadline: next, daysToNextDeadline: next ? daysUntil(next.at, now) : null,
+    status: callStatus({ opensAt: c.opensAt, deadlines, cancelled: c.cancelled }, now, tz), nextDeadline: next, daysToNextDeadline: next ? daysUntil(next.at, now, tz) : null,
     tracking: t ? {
       fitScores: t.fitScores, fitTotal: t.fitTotal, fitComment: t.fitComment, assessedAt: t.assessedAt, decision: t.decision, rationale: t.rationale,
       decidedAt: t.decidedAt, internalDeadline: t.internalDeadline, ownerUserId: t.ownerUserId,
@@ -120,7 +122,7 @@ export class CallsService {
 
   async decide(tx: Tx, tenantId: string, id: string, input: z.infer<typeof decisionInput>, actorId?: string) {
     const { c } = await this.row(tx, id);
-    const status = callStatus({ opensAt: c.opensAt, deadlines: c.deadlines as CallDeadline[], cancelled: c.cancelled });
+    const status = callStatus({ opensAt: c.opensAt, deadlines: c.deadlines as CallDeadline[], cancelled: c.cancelled }, new Date(), tenantTimeZone());
     if (input.decision === 'go' && (status === 'closed' || status === 'cancelled')) throw new ConflictException(`Poziv je ${status === 'closed' ? 'zatvoren' : 'otkazan'} – odluka go nije moguća`);
     if (input.decision !== 'watch' && !input.rationale?.trim()) throw new BadRequestException('Odluka go ili no-go traži obrazloženje');
     if (input.ownerUserId && !(await tx.select({ id: users.id }).from(users).where(eq(users.id, input.ownerUserId))).length) throw new NotFoundException('Odgovorna osoba ne postoji');
@@ -137,17 +139,19 @@ export class CallsService {
   /** Nadolazeći rokovi praćenih poziva (odluka go ili pratiti) i interni rokovi, sljedećih `days` dana. */
   async deadlines(tx: Tx, days = 60, now = new Date()) {
     const until = now.getTime() + days * 86_400_000;
+    const tz = tenantTimeZone(); const today = todayIn(tz, now);
     const list = await this.list(tx, { tracked: true });
     const items: { callId: string; code: string; title: string; kind: string; label: string; at: string; days: number; decision: string | null }[] = [];
     for (const c of list) {
       for (const d of c.deadlines) {
         const t = Date.parse(d.at);
-        if (t > now.getTime() && t <= until) items.push({ callId: c.id, code: c.code, title: c.title, kind: d.kind, label: d.label ?? d.kind, at: d.at, days: daysUntil(d.at, now), decision: c.tracking?.decision ?? null });
+        if (t > now.getTime() && t <= until) items.push({ callId: c.id, code: c.code, title: c.title, kind: d.kind, label: d.label ?? d.kind, at: d.at, days: daysUntil(d.at, now, tz), decision: c.tracking?.decision ?? null });
       }
       const internal = c.tracking?.internalDeadline;
       if (internal) {
-        const at = `${internal}T23:59:59Z`; const t = Date.parse(at);
-        if (t > now.getTime() && t <= until) items.push({ callId: c.id, code: c.code, title: c.title, kind: 'internal', label: 'interni rok', at, days: daysUntil(at, now), decision: c.tracking?.decision ?? null });
+        // Interni rok je kalendarski dan institucije: vrijedi do kraja tog dana po lokalnom vremenu (ne po UTC-u).
+        const left = daysBetween(today, internal);
+        if (left >= 0 && left <= days) items.push({ callId: c.id, code: c.code, title: c.title, kind: 'internal', label: 'interni rok', at: `${internal}T23:59:59Z`, days: left, decision: c.tracking?.decision ?? null });
       }
     }
     return items.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));

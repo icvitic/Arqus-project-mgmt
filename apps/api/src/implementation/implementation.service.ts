@@ -58,13 +58,12 @@ export class ImplementationService {
   async structure(tx: Tx, projectId: string) {
     const p = await loadProject(tx, projectId);
     const due = (m: number) => (p.startDate ? monthEndDate(p.startDate, m) : null);
-    const [wps, ts, ds, ms, rs] = await Promise.all([
-      tx.select().from(workPackages).where(and(eq(workPackages.projectId, projectId), isNull(workPackages.deletedAt))).orderBy(asc(workPackages.number)),
-      tx.select().from(tasks).where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt))).orderBy(asc(tasks.number)),
-      tx.select().from(deliverables).where(and(eq(deliverables.projectId, projectId), isNull(deliverables.deletedAt))).orderBy(asc(deliverables.number)),
-      tx.select().from(milestones).where(and(eq(milestones.projectId, projectId), isNull(milestones.deletedAt))).orderBy(asc(milestones.number)),
-      tx.select().from(risks).where(and(eq(risks.projectId, projectId), isNull(risks.deletedAt))).orderBy(asc(risks.number)),
-    ]);
+    // Upiti jedan za drugim: jedna transakcija = jedan klijent baze, istovremeni upiti na njemu prestaju raditi u pg 9 (WP1.14b).
+    const wps = await tx.select().from(workPackages).where(and(eq(workPackages.projectId, projectId), isNull(workPackages.deletedAt))).orderBy(asc(workPackages.number));
+    const ts = await tx.select().from(tasks).where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt))).orderBy(asc(tasks.number));
+    const ds = await tx.select().from(deliverables).where(and(eq(deliverables.projectId, projectId), isNull(deliverables.deletedAt))).orderBy(asc(deliverables.number));
+    const ms = await tx.select().from(milestones).where(and(eq(milestones.projectId, projectId), isNull(milestones.deletedAt))).orderBy(asc(milestones.number));
+    const rs = await tx.select().from(risks).where(and(eq(risks.projectId, projectId), isNull(risks.deletedAt))).orderBy(asc(risks.number));
     return {
       projectId, startDate: p.startDate, durationMonths: p.durationMonths,
       workPackages: wps.map((w) => ({

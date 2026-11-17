@@ -7,6 +7,7 @@ import { budgetLines, organisations, projectBudgets, projectPartners, workPackag
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { loadProject } from '../common/project-access';
+import { assertRevision, bump, revisionField } from '../common/revision';
 
 export const budgetLinesInput = z.object({
   lines: z.array(z.object({
@@ -16,6 +17,8 @@ export const budgetLinesInput = z.object({
     amount: z.number().int().min(0).max(100_000_000_000), // centi, do 1 mlrd. EUR
     description: z.string().max(500).optional(),
   })).max(2000),
+  /** WP1.14b: revizija proračuna koju je klijent učitao (0 = proračun još ne postoji); razlika → 409, ništa se ne zapisuje. */
+  revision: revisionField,
 });
 export type BudgetLinesInput = z.infer<typeof budgetLinesInput>;
 
@@ -44,6 +47,7 @@ export class BudgetService {
     return {
       projectId, currency: 'EUR', unit: 'cent',
       version: budget?.version ?? null, status: budget?.status ?? 'none', lockedAt: budget?.lockedAt ?? null,
+      revision: budget?.revision ?? 0, updatedAt: budget?.updatedAt ?? null,
       categories: pkg.costCategories.map((c) => ({ code: c.code, name: c.name, kind: c.kind, children: c.children?.map((k) => ({ code: k.code, name: k.name, kind: k.kind })) })),
       lines: lines.map((l) => ({ id: l.id, partnerId: l.partnerId, categoryCode: l.categoryCode, workPackageId: l.workPackageId, amount: l.amountCents, description: l.description })),
       partners: computed.partners.map((r) => ({ ...r, role: partners.find((x) => x.id === r.partnerId)?.role })),
@@ -54,8 +58,10 @@ export class BudgetService {
   /** Zamjena svih redaka nacrta proračuna (tablični unos). Zaključan proračun mijenja se samo amandmanom. */
   async replaceLines(tx: Tx, tenantId: string, projectId: string, input: BudgetLinesInput, actorId?: string) {
     const p = await loadProject(tx, projectId, { editable: true });
-    const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
     let budget = await this.current(tx, projectId);
+    // Prva radnja: provjera revizije uz zaključavanje retka – istovremeno spremanje drugog korisnika ne prepisuje se tiho.
+    await assertRevision(tx, projectBudgets, budget?.id ?? null, input.revision, 'Proračun');
+    const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
     if (budget?.status === 'locked') throw new ConflictException(`Proračun v${budget.version} je zaključan – izmjene samo amandmanom`);
     const partners = await this.partners(tx, projectId);
     const issues = budgetLineIssues(pkg, input.lines.map((l) => ({ ...l })), new Set(partners.map((x) => x.id)));
@@ -74,7 +80,7 @@ export class BudgetService {
         amountCents: l.amount, description: l.description ?? null, createdBy: actorId,
       })));
     }
-    await tx.update(projectBudgets).set({ updatedAt: new Date(), updatedBy: actorId }).where(and(eq(projectBudgets.id, budget!.id)));
+    await tx.update(projectBudgets).set({ revision: bump(projectBudgets), updatedAt: new Date(), updatedBy: actorId }).where(and(eq(projectBudgets.id, budget!.id)));
     const after = await this.get(tx, projectId);
     await this.audit.record(tx, { entity: 'project_budget', entityId: budget!.id, action: 'lines.replace', diff: { before: before.totals, after: after.totals, meta: { projectId, version: budget!.version, lines: input.lines.length } } });
     return after;

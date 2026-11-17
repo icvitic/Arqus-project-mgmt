@@ -103,12 +103,14 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 - **Ugovoreno / ostvareno**: potrošnja po kategoriji i partneru prema proračunu; ostvareno nakon odluke = priznato, a nepriznato (2.165 EUR) zasebno.
   *„Ovo je odgovor na pitanje uprave ‘koliko smo potrošili i koliko još možemo’.”*
 - **Dokumenti**: ugovor (povjerljivo), dokazi, odluka o ZNS-u – svaka verzija s SHA-256 i tragom tko je što učitao i preuzeo.
+- **Revizija** (izbornik, ured i administrator): filtar *Vrsta zapisa* = praćenje poziva → odluka go za NPOO poziv, tko ju je donio i s kojim obrazloženjem; zatim *ZNS* → odluka o ZNS-u 1 s umanjenim i odbijenim troškom (**Prikaži prije / poslije**). Izvoz u CSV za revizora jednim klikom.
+  *„Kad revizor ili dekan pita ‘tko je to odlučio i kada’, odgovor je ovdje – i ne može se naknadno mijenjati.”*
 
 ## 9. Tko vidi koji projekt (1 min) – pristup po projektu
 
 **Klik:** u privatnoj kartici odjava → prijava `voditelj@demo.local` (Petra Horvat, voditeljica BLUESENSE-a).
 
-- **Projekti** i **Portfelj** pokazuju samo **BLUESENSE** (u portfelju bez opterećenja ljudi i prijava – to bi otkrilo tuđe projekte); nema radara, prijava ni gumba „Novi projekt”. U kartici **Tim i timesheetovi** plaće su *skrivene*; Lukin predani timesheet može odobriti, vlastiti ne (umjesto gumba „Odobri” piše da ga odobrava druga osoba).
+- **Projekti** i **Portfelj** pokazuju samo **BLUESENSE** (u portfelju bez opterećenja ljudi – to bi otkrilo tuđe projekte); nema radara ni gumba „Novi projekt”. U **Prijavama** samo **AQUAREST**, kojoj je voditeljica: sama uređuje proračun i dokumente, predaju evidentira ured. U kartici **Tim i timesheetovi** plaće su *skrivene*; Lukin predani timesheet može odobriti, vlastiti ne (umjesto gumba „Odobri” piše da ga odobrava druga osoba).
 - Kartica **Pristup**: tko vidi projekt i kroz koju ulogu – na ovom projektu (Petra, Luka) ili kroz ulogu institucije (ured, financije, uprava); Petra može dodati člana tima na svoj projekt, ali ne i ulogu s pravom na plaće.
   *„Voditelj projekta vidi svoj projekt, ne i projekte kolega – ni na popisu ni ako netko pošalje poveznicu. Plaće i povjerljive ugovore vide samo ured i financije.”*
 

@@ -42,7 +42,7 @@ function RadarList({ me }: { me: Me }) {
         <ErrorBox error={upcoming.error} />
         {!upcoming.data ? <Loading /> : upcoming.data.length === 0 ? <p className="muted">Nema rokova za pozive s odlukom go ili „pratimo”.</p> : (
           <table><tbody>{upcoming.data.map((d) => (
-            <tr key={`${d.callId}-${d.kind}-${d.at}`} className="row" onClick={() => go(`radar/${d.callId}`)}><td style={{ whiteSpace: 'nowrap' }}>{dateTime(d.at)}</td><td>{daysChip(d.days)}</td><td>{KIND[d.kind] ?? d.label}</td><td><b>{d.code}</b> {d.title}</td><td>{d.decision && <Chip s={d.decision} tone={d.decision === 'go' ? 'acc' : ''} />}</td></tr>
+            <tr key={`${d.callId}-${d.kind}-${d.at}`} className="row" onClick={() => go(`radar/${d.callId}`)}><td style={{ whiteSpace: 'nowrap' }}>{d.kind === 'internal' ? date(d.at) : dateTime(d.at)}</td><td>{daysChip(d.days)}</td><td>{KIND[d.kind] ?? d.label}</td><td><b>{d.code}</b> {d.title}</td><td>{d.decision && <Chip s={d.decision} tone={d.decision === 'go' ? 'acc' : ''} />}</td></tr>
           ))}</tbody></table>
         )}
       </div>
@@ -208,7 +208,7 @@ function OpenProposal({ me, call }: { me: Me; call: CallDetail }) {
   const actions = call.actionTypes.length ? call.actionTypes : pkg.data?.actionTypes.map((a) => a.code) ?? [];
   const existing = list.data?.filter((p) => p.callId === call.id && !['withdrawn', 'rejected'].includes(p.status)) ?? [];
   if (!list.data) return null;
-  if (existing[0]) return <p>Prijava: <a href={`#/prijave/${existing[0].id}`}><b>{existing[0].acronym}</b></a> <Chip s={existing[0].status} /></p>;
+  if (existing[0]) return <p>Prijava: <a href={`#/prijave/${existing[0].id}`}><b>{existing[0].acronym}</b></a> <Chip f s={existing[0].status} /></p>;
   if (!can(me, 'proposals:write')) return null;
   if (!call.packageId) return <p className="muted">Za otvaranje prijave iz poziva pozivu dodijeli paket programa.</p>;
   return (

@@ -3,13 +3,15 @@ import { api, apiText, downloadFile } from '../lib/api';
 import { eur, minutesToHours, parseEur, parseHours } from '../lib/format';
 import { useLoad } from '../lib/hooks';
 import type { ProjectAccess, Structure, TeamMember, Timesheet, UserRow } from '../lib/types';
-import { ActionButton, ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
+import { ActionButton, ActionForm, Chip, ConflictNotice, ErrorBox, Field, Loading, conflictOf, editedKeys, isConflict, type Conflict } from '../ui';
 import { can, type TabProps } from '../pages/ProjectDetail';
 import { can as canTenant, canManageAccess } from '../lib/access';
+import { localToday } from '../lib/claims';
 
 type Person = { id: string; displayName: string; email: string };
 
-const thisMonth = () => new Date().toISOString().slice(0, 7);
+/** Tekući mjesec po lokalnom kalendaru (ne UTC – oko ponoći prvog u mjesecu inače prethodni mjesec), WP1.14b. */
+const thisMonth = () => localToday().slice(0, 7);
 const dim = (m: string) => { const [y, mo] = m.split('-').map(Number) as [number, number]; return new Date(Date.UTC(y, mo, 0)).getUTCDate(); };
 const weekend = (m: string, d: number) => { const w = new Date(`${m}-${String(d).padStart(2, '0')}T00:00:00Z`).getUTCDay(); return w === 0 || w === 6; };
 
@@ -76,15 +78,25 @@ function TimesheetGrid({ projectId, memberId, month, me, mine }: { projectId: st
   const rows = useMemo(() => [...(structure.data?.workPackages ?? []).map((w) => ({ id: w.id, label: `${w.code} ${w.title}` })), { id: '', label: 'Bez radnog paketa' }], [structure.data]);
   const [cells, setCells] = useState<Record<string, string>>({});
   const [printing, setPrinting] = useState(false);
-  useEffect(() => {
-    if (!ts.data) return;
-    setCells(Object.fromEntries(ts.data.entries.map((e) => [`${e.workPackageId ?? ''}|${e.day}`, minutesToHours(e.minutes)])));
-  }, [ts.data]);
+  const [conflict, setConflict] = useState<Conflict<Record<string, string>> | null>(null);
+  const stored = (data: Timesheet): Record<string, string> => Object.fromEntries(data.entries.map((e) => [`${e.workPackageId ?? ''}|${e.day}`, minutesToHours(e.minutes)]));
+  useEffect(() => { if (ts.data) setCells(stored(ts.data)); }, [ts.data]);
   if (ts.error) return <ErrorBox error={ts.error} />;
   if (!ts.data || !structure.data) return <Loading what="timesheet" />;
   const days = Array.from({ length: dim(month) }, (_, i) => i + 1);
   const status = ts.data.status;
   const approver = can(me, 'timesheets:approve', projectId);
+  // WP1.14b – četiri oka: tko je predao timesheet, ne odobrava ga (poslužitelj bi odbio).
+  const submittedByMe = ts.data.submittedBy === me.user.id;
+  const label = (k: string) => { const [wp, day] = k.split('|') as [string, string]; return `${rows.find((r) => r.id === wp)?.label ?? 'Bez radnog paketa'}, dan ${day}`; };
+  const sameHours = (x: string | undefined, y: string | undefined) => (parseHours(x ?? '') ?? -1) === (parseHours(y ?? '') ?? -1);
+  const edited = conflict ? editedKeys(conflict.mine, conflict.base, sameHours) : [];
+  const diff = edited.filter((k) => !sameHours(conflict!.mine[k], cells[k])).map((k) => ({ label: label(k), mine: conflict!.mine[k] ?? '', now: cells[k] ?? '' }));
+  const save = async () => {
+    if (invalid) throw new Error('Sati u obliku 7,5');
+    try { await api('PUT', url, { revision: ts.data!.revision, entries: entries() }); setConflict(null); await ts.reload(); }
+    catch (e) { if (!isConflict(e)) throw e; setConflict(conflictOf(e, { ...cells }, stored(ts.data!))); }
+  };
   const canEdit = (status === 'draft' || status === 'none') && (mine || approver) && can(me, 'timesheets:write', projectId);
   const invalid = Object.values(cells).some((v) => parseHours(v) === null);
   const entries = () => Object.entries(cells).map(([k, v]) => { const [wp, day] = k.split('|') as [string, string]; return { day: Number(day), minutes: parseHours(v) ?? 0, workPackageId: wp || null }; }).filter((e) => e.minutes > 0);
@@ -110,11 +122,15 @@ function TimesheetGrid({ projectId, memberId, month, me, mine }: { projectId: st
         </table>
       </div>
       {ts.data.warnings.map((w) => <div className="warnbox" key={w}>{w}</div>)}
+      {conflict && <ConflictNotice conflict={conflict} what="Timesheet" diff={diff}
+        onReload={async () => { await ts.reload(); setConflict({ ...conflict, reloaded: true }); }}
+        onRestore={() => { setCells({ ...cells, ...Object.fromEntries(edited.map((k) => [k, conflict.mine[k] ?? ''])) }); setConflict(null); }} onDismiss={() => setConflict(null)} />}
       <div className="actions">
-        {canEdit && <ActionButton kind="primary" onClick={async () => { if (invalid) throw new Error('Sati u obliku 7,5'); await api('PUT', url, { entries: entries() }); await ts.reload(); }}>Spremi</ActionButton>}
+        {canEdit && <ActionButton kind="primary" onClick={save}>Spremi</ActionButton>}
         {status === 'draft' && canEdit && <ActionButton onClick={() => act('submit')}>Predaj na odobrenje</ActionButton>}
-        {status === 'submitted' && approver && !mine && <ActionButton kind="primary" onClick={() => act('approve')}>Odobri (stvara trošak osoblja)</ActionButton>}
+        {status === 'submitted' && approver && !mine && !submittedByMe && <ActionButton kind="primary" onClick={() => act('approve')}>Odobri (stvara trošak osoblja)</ActionButton>}
         {status === 'submitted' && approver && mine && <span className="muted">Vlastiti timesheet odobrava druga osoba (voditelj projekta ili ured za projekte).</span>}
+        {status === 'submitted' && approver && !mine && submittedByMe && <span className="muted">Timesheet koji si predao odobrava druga osoba s pravom odobravanja (četiri oka).</span>}
         {(status === 'submitted' || status === 'approved') && approver && <ActionButton onClick={() => act('reopen')}>Vrati u nacrt</ActionButton>}
         <button onClick={() => setPrinting((v) => !v)} aria-expanded={printing}>{printing ? 'Zatvori evidenciju za ispis' : 'Evidencija za ispis i potpis'}</button>
       </div>

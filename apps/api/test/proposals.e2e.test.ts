@@ -91,7 +91,8 @@ describe('Prijave (e2e)', () => {
     expect(c.proposal).toMatchObject({ status: 'contracted', projectId: c.projectId });
     const leadToken = (await http().post('/api/auth/login').send({ tenantSlug: slugA, email: `nositelj@${slugA}.hr`, password: 'Plava-Staza-2027-x' }).expect(201)).body.accessToken;
     expect((await http().get('/api/projects').set(auth(leadToken)).expect(200)).body.map((p: { id: string }) => p.id)).toEqual([c.projectId]);
-    await http().get(`/api/proposals/${pid}`).set(auth(leadToken)).expect(403); // prijave ostaju na razini institucije
+    // WP1.14b: nositelj prijave čita vlastitu prijavu i bez uloge institucije (prije: 403 – prijave su bile samo na razini institucije).
+    await http().get(`/api/proposals/${pid}`).set(auth(leadToken)).expect(200);
     const proj = (await http().get(`/api/projects/${c.projectId}`).set(auth(A)).expect(200)).body;
     expect(proj).toMatchObject({ acronym: 'ZELP', contractNo: `NPOO-${tag}`, durationMonths: 24, sourceProposalId: pid });
     expect(proj.partners).toHaveLength(2);

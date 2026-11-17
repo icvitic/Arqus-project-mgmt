@@ -37,11 +37,13 @@ export function DocumentList({ target, scope, canWrite, allowConfidential = fals
   );
 }
 
-function DocRow({ d, showEntity, canWrite, open, toggle, changed }: { d: DocumentSummary; showEntity: boolean; canWrite: boolean; open: boolean; toggle: () => void; changed: () => Promise<void> }) {
+function DocRow({ d, showEntity, canWrite: mayWrite, open, toggle, changed }: { d: DocumentSummary; showEntity: boolean; canWrite: boolean; open: boolean; toggle: () => void; changed: () => Promise<void> }) {
+  // WP1.14b: zamrznut dokument (dokaz troška u predanom ZNS-u, zatvoren projekt, zaključena prijava) – bez radnji koje bi poslužitelj odbio.
+  const canWrite = mayWrite && !d.frozen;
   return (
     <>
       <tr>
-        <td><b>{d.title}</b>{d.confidentiality !== 'internal' && <> <Chip s={CONF[d.confidentiality] ?? d.confidentiality} tone={d.confidentiality === 'confidential' ? 'bad' : ''} /></>}{d.aiGenerated && <> <span className="chip warn" title="sadržaj izrađen uz pomoć umjetne inteligencije">AI</span></>}</td>
+        <td><b>{d.title}</b>{d.confidentiality !== 'internal' && <> <Chip s={CONF[d.confidentiality] ?? d.confidentiality} tone={d.confidentiality === 'confidential' ? 'bad' : ''} /></>}{d.aiGenerated && <> <span className="chip warn" title="sadržaj izrađen uz pomoć umjetne inteligencije">AI</span></>}{d.frozen && mayWrite && <> <span className="chip" title={`Ne mijenja se: ${d.frozen}`}>zamrznut</span></>}</td>
         <td>{KINDS[d.kind] ?? d.kind}</td>{showEntity && <td>{ENTITY[d.entityType] ?? d.entityType}</td>}
         <td>{d.current.fileName}<br /><span className="muted">v{d.currentVersion} · {size(d.current.size)}</span></td>
         <td>{dateTime(d.updatedAt)}</td>

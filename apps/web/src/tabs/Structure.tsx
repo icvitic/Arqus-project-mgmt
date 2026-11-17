@@ -33,8 +33,8 @@ export function StructureTab({ project: p, pkg, me }: TabProps) {
                 <tr key={x.id}><td>{x.code}</td><td>{x.title}</td><td>{x.type}</td><td>{x.dissemination}</td><td>M{x.dueMonth} <span className="muted">{date(x.dueDate)}</span></td>
                   <td>{write ? (
                     <select aria-label={`Status ${x.code}`} value={x.status} onChange={async (e) => { try { await api('PATCH', `/projects/${p.id}/deliverables/${x.id}`, { status: e.target.value }); } finally { await s.reload(); } }}>
-                      {DELIV_STATUS.map((st) => <option key={st} value={st}>{label(st)}</option>)}
-                    </select>) : <Chip s={x.status} />}</td></tr>
+                      {DELIV_STATUS.map((st) => <option key={st} value={st}>{label(st, 'f')}</option>)}
+                    </select>) : <Chip f s={x.status} />}</td></tr>
               ))}
             </tbody>
           </table>
@@ -63,7 +63,7 @@ export function StructureTab({ project: p, pkg, me }: TabProps) {
       )}
       <div className="grid g2">
         <div className="card scroll"><h2>Prekretnice</h2>
-          <table><tbody>{s.data.milestones.map((m) => <tr key={m.id}><td>{m.code}</td><td>{m.title}</td><td>M{m.dueMonth} <span className="muted">{date(m.dueDate)}</span></td><td><Chip s={m.status} /></td></tr>)}
+          <table><tbody>{s.data.milestones.map((m) => <tr key={m.id}><td>{m.code}</td><td>{m.title}</td><td>M{m.dueMonth} <span className="muted">{date(m.dueDate)}</span></td><td><Chip f s={m.status} /></td></tr>)}
             {s.data.milestones.length === 0 && <tr><td className="muted">Nema prekretnica.</td></tr>}</tbody></table>
           {write && <ActionForm submit="Dodaj prekretnicu" onSubmit={async () => { await api('POST', `/projects/${p.id}/milestones`, { title: ms.title, dueMonth: Number(ms.dueMonth), ...(ms.verification ? { verification: ms.verification } : {}) }); setMs({ title: '', dueMonth: '', verification: '' }); await s.reload(); }}>
             <Field label="Naziv"><input value={ms.title} onChange={(e) => setMs({ ...ms, title: e.target.value })} required /></Field>

@@ -1,8 +1,29 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.24.1 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.25.0 · **Faza:** 1 – MVP i pilot · **Točka zaustavljanja dosegnuta**
+
+## Točka zaustavljanja (od v0.25.0)
+Dogovorena točka zaustavljanja iz revizije strategije (`docs/strategija-razvoja-faza-1b.md`, odj. 7) je **dosegnuta**: WP1.16a, WP1.16b i WP1.14b su gotovi. **Razvoj se zaustavlja** dok se ne održe **barem tri demonstracije** i njihove bilješke ne zapišu (predložak `docs/faza-0/predlozak-biljeske.md`). **WP1.17** (uvoz iz Excela) i **WP1.18** (rokovi i „Moj rad”) su uvjetni – rade se samo ako ih bilješke s demonstracija potvrde; bilješke određuju sljedeću reviziju strategije. Do tada samo ispravci grešaka nađenih na demonstracijama ili penetracijskom testu.
+
+**Spremno za penetracijski test** (opseg: `docs/sigurnost/AUTORIZACIJA.md`, samoprocjena `docs/sigurnost/ASVS-L2.md`):
+- izolacija institucija u bazi (RLS s FORCE, aplikacijska uloga bez BYPASSRLS, kompozitni strani ključevi);
+- pristup po projektu i po prijavi (voditelj vlastite prijave) – svaka ruta razvrstana, test pokrivenosti provjerava 404/403 za svaku projektnu, prijavnu, dokumentnu i institucijsku rutu;
+- razdvajanje dužnosti: nitko ne odobrava vlastiti ni timesheet koji je sam predao; dodjela uloga bez eskalacije; jedinstvenost dodjela u bazi;
+- revizijski zapis bez tajni, nepromjenjiv za aplikaciju, s pregledom i izvozom; plaće u pregledu samo uz `personnel:read`;
+- zaštita od tihog prepisivanja na proračunima, timesheetovima i osnovnim podacima;
+- sesije u bazi s opozivom, MFA (TOTP), politika lozinki, ograničenje prijava, sigurnosna zaglavlja, provjera datoteka.
+
+**Poznata ograničenja (u opsegu testa, svjesno ostavljena):**
+- izolacija projekata unutar institucije samo u aplikaciji (bez RLS-a po projektu);
+- iznosi troškova osoblja na karticama projekta i u zbrojevima ZNS-a vidljivi uz `finance:read` (iz njih se može izračunati satnica) – u reviziji skriveni;
+- provjera revizije pri spremanju obavezna je samo kad je klijent pošalje (sučelje uvijek šalje; skripte bez nje spremaju bez provjere);
+- MFA nije obavezan ni za jednu ulogu; nema provjere lozinki protiv popisa probijenih (HIBP);
+- izvanposlužiteljske kopije i mjerenje RTO-a nisu napravljeni (čekaju odabir pružatelja);
+- voditelj koji upravlja pristupom vidi popis korisnika institucije; korisnik s ulogom samo na projektu vidi referentne podatke institucije (organizacije, paketi);
+- pristup po prijavi postoji samo za voditelja prijave (ostali suradnici na prijavi trebaju ulogu institucije).
 
 ## Gotovo
+- WP1.14b (v0.25.0): dorade prije pilota – nitko više ne prepisuje tuđe izmjene bez upozorenja (revizija na proračunima projekta i prijave, timesheetovima, osnovnim podacima i odabiru troškova ZNS-a; 409 s imenom i vremenom, obavijest s vlastitim nespremljenim izmjenama u sučelju); stranica **Revizija** (filtri, prije/poslije, CSV; plaće samo uz `personnel:read`, tajne nikad); četiri oka na timesheetovima (predavatelj ne odobrava); voditelj radi na vlastitoj prijavi bez uloge institucije; paket koji još ne vrijedi blokira, odstupanja od pravila programa vidljiva na projektu i prijavi; „danas” po zoni institucije (Europe/Zagreb); bez istovremenih upita na transakciji; jedinstvenost dodjela uloga; ispravljen razvojni seed; oznake statusa u rodu imenice; zamrznuti dokumenti bez „Ukloni”. Proizvod je spreman za prvu instituciju i penetracijski test.
 - WP1.16b (v0.24.0): ZNS paket za predaju – jedan ZIP s radnom knjigom troškova (XLSX po kategorijama paketa, svi troškovi, troškovi osoblja po osobi i mjesecu), mjesečnim evidencijama rada za potpis (jedna stranica A4; isti dokument i kao ispis timesheeta), dokazima s provjerom SHA-256, kontrolnom listom i manifestom; nacrt označen kao NACRT, povjerljivi dokazi samo uz dozvolu, svaki izvoz u reviziji. Troškovi evidentirani nakon predaje svog razdoblja nude se u sljedećem nacrtu i ulaze samo izričitim odabirom (signal u portfelju). Mjerenje pripreme: automatske mjere na zahtjevu, prijavljeni sati pri predaji, polazna mjera institucije i izvještaj „Ušteda na ZNS-u” na portfelju. Financijski ured sada predaje paket iz sustava, a uprava vidi uštedu.
 - WP1.16a (v0.23.0): ZNS – ispravnost – predaja tek nakon kraja razdoblja (ranije samo uz razlog, vidljiv na zahtjevu i u reviziji); popis za provjeru prije predaje (neodobreni timesheetovi i troškovi bez dokaza blokiraju, trošak bez dokaza može se izričito potvrditi, prekoračenje kategorije proračuna je upozorenje); odluka po trošku s priznatim iznosom i razlogom, priznati ukupni iznos istim izračunom kao zahtjev, usporedba s iznosom financijera; provjera datuma i iznosa isplate; jedna definicija ostvarenog (priznato nakon odluke) uz nepriznato u pregledu, zahtjevu i portfelju; troškovi osoblja sažeti po osobi i mjesecu. Priznati iznos nepromjenjiv u bazi osim kroz najavljen ispravak koji baza sama revidira. Pravila: `docs/domena/zns-pravila.md`. ZNS je sada dovoljno strog da ga financijski ured i revizor mogu prihvatiti.
 - WP1.15 (v0.22.0): portfelj – prvi zaslon uprave i ureda nakon prijave: projekti s potrošnjom prema proteklom vremenu (oznaka kad se razlikuju za više od 20 postotnih bodova), upozorenja koja vode na mjesto popravka (isporuke koje kasne, visoki rizici, timesheetovi na odobrenju, troškovi bez dokaza, razdoblja bez ZNS-a), jedan popis rokova (izvještaji, isporuke, pozivi, interni rokovi), opterećenje ljudi kroz projekte s provjerom godišnjeg fonda sati i dana iznad 8 h (dvostruko financiranje), prijave po statusu i uspješnost. Poštuje pristup po projektu (voditelj vidi samo svoje projekte, bez novca tamo gdje nema financije, bez ljudi i prijava). Demonstracija počinje na portfelju. Prodekan u jednom pogledu vidi sve projekte i sljedeće rokove.
@@ -36,15 +57,17 @@
 - WP0.4 (v0.3.0): domenski model v1 – moduli, entiteti, životni ciklusi, invarijante (`docs/domena/domenski-model-v1.md`); JSON shema paketa programa + primjeri HE i NPOO (`docs/domena/paketi/`); ADR-0006.
 
 ## U tijeku
-- WP1.9 – čeka odabir pružatelja i pilot-institucije (instalacija za ~1 sat prema `docs/PILOT-INSTALACIJA.md`) i vanjski penetracijski test (WP1.14 gotov – test se može naručiti; opseg autorizacije u `docs/sigurnost/AUTORIZACIJA.md`).
+- WP1.9 – čeka odabir pružatelja i pilot-institucije (instalacija za ~1 sat prema `docs/PILOT-INSTALACIJA.md`) i vanjski penetracijski test (WP1.14 i WP1.14b gotovi – test se može naručiti; opseg autorizacije u `docs/sigurnost/AUTORIZACIJA.md`).
+- **Ljudski kolosijek:** barem tri demonstracije (`docs/DEMO.md`, `docs/DEMO-SCENARIJ.md`) s bilješkama po predlošku `docs/faza-0/predlozak-biljeske.md`.
 
 ## Sljedeće
-Prema reviziji strategije nakon WP1.15 (`docs/strategija-razvoja-faza-1b.md`, odj. 7): WP1.14b dorade prije pilota. Zatim **točka zaustavljanja** (razvoj staje dok se ne održe barem tri demonstracije): WP1.17 (uvoz iz Excela) i WP1.18 (rokovi i „Moj rad”) rade se tek nakon povratne informacije s barem tri demonstracije.
+**Razvoj stoji** (točka zaustavljanja). Sljedeći korak je Ivanov: tri demonstracije i bilješke. Nakon toga revizija strategije odlučuje o WP1.17 (uvoz iz Excela) i WP1.18 (rokovi i „Moj rad”) ili o nečem trećem što sugovornici traže.
 
 ## Otvorena pitanja za Ivana
+- WP1.14b: potvrdi (1) da se razdoblje valjanosti paketa odnosi na **početak** projekta, a kraj provedbe na pravila paketa (inače bi svaki projekt Obzora Europa koji traje iza 2027. nosio upozorenje); (2) da provjera revizije pri spremanju nije obavezna za API klijente bez nje (sučelje je uvijek šalje); (3) da voditelj prijave smije zaključati/otključati proračun i poslati prijavu na internu provjeru, a povlačenje ostaje uredu; (4) da se godišnji trošak sada bilježi u reviziji s iznosom (vidljiv samo uz `personnel:read`); (5) da se NPOO odstupanje na ZELENI-LAB-u u demou ostavi kao namjerni primjer.
 - WP1.16b: potvrdi (1) pravilo troškova iz ranijih razdoblja (nacrt kasnijeg razdoblja ih nudi, ulaze samo izričitim odabirom); (2) da ured za projekte smije mijenjati postavke institucije (`tenant:write`, zasad samo polazna mjera ZNS-a); (3) da mjera „broj dokaza” broji i povjerljive dokaze (samo zbroj). Format paketa je generički – koje obrasce financijera (eFondovi, Horizon Europe) pilot treba, odlučuje se s pilotom. Za mjerenje uštede od prvog pilota treba polazna mjera (sati po ZNS-u prije ArQusa).
 - WP1.16a: potvrdi pravila ZNS-a (`docs/domena/zns-pravila.md`): neodobren timesheet u razdoblju blokira predaju (ne samo upozorava); predaja na zadnji dan razdoblja smatra se ranom; ispravak odluke dopušten samo prije isplate.
-- WP1.14: postojeće instalacije zadržavaju uloge na razini institucije – nakon nadogradnje u izborniku Korisnici voditeljima i članovima tima zamijeniti ulogu institucije ulogom na projektu. Odluka: prijave ostaju na razini institucije (nositelj prijave bez uloge institucije ne vidi prijavu dok se ne ugovori) – je li to prihvatljivo za pilot?
+- WP1.14: postojeće instalacije zadržavaju uloge na razini institucije – nakon nadogradnje u izborniku Korisnici voditeljima i članovima tima zamijeniti ulogu institucije ulogom na projektu. (Pitanje o nositelju prijave riješeno u WP1.14b: voditelj radi na vlastitoj prijavi.)
 - Ljudski kolosijek iz strategije faze 1b: demo je spreman (`demo.cmd`, upute `docs/DEMO.md`) – pokazati ga trima do pet institucija; isprobaj `demo.cmd` na svom računalu prije prvog razgovora (slika, compose, punjenje, reset i ponovno pokretanje provjereni su u Dockeru na Linuxu; sama skripta `demo.cmd` na Windowsu nije), odabrati EU pružatelja, od prvog pilota dobiti polaznu mjeru trajanja pripreme ZNS-a, budžet za penetracijski test.
 - Kad odabereš pružatelja i pilot-instituciju, instalacija ide prema `docs/PILOT-INSTALACIJA.md`; za vanjski penetracijski test treba budžet i izvođača.
 - Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?

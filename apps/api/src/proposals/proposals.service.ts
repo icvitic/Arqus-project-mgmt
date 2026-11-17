@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { currentContext } from '../common/tenant-context';
-import { canInTenant } from '../common/access';
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import { currentContext, tenantTimeZone, tenantToday } from '../common/tenant-context';
+import { canInTenant, canSeeProposal } from '../common/access';
+import { assertRevision, bump, revisionField } from '../common/revision';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
-  budgetLineIssues, callStatus, computeProjectBudget, isProposalEditable, isReady, OUTCOME_FROM, PROPOSAL_TRANSITIONS, proposalReadiness,
+  budgetLineIssues, callStatus, computeProjectBudget, isProposalEditable, isReady, OUTCOME_FROM, packageAvailabilityIssue, packageDeviations, PROPOSAL_TRANSITIONS, proposalReadiness,
   type CallDeadline, type ProposalStatus,
 } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
@@ -15,6 +16,8 @@ import { OrganisationsService } from '../organisations/organisations.service';
 import { ProjectsService } from '../projects/projects.service';
 
 const ROLES = ['coordinator', 'partner', 'associated', 'third_party'] as const;
+/** Prijelazi koje smije i voditelj prijave bez uloge institucije (WP1.14b). */
+const LEAD_TRANSITIONS: readonly ProposalStatus[] = ['preparation', 'internal_review'];
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const proposalInput = z.object({
   packageId: z.string().min(1), packageVersion: z.string().regex(/^\d+\.\d+\.\d+$/).optional(), actionType: z.string().min(1),
@@ -22,11 +25,11 @@ export const proposalInput = z.object({
   durationMonths: z.number().int().min(1).max(120).default(36), internalDeadline: isoDate.optional(), leadUserId: z.string().uuid().optional(),
 });
 export const fromCallInput = proposalInput.omit({ packageId: true, packageVersion: true }).extend({ actionType: z.string().min(1).optional() });
-export const proposalPatch = z.object({ acronym: z.string().trim().min(2).max(40).optional(), title: z.string().trim().min(3).max(500).optional(), durationMonths: z.number().int().min(1).max(120).optional(), internalDeadline: isoDate.nullable().optional(), leadUserId: z.string().uuid().nullable().optional() }).strict();
+export const proposalPatch = z.object({ acronym: z.string().trim().min(2).max(40).optional(), title: z.string().trim().min(3).max(500).optional(), durationMonths: z.number().int().min(1).max(120).optional(), internalDeadline: isoDate.nullable().optional(), leadUserId: z.string().uuid().nullable().optional(), revision: revisionField }).strict();
 export const memberInput = z.object({ organisationId: z.string().uuid(), role: z.enum(ROLES).default('partner'), confirmed: z.boolean().default(false) });
 export const memberPatch = z.object({ role: z.enum(ROLES).optional(), confirmed: z.boolean().optional() }).strict();
 export const wpInput = z.object({ title: z.string().trim().min(2).max(300), leadMemberId: z.string().uuid().optional(), startMonth: z.number().int().min(1), endMonth: z.number().int().min(1), personMonths: z.number().int().min(0).max(10000).default(0) });
-export const budgetInput = z.object({ lines: z.array(z.object({ memberId: z.string().uuid(), categoryCode: z.string().min(1).max(20), amount: z.number().int().min(0).max(100_000_000_000) })).max(2000) });
+export const budgetInput = z.object({ lines: z.array(z.object({ memberId: z.string().uuid(), categoryCode: z.string().min(1).max(20), amount: z.number().int().min(0).max(100_000_000_000) })).max(2000), revision: revisionField });
 export const transitionInput = z.object({ to: z.enum(['preparation', 'internal_review', 'in_evaluation', 'withdrawn']) });
 export const submitInput = z.object({ portal: z.string().trim().min(2).max(100), reference: z.string().trim().min(1).max(100), submittedAt: z.string().datetime({ offset: true }).optional() });
 export const outcomeInput = z.object({ result: z.enum(['funded', 'reserve', 'rejected']), score: z.string().max(50).optional(), note: z.string().max(2000).optional() });
@@ -37,10 +40,22 @@ export const contractInput = z.object({ contractNo: z.string().trim().min(1).max
 export class ProposalsService {
   constructor(private readonly audit: AuditService, private readonly packages: ProgrammePackagesService, private readonly orgs: OrganisationsService, private readonly projects: ProjectsService) {}
 
+  /** Prijava pod RLS-om; u zahtjevu korisnika prijava koju ne smije vidjeti (nije voditelj ni proposals:read institucije) je 404 – druga linija obrane (WP1.14b). */
   private async row(tx: Tx, id: string): Promise<Proposal> {
+    const ctx = currentContext();
+    if (ctx?.userId && !canSeeProposal(ctx, id)) throw new NotFoundException(`Prijava ${id} ne postoji`);
     const p = (await tx.select().from(proposals).where(and(eq(proposals.id, id), isNull(proposals.deletedAt))))[0];
     if (!p) throw new NotFoundException(`Prijava ${id} ne postoji`);
     return p;
+  }
+  /** Radnja institucije unutar rute dostupne i voditelju (npr. promjena voditelja, povlačenje prijave). */
+  private assertTenant(permission: 'proposals:write', what: string): void {
+    const ctx = currentContext();
+    if (ctx?.userId && !canInTenant(ctx, permission)) throw new ForbiddenException(`${what} – radnja ureda za projekte (${permission} na razini institucije)`);
+  }
+  /** Svaka izmjena prijave (i njezinih članova, radnih paketa i proračuna) povećava reviziju i bilježi tko je mijenjao. */
+  private async touch(tx: Tx, id: string, actorId?: string): Promise<void> {
+    await tx.update(proposals).set({ revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId ?? null }).where(eq(proposals.id, id));
   }
   private editable(p: Proposal): void {
     if (!isProposalEditable(p.status as ProposalStatus)) throw new ConflictException('Prijava se mijenja samo u statusu ideja ili u pripremi');
@@ -50,9 +65,13 @@ export class ProposalsService {
       .where(eq(proposalMembers.proposalId, id)).orderBy(asc(proposalMembers.orderNo));
   }
 
+  /** Uz proposals:read institucije sve prijave, inače samo prijave kojima je korisnik voditelj (WP1.14b). */
   async list(tx: Tx) {
+    const ctx = currentContext();
+    const own = ctx?.userId && !canInTenant(ctx, 'proposals:read') ? [...(ctx.leadProposals ?? [])] : null;
+    if (own && !own.length) return [];
     const rows = await tx.select({ p: proposals, callCode: calls.code, members: sql<number>`(select count(*)::int from proposal_members m where m.proposal_id = ${proposals.id})` })
-      .from(proposals).leftJoin(calls, eq(calls.id, proposals.callId)).where(isNull(proposals.deletedAt)).orderBy(desc(proposals.createdAt));
+      .from(proposals).leftJoin(calls, eq(calls.id, proposals.callId)).where(and(isNull(proposals.deletedAt), own ? inArray(proposals.id, own) : undefined)).orderBy(desc(proposals.createdAt));
     return rows.map(({ p, callCode, members }) => ({ id: p.id, acronym: p.acronym, title: p.title, status: p.status, role: p.role, callId: p.callId, callCode, packageId: p.packageId, actionType: p.actionType, internalDeadline: p.internalDeadline, members, projectId: p.projectId, requested: (p.submission as { requested?: number } | null)?.requested ?? null }));
   }
 
@@ -64,7 +83,8 @@ export class ProposalsService {
     const lines = await tx.select().from(proposalBudgetLines).where(eq(proposalBudgetLines.proposalId, id));
     const budget = computeProjectBudget(pkg, p.actionType, ms.map(({ m, org }) => ({ id: m.id, beneficiaryType: m.beneficiaryType, name: org.name })), lines.map((l) => ({ partnerId: l.memberId, categoryCode: l.categoryCode, amount: l.amountCents })));
     const call = p.callId ? (await tx.select().from(calls).where(eq(calls.id, p.callId)))[0] : undefined;
-    const callOpen = call ? callStatus({ opensAt: call.opensAt, deadlines: call.deadlines as CallDeadline[], cancelled: call.cancelled }) === 'open' : null;
+    const tz = tenantTimeZone();
+    const callOpen = call ? callStatus({ opensAt: call.opensAt, deadlines: call.deadlines as CallDeadline[], cancelled: call.cancelled }, new Date(), tz) === 'open' : null;
     const readiness = proposalReadiness({
       members: ms.map(({ m, org }) => ({ country: org.country, confirmed: m.confirmed })), minPartners: pkg.consortiumRules?.minPartners, minCountries: pkg.consortiumRules?.minCountries,
       workPackages: wps.length, budgetTotal: budget.totals.total, budgetLocked: p.budgetLocked, hasLead: !!p.leadUserId, callOpen,
@@ -72,11 +92,14 @@ export class ProposalsService {
     return {
       id: p.id, acronym: p.acronym, title: p.title, status: p.status, role: p.role, actionType: p.actionType, durationMonths: p.durationMonths, internalDeadline: p.internalDeadline, leadUserId: p.leadUserId,
       package: { rowId: p.packageRowId, id: p.packageId, version: p.packageVersion },
-      call: call ? { id: call.id, code: call.code, title: call.title, deadlines: call.deadlines, status: callStatus({ opensAt: call.opensAt, deadlines: call.deadlines as CallDeadline[], cancelled: call.cancelled }) } : null,
+      call: call ? { id: call.id, code: call.code, title: call.title, deadlines: call.deadlines, status: callStatus({ opensAt: call.opensAt, deadlines: call.deadlines as CallDeadline[], cancelled: call.cancelled }, new Date(), tz) } : null,
       members: ms.map(({ m, org }) => ({ id: m.id, organisationId: org.id, name: org.name, country: org.country, isSelf: org.isSelf, role: m.role, beneficiaryType: m.beneficiaryType, confirmed: m.confirmed, orderNo: m.orderNo })),
       workPackages: wps.map((w) => ({ id: w.id, code: `WP${w.number}`, number: w.number, title: w.title, leadMemberId: w.leadMemberId, startMonth: w.startMonth, endMonth: w.endMonth, personMonths: w.personMonths })),
       budget: { version: p.budgetVersion, locked: p.budgetLocked, categories: pkg.costCategories.map((c) => ({ code: c.code, name: c.name, kind: c.kind, children: c.children?.map((k) => ({ code: k.code, name: k.name, kind: k.kind })) })), lines: lines.map((l) => ({ memberId: l.memberId, categoryCode: l.categoryCode, amount: l.amountCents })), partners: budget.partners, totals: budget.totals, warnings: budget.warnings },
       readiness, ready: isReady(readiness), submission: p.submission, outcome: p.outcome, projectId: p.projectId,
+      revision: p.revision, updatedAt: p.updatedAt,
+      // WP1.14b: odstupanja od pravila programa (valjanost paketa, provjerljiva pravila) – računaju se svaki put iznova.
+      deviations: packageDeviations(pkg, { today: tenantToday(), kind: 'proposal', open: isProposalEditable(p.status as ProposalStatus) || p.status === 'internal_review', internalDeadline: p.internalDeadline, budget: lines.map((l) => ({ categoryCode: l.categoryCode, amount: l.amountCents })) }),
     };
   }
 
@@ -87,7 +110,9 @@ export class ProposalsService {
 
   async create(tx: Tx, tenantId: string, input: z.infer<typeof proposalInput>, actorId?: string, callId?: string) {
     const pkg = await this.packages.get(tx, input.packageId, input.packageVersion);
-    if (pkg._row.status === 'deprecated') throw new BadRequestException('Paket je zastario');
+    // WP1.14b: zastario paket i paket koji još ne vrijedi blokiraju; ostala odstupanja su upozorenja na prijavi.
+    const unavailable = packageAvailabilityIssue(pkg, pkg._row.status, tenantToday());
+    if (unavailable) throw new BadRequestException(unavailable);
     if (!pkg.actionTypes.some((a) => a.code === input.actionType)) throw new BadRequestException(`Vrsta akcije "${input.actionType}" ne postoji u paketu (dostupno: ${pkg.actionTypes.map((a) => a.code).join(', ')})`);
     if (input.leadUserId && !(await tx.select({ id: users.id }).from(users).where(eq(users.id, input.leadUserId))).length) throw new NotFoundException('Voditelj ne postoji');
     const self = await this.orgs.ensureSelf(tx, tenantId);
@@ -115,13 +140,17 @@ export class ProposalsService {
     return this.create(tx, tenantId, { ...input, actionType, packageId: call.packageId }, actorId, callId);
   }
 
-  async update(tx: Tx, id: string, patch: z.infer<typeof proposalPatch>, actorId?: string) {
+  async update(tx: Tx, id: string, input: z.infer<typeof proposalPatch>, actorId?: string) {
+    const { revision, ...patch } = input;
     const p = await this.row(tx, id);
+    await assertRevision(tx, proposals, id, revision, 'Prijavu');
     if (['contracted', 'withdrawn', 'rejected'].includes(p.status)) throw new ConflictException('Zaključena prijava se ne mijenja');
     if (patch.durationMonths !== undefined) this.editable(p);
+    // Voditelja prijave određuje ured za projekte; voditelj ne može prijavu predati drugome ni ukloniti sebe (WP1.14b).
+    if (patch.leadUserId !== undefined && patch.leadUserId !== p.leadUserId) this.assertTenant('proposals:write', 'Promjena voditelja prijave');
     if (patch.leadUserId && !(await tx.select({ id: users.id }).from(users).where(eq(users.id, patch.leadUserId))).length) throw new NotFoundException('Voditelj ne postoji');
-    await tx.update(proposals).set({ ...patch, updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
-    await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'update', diff: { after: patch } });
+    await tx.update(proposals).set({ ...patch, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
+    await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'update', diff: { before: Object.fromEntries(Object.keys(patch).map((k) => [k, p[k as keyof Proposal]])), after: patch } });
     return this.get(tx, id);
   }
 
@@ -132,61 +161,75 @@ export class ProposalsService {
     const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
     const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${proposalMembers.orderNo}), 0)::int + 1` }).from(proposalMembers).where(eq(proposalMembers.proposalId, id)) as [{ next: number }];
     await tx.insert(proposalMembers).values({ tenantId, proposalId: id, organisationId: org.id, role: input.role, beneficiaryType: this.beneficiaryType(pkg, p.actionType, org.nonProfit), confirmed: input.confirmed, orderNo: input.role === 'coordinator' ? 1 : next, createdBy: actorId });
+    await this.touch(tx, id, actorId);
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'member.add', diff: { after: { organisation: org.name, role: input.role } } });
     return this.get(tx, id);
   }
 
-  async updateMember(tx: Tx, id: string, memberId: string, patch: z.infer<typeof memberPatch>) {
+  async updateMember(tx: Tx, id: string, memberId: string, patch: z.infer<typeof memberPatch>, actorId?: string) {
     const p = await this.row(tx, id); this.editable(p);
     const r = await tx.update(proposalMembers).set(patch).where(and(eq(proposalMembers.id, memberId), eq(proposalMembers.proposalId, id))).returning();
     if (!r.length) throw new NotFoundException('Član ne postoji na prijavi');
+    await this.touch(tx, id, actorId);
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'member.update', diff: { after: { memberId, ...patch } } });
     return this.get(tx, id);
   }
 
-  async removeMember(tx: Tx, id: string, memberId: string) {
+  async removeMember(tx: Tx, id: string, memberId: string, actorId?: string) {
     const p = await this.row(tx, id); this.editable(p);
     const m = (await this.members(tx, id)).find((x) => x.m.id === memberId);
     if (!m) throw new NotFoundException('Član ne postoji na prijavi');
     if (m.org.isSelf) throw new ConflictException('Vlastita organizacija se ne uklanja s prijave');
     await tx.delete(proposalMembers).where(eq(proposalMembers.id, memberId));
+    await this.touch(tx, id, actorId);
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'member.remove', diff: { before: { organisation: m.org.name } } });
     return this.get(tx, id);
   }
 
-  async addWorkPackage(tx: Tx, tenantId: string, id: string, input: z.infer<typeof wpInput>) {
+  async addWorkPackage(tx: Tx, tenantId: string, id: string, input: z.infer<typeof wpInput>, actorId?: string) {
     const p = await this.row(tx, id); this.editable(p);
     if (input.endMonth < input.startMonth || input.endMonth > p.durationMonths) throw new BadRequestException(`Mjeseci radnog paketa moraju biti unutar trajanja prijave (1–${p.durationMonths})`);
     if (input.leadMemberId && !(await this.members(tx, id)).some((x) => x.m.id === input.leadMemberId)) throw new NotFoundException('Voditelj radnog paketa nije član konzorcija');
     const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${proposalWorkPackages.number}), 0)::int + 1` }).from(proposalWorkPackages).where(eq(proposalWorkPackages.proposalId, id)) as [{ next: number }];
     await tx.insert(proposalWorkPackages).values({ tenantId, proposalId: id, number: next, ...input, leadMemberId: input.leadMemberId ?? null });
+    await this.touch(tx, id, actorId);
+    await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'work_package.add', diff: { after: { number: next, title: input.title } } });
     return this.get(tx, id);
   }
 
-  async removeWorkPackage(tx: Tx, id: string, wpId: string) {
+  async removeWorkPackage(tx: Tx, id: string, wpId: string, actorId?: string) {
     const p = await this.row(tx, id); this.editable(p);
-    await tx.delete(proposalWorkPackages).where(and(eq(proposalWorkPackages.id, wpId), eq(proposalWorkPackages.proposalId, id)));
+    const removed = await tx.delete(proposalWorkPackages).where(and(eq(proposalWorkPackages.id, wpId), eq(proposalWorkPackages.proposalId, id))).returning();
+    if (removed.length) {
+      await this.touch(tx, id, actorId);
+      await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'work_package.remove', diff: { before: { number: removed[0]!.number, title: removed[0]!.title } } });
+    }
     return this.get(tx, id);
   }
 
-  async replaceBudget(tx: Tx, tenantId: string, id: string, input: z.infer<typeof budgetInput>, _actorId?: string) {
-    const p = await this.row(tx, id); this.editable(p);
+  async replaceBudget(tx: Tx, tenantId: string, id: string, input: z.infer<typeof budgetInput>, actorId?: string) {
+    const p = await this.row(tx, id);
+    await assertRevision(tx, proposals, id, input.revision, 'Proračun prijave');
+    this.editable(p);
     if (p.budgetLocked) throw new ConflictException(`Proračun v${p.budgetVersion} je zaključan – otključaj ga (nova verzija) za izmjene`);
     const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
     const ms = await this.members(tx, id);
     const issues = budgetLineIssues(pkg, input.lines.map((l) => ({ partnerId: l.memberId, categoryCode: l.categoryCode, amount: l.amount })), new Set(ms.map((x) => x.m.id)));
     if (issues.length) throw new BadRequestException({ message: 'Proračun nije valjan', issues: issues.map((i) => i.replace('partner', 'član konzorcija')) });
+    const before = (await this.get(tx, id)).budget.totals;
     await tx.delete(proposalBudgetLines).where(eq(proposalBudgetLines.proposalId, id));
-    if (input.lines.length) await tx.insert(proposalBudgetLines).values(input.lines.filter((l) => l.amount > 0).map((l) => ({ tenantId, proposalId: id, memberId: l.memberId, categoryCode: l.categoryCode, amountCents: l.amount })));
+    const positive = input.lines.filter((l) => l.amount > 0);
+    if (positive.length) await tx.insert(proposalBudgetLines).values(positive.map((l) => ({ tenantId, proposalId: id, memberId: l.memberId, categoryCode: l.categoryCode, amountCents: l.amount })));
+    await this.touch(tx, id, actorId);
     const after = await this.get(tx, id);
-    await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'budget.replace', diff: { after: after.budget.totals, meta: { version: p.budgetVersion } } });
+    await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'budget.replace', diff: { before, after: after.budget.totals, meta: { version: p.budgetVersion, lines: positive.length } } });
     return after;
   }
 
   async lockBudget(tx: Tx, id: string, lock: boolean, actorId?: string) {
     const p = await this.row(tx, id); this.editable(p);
     if (lock === p.budgetLocked) throw new ConflictException(lock ? 'Proračun je već zaključan' : 'Proračun nije zaključan');
-    await tx.update(proposals).set({ budgetLocked: lock, budgetVersion: lock ? p.budgetVersion : p.budgetVersion + 1, updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
+    await tx.update(proposals).set({ budgetLocked: lock, budgetVersion: lock ? p.budgetVersion : p.budgetVersion + 1, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: lock ? 'budget.lock' : 'budget.unlock', diff: { meta: { version: lock ? p.budgetVersion : p.budgetVersion + 1 } } });
     return this.get(tx, id);
   }
@@ -194,7 +237,9 @@ export class ProposalsService {
   async transition(tx: Tx, id: string, to: ProposalStatus, actorId?: string) {
     const p = await this.row(tx, id);
     if (!PROPOSAL_TRANSITIONS[p.status as ProposalStatus].includes(to)) throw new ConflictException(`Prijelaz ${p.status} → ${to} nije dopušten`);
-    await tx.update(proposals).set({ status: to, updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
+    // Voditelj bez uloge institucije vodi pripremu (u pripremu, na internu provjeru i natrag); povlačenje i evaluacija su radnje ureda.
+    if (!LEAD_TRANSITIONS.includes(to)) this.assertTenant('proposals:write', 'Ovaj prijelaz prijave');
+    await tx.update(proposals).set({ status: to, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'transition', diff: { before: { status: p.status }, after: { status: to } } });
     return this.get(tx, id);
   }
@@ -206,7 +251,7 @@ export class ProposalsService {
     const d = await this.get(tx, id);
     if (!d.ready) throw new ConflictException({ message: 'Prijava nije spremna za predaju', issues: d.readiness.filter((r) => !r.ok).map((r) => r.label) });
     const submission = { portal: input.portal, reference: input.reference, at: input.submittedAt ?? new Date().toISOString(), by: actorId ?? null, budgetVersion: p.budgetVersion, requested: d.budget.totals.requested, total: d.budget.totals.total, lines: d.budget.lines };
-    await tx.update(proposals).set({ status: 'submitted', submission, updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
+    await tx.update(proposals).set({ status: 'submitted', submission, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'submit', diff: { after: { portal: input.portal, reference: input.reference, requested: submission.requested } } });
     return this.get(tx, id);
   }
@@ -215,7 +260,7 @@ export class ProposalsService {
     const p = await this.row(tx, id);
     if (!OUTCOME_FROM.includes(p.status as ProposalStatus)) throw new ConflictException('Ishod se upisuje za predanu prijavu');
     if (p.status === 'reserve' && input.result === 'reserve') throw new ConflictException('Prijava je već na rezervnoj listi');
-    await tx.update(proposals).set({ status: input.result, outcome: { result: input.result, score: input.score, note: input.note, at: new Date().toISOString() }, updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
+    await tx.update(proposals).set({ status: input.result, outcome: { result: input.result, score: input.score, note: input.note, at: new Date().toISOString() }, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: `outcome.${input.result}`, diff: { after: input } });
     return this.get(tx, id);
   }
@@ -241,7 +286,7 @@ export class ProposalsService {
     const [budget] = await tx.insert(projectBudgets).values({ tenantId, projectId: project.id, version: 1, createdBy: actorId, updatedBy: actorId }).returning();
     if (d.budget.lines.length) await tx.insert(budgetLines).values(d.budget.lines.map((l) => ({ tenantId, budgetId: budget!.id, partnerId: partnerOf.get(l.memberId)!, categoryCode: l.categoryCode, amountCents: l.amount, createdBy: actorId })));
     await tx.update(projects).set({ sourceProposalId: id }).where(eq(projects.id, project.id));
-    await tx.update(proposals).set({ status: 'contracted', projectId: project.id, updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
+    await tx.update(proposals).set({ status: 'contracted', projectId: project.id, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: 'contract', diff: { after: { projectId: project.id, budgetTotal: d.budget.totals.total } } });
     return { proposal: await this.get(tx, id), projectId: project.id };
   }

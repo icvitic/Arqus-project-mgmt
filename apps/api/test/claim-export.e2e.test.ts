@@ -74,7 +74,9 @@ describe('Paket ZNS-a za predaju i mjerenje pripreme (WP1.16b, e2e)', () => {
     const ts = async (member: string, month: string, entries: unknown[]) => {
       await http().put(`/api/projects/${pid}/team/${member}/timesheets/${month}`).set(auth(t.admin!)).send({ entries }).expect(200);
       await http().post(`/api/projects/${pid}/team/${member}/timesheets/${month}/submit`).set(auth(t.admin!)).expect(201);
-      await http().post(`/api/projects/${pid}/team/${member}/timesheets/${month}/approve`).set(auth(t.admin!)).expect(201);
+      // WP1.14b – četiri oka: predao administrator, odobrava ured za projekte.
+      t.ured ??= await login(slug, `ured@${slug}.hr`);
+      await http().post(`/api/projects/${pid}/team/${member}/timesheets/${month}/approve`).set(auth(t.ured)).expect(201);
     };
     await ts(durdica, '2025-02', [{ day: 3, minutes: 480, workPackageId: wp1 }, { day: 4, minutes: 240, workPackageId: wp2 }, { day: 4, minutes: 120, workPackageId: wp1 }]);
     await ts(ivan, '2025-03', [{ day: 10, minutes: 450, workPackageId: wp2 }]);
