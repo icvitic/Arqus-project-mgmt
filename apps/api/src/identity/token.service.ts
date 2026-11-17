@@ -18,7 +18,7 @@ export class TokenService {
       .setProtectedHeader({ alg: 'HS256' }).setSubject(claims.sub).setIssuedAt().setIssuer('arqus-projekti').setExpirationTime(this.ttl).sign(this.key);
   }
   async verify(token: string): Promise<AccessClaims> {
-    const { payload } = await jwtVerify(token, this.key, { issuer: 'arqus-projekti' });
+    const { payload } = await jwtVerify(token, this.key, { issuer: 'arqus-projekti', algorithms: ['HS256'] }); // WP1.19: samo HS256
     return { sub: String(payload.sub), tid: String(payload.tid), perms: (payload.perms as string[]) ?? [], sid: String(payload.sid) };
   }
 }

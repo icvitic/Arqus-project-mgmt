@@ -48,7 +48,7 @@ describe('Portfelj (WP1.15, e2e)', () => {
     const big = (await http().post(`/api/projects/${f.B.id}/expenses`).set(admin).send({ categoryCode: 'VU', date: '2027-05-05', description: 'Studija', amount: 1_500_000 }).expect(201)).body.id as string;
     await http().post('/api/documents').set(admin).field({ entityType: 'expense', entityId: big, title: 'Račun', kind: 'evidence' }).attach('file', PDF, 'racun.pdf').expect(201);
     tmB = (await http().post(`/api/projects/${f.B.id}/team`).set(admin).send({ fullName: 'Član tima A', annualCost: 3_000_000 }).expect(201)).body.id as string;
-    await http().put(`/api/projects/${f.B.id}/team/${tmB}/timesheets/${f.month}`).set(admin).send({ entries: [{ day: 1, minutes: 240, workPackageId: f.B.wp }] }).expect(200);
+    await http().put(`/api/projects/${f.B.id}/team/${tmB}/timesheets/${f.month}`).set(admin).send({ revision: 0, entries: [{ day: 1, minutes: 240, workPackageId: f.B.wp }] }).expect(200);
     await http().post(`/api/projects/${f.B.id}/team/${tmB}/timesheets/${f.month}/submit`).set(admin).expect(201);
     // Radar: praćeni poziv (go) s rokom predaje i internim rokom; poziv no-go se ne prikazuje.
     callId = (await http().post('/api/calls').set(admin).send({ code: `PF-${tag}`, title: 'Poziv za portfelj', programme: 'NPOO', packageId: 'npoo-2021-2026', actionTypes: ['BESPOVRATNA'], deadlines: [{ kind: 'submission', at: '2027-07-25T15:00:00Z' }] }).expect(201)).body.id as string;
@@ -58,10 +58,10 @@ describe('Portfelj (WP1.15, e2e)', () => {
     // Prijave: jedna iz odluke go (ideja, interni rok 18. 7.), jedna odbijena.
     const p1 = (await http().post(`/api/calls/${callId}/proposal`).set(admin).send({ acronym: `GO${tag.slice(0, 4)}`, title: 'Prijava iz radara', durationMonths: 12, internalDeadline: '2027-07-18' }).expect(201)).body;
     goProposal = p1.id;
-    await http().put(`/api/proposals/${p1.id}/budget/lines`).set(admin).send({ lines: [{ memberId: p1.members[0].id, categoryCode: 'OS', amount: 1_000_000 }] }).expect(200);
+    await http().put(`/api/proposals/${p1.id}/budget/lines`).set(admin).send({ revision: p1.revision, lines: [{ memberId: p1.members[0].id, categoryCode: 'OS', amount: 1_000_000 }] }).expect(200);
     const p2 = (await http().post('/api/proposals').set(admin).send({ packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', acronym: `RJ${tag.slice(0, 4)}`, title: 'Odbijena prijava', durationMonths: 12 }).expect(201)).body;
     await http().post(`/api/proposals/${p2.id}/work-packages`).set(admin).send({ title: 'Rad', startMonth: 1, endMonth: 12 }).expect(201);
-    await http().put(`/api/proposals/${p2.id}/budget/lines`).set(admin).send({ lines: [{ memberId: p2.members[0].id, categoryCode: 'OS', amount: 500_000 }] }).expect(200);
+    await http().put(`/api/proposals/${p2.id}/budget/lines`).set(admin).send({ revision: (await http().get(`/api/proposals/${p2.id}`).set(admin).expect(200)).body.revision, lines: [{ memberId: p2.members[0].id, categoryCode: 'OS', amount: 500_000 }] }).expect(200);
     await http().post(`/api/proposals/${p2.id}/budget/lock`).set(admin).expect(201);
     for (const to of ['preparation', 'internal_review']) await http().post(`/api/proposals/${p2.id}/transition`).set(admin).send({ to }).expect(201);
     await http().post(`/api/proposals/${p2.id}/submit`).set(admin).send({ portal: 'eNPOO', reference: 'X-1' }).expect(201);

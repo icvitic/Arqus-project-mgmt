@@ -92,3 +92,14 @@ Razvoj sam ne može ispuniti nijedan uvjet faze 2. Najduži rok ima pronalazak p
 **Točka zaustavljanja.** Nakon WP1.16 i WP1.14b daljnji razvoj bez povratne informacije kupaca je nagađanje: ne znamo unose li institucije postojeće projekte iz Excela (WP1.17) ili im više treba nešto treće. Zato se nakon ta dva paketa razvoj zaustavlja dok Ivan ne održi barem tri demonstracije i zapiše što su sugovornici tražili (predložak: `docs/faza-0/predlozak-biljeske.md`). Te bilješke određuju sljedeću reviziju.
 
 **Poznata ograničenja koja ostaju do pilota:** izolacija projekata samo u aplikaciji (bez RLS-a po projektu), prijave na razini institucije, voditelj može unijeti i odobriti timesheet člana bez korisničkog računa, iznosi troškova osoblja vidljivi uz `finance:read`. Sva su zapisana u `docs/sigurnost/AUTORIZACIJA.md` i idu u opseg penetracijskog testa.
+
+## 8. Rad tijekom točke zaustavljanja (2026-11-17, v0.26.0)
+
+Točka zaustavljanja iz odjeljka 7 vrijedi za **nove funkcije**: WP1.17 (uvoz iz Excela) i WP1.18 (rokovi i „Moj rad”) i dalje čekaju bilješke s barem tri demonstracije. Ivan je zatražio nastavak razvoja; nastavlja se samo ono što ne ovisi o povratnoj informaciji kupaca, jer je potrebno svakom pilotu i penetracijskom testu:
+
+| # | Radni paket | Zašto ne ovisi o demonstracijama |
+| --- | --- | --- |
+| **WP1.19** | Sigurnosne dorade prije penetracijskog testa | Zatvara poznata ograničenja koja bi izvođač testa našao prvi dan: iznosi troškova osoblja vidljivi bez prava na plaće, MFA nije obvezan ni za jednu ulogu, provjera revizije u API-ju je neobvezna, zapis neuspjele prijave čuva upisani tekst, izvoz revizije u memoriji. Uz to dokument s opsegom testa za izvođača. |
+| **WP1.20** | S3 pohrana dokumenata i kopije izvan poslužitelja | Treba svakoj instalaciji kod pružatelja; S3 sučelje je standardno pa ne ovisi o tome koji će pružatelj biti odabran (ADR-0010). Uključuje mjerenje vremena obnove (RTO). |
+
+Nakon ta dva paketa nema više razvoja koji nije nagađanje: sljedeći korak određuju bilješke s demonstracija, odluka o pružatelju i nalazi penetracijskog testa.

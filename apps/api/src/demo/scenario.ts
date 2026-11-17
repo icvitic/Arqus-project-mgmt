@@ -39,6 +39,8 @@ const firstOfMonth = (todayIso: string, offset: number): string => addMonths(`${
 const projectMonth = (start: string, n: number): string => addMonths(start, n - 1).slice(0, 7);
 const dayOf = (start: string, n: number, day: number): string => `${projectMonth(start, n)}-${pad(Math.min(day, daysInMonth(projectMonth(start, n))))}`;
 const deadline = (date: string, time = '15:00:00'): string => `${date}T${time}Z`;
+/** WP1.19: revizija je obavezna pri spremanju proračuna i timesheeta – seeder je čita kao sučelje (GET pa PUT). */
+const revisionOf = async (api: DemoApi, path: string): Promise<number> => (await api.get<{ revision: number }>(path)).revision;
 const eur = (cents: number): string => `${(cents / 100).toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`;
 
 /** Raspored rada: radni dani, minute po uzorku, radni paketi koji su u tom mjesecu aktivni. Deterministično (isti podaci pri svakom pokretanju). */
@@ -164,7 +166,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     { title: 'Istraživanje i pilot-mjerenja na zgradama', leadMemberId: nSelf, startMonth: 6, endMonth: 24, personMonths: 18 },
     { title: 'Promidžba i prijenos znanja', leadMemberId: nAgency, startMonth: 1, endMonth: 24, personMonths: 4 },
   ]) await office.post(`/proposals/${npooPid}/work-packages`, w);
-  await office.put(`/proposals/${npooPid}/budget/lines`, { lines: [
+  await office.put(`/proposals/${npooPid}/budget/lines`, { revision: await revisionOf(office, `/proposals/${npooPid}`), lines: [
     { memberId: nSelf, categoryCode: 'OS', amount: 9_600_000 }, { memberId: nSelf, categoryCode: 'VU', amount: 4_500_000 }, { memberId: nSelf, categoryCode: 'OP', amount: 12_000_000 },
     { memberId: nSelf, categoryCode: 'PUT', amount: 600_000 }, { memberId: nSelf, categoryCode: 'UP', amount: 1_800_000 }, { memberId: nSelf, categoryCode: 'PV', amount: 700_000 },
     { memberId: nAgency, categoryCode: 'OS', amount: 2_400_000 }, { memberId: nAgency, categoryCode: 'VU', amount: 900_000 }, { memberId: nAgency, categoryCode: 'PV', amount: 800_000 },
@@ -203,7 +205,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   // Timesheetovi NPOO: mj. 1–12 (RP1 i RP2). Josipov timesheet za 12. mjesec čeka odobrenje ureda (otvorena stavka ZNS-a 2).
   // Marina u 12. mjesecu radi i na BLUESENSE (portfelj: dan iznad 8 h kroz dva projekta).
   const timesheet = async (writer: Api, approver: Api, projectId: string, memberId: string, month: string, entries: unknown[], approve = true) => {
-    await writer.put(`/projects/${projectId}/team/${memberId}/timesheets/${month}`, { entries });
+    const url = `/projects/${projectId}/team/${memberId}/timesheets/${month}`;
+    await writer.put(url, { revision: await revisionOf(writer, url), entries });
     await writer.post(`/projects/${projectId}/team/${memberId}/timesheets/${month}/submit`);
     if (approve) await approver.post(`/projects/${projectId}/team/${memberId}/timesheets/${month}/approve`);
     sum.timesheets++;
@@ -324,7 +327,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     const row = await pm.post<Row>(`/projects/${heId}/risks`, body);
     if (status) await pm.patch(`/projects/${heId}/risks/${row.id}`, { status });
   }
-  await office.put(`/projects/${heId}/budget/lines`, { lines: [
+  await office.put(`/projects/${heId}/budget/lines`, { revision: await revisionOf(office, `/projects/${heId}/budget`), lines: [
     ...[['A.1', 42_000_000], ['B', 1_500_000], ['C.1', 3_600_000], ['C.2', 6_500_000], ['C.3', 2_800_000]].map(([c, a]) => ({ partnerId: hSelf, categoryCode: c, amount: a })),
     ...[['A.1', 38_000_000], ['C.1', 2_400_000], ['C.2', 9_000_000], ['C.3', 1_800_000]].map(([c, a]) => ({ partnerId: hp('de'), categoryCode: c, amount: a })),
     ...[['A.1', 29_000_000], ['C.1', 2_200_000], ['C.3', 2_500_000]].map(([c, a]) => ({ partnerId: hp('it'), categoryCode: c, amount: a })),
@@ -357,7 +360,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   await timesheet(pm, office, heId, marinaHe, projectMonth(heStart, curMonth - 1), [fullDay, lightDay].sort((a, b) => a.day - b.day).map((e) => ({ day: e.day, minutes: 120, workPackageId: hWps[3]!.id })));
   const thisMonth = projectMonth(heStart, curMonth);
   const draft = timesheetEntries(thisMonth, curMonth, [360, 420, 480, 300], hWp, 5, Number(todayIso.slice(8, 10)) - 1);
-  if (draft.length) await member.put(`/projects/${heId}/team/${luka}/timesheets/${thisMonth}`, { entries: draft });
+  if (draft.length) await member.put(`/projects/${heId}/team/${luka}/timesheets/${thisMonth}`, { revision: await revisionOf(member, `/projects/${heId}/team/${luka}/timesheets/${thisMonth}`), entries: draft });
   // Ručni troškovi koordinatora; jedan namjerno bez dokaza.
   const heExpenses = [
     { categoryCode: 'C.1', date: dayOf(heStart, 2, 14), description: 'Početni sastanak konzorcija – putni trošak (2 osobe)', supplier: 'Putnički nalozi 3/2026 i 4/2026', amount: 142_000, evidenceRef: 'PN-3-4/2026' },
@@ -387,7 +390,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     { title: 'Diseminacija i iskorištavanje', leadMemberId: aSelf, startMonth: 1, endMonth: 48, personMonths: 10 },
   ]) await office.post(`/proposals/${aq.id}/work-packages`, w);
   // WP1.14b: voditeljica prijave (Petra, bez uloge institucije) sama unosi proračun i pokreće pripremu vlastite prijave.
-  await pm.put(`/proposals/${aq.id}/budget/lines`, { lines: [
+  await pm.put(`/proposals/${aq.id}/budget/lines`, { revision: await revisionOf(pm, `/proposals/${aq.id}`), lines: [
     { memberId: aSelf, categoryCode: 'A.1', amount: 52_000_000 }, { memberId: aSelf, categoryCode: 'C.1', amount: 4_000_000 }, { memberId: aSelf, categoryCode: 'C.3', amount: 3_500_000 },
     { memberId: mem('de'), categoryCode: 'A.1', amount: 61_000_000 }, { memberId: mem('de'), categoryCode: 'C.2', amount: 12_000_000 },
   ] });
@@ -400,7 +403,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   const rj = await office.post<{ id: string; members: Row[] }>('/proposals', { packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', acronym: 'PAMETNI-KAMPUS', title: 'Digitalni blizanac sveučilišnog kampusa za upravljanje energijom', durationMonths: 24, leadUserId: userIds.pm2 });
   const rjSelf = rj.members[0]!.id;
   await office.post(`/proposals/${rj.id}/work-packages`, { title: 'Digitalni blizanac i senzorska mreža kampusa', leadMemberId: rjSelf, startMonth: 1, endMonth: 24, personMonths: 14 });
-  await office.put(`/proposals/${rj.id}/budget/lines`, { lines: [{ memberId: rjSelf, categoryCode: 'OS', amount: 7_200_000 }, { memberId: rjSelf, categoryCode: 'OP', amount: 5_500_000 }, { memberId: rjSelf, categoryCode: 'VU', amount: 1_800_000 }] });
+  await office.put(`/proposals/${rj.id}/budget/lines`, { revision: await revisionOf(office, `/proposals/${rj.id}`), lines: [{ memberId: rjSelf, categoryCode: 'OS', amount: 7_200_000 }, { memberId: rjSelf, categoryCode: 'OP', amount: 5_500_000 }, { memberId: rjSelf, categoryCode: 'VU', amount: 1_800_000 }] });
   await office.post(`/proposals/${rj.id}/budget/lock`);
   await office.post(`/proposals/${rj.id}/transition`, { to: 'preparation' });
   await office.post(`/proposals/${rj.id}/transition`, { to: 'internal_review' });

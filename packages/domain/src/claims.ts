@@ -64,7 +64,7 @@ export interface ChecklistItem {
 
 export interface ChecklistExpense { id: string; date: string; description: string; amount: number; categoryCode: string; source: 'manual' | 'timesheet' | string; documents: number }
 /** Nepredan trošak iz ranijeg razdoblja (WP1.16b): datiran u razdoblju čiji je ZNS već predan. */
-export interface ChecklistEarlierExpense { date: string; description: string; amount: number; period: number }
+export interface ChecklistEarlierExpense { date: string; description: string; amount: number; period: number; source?: 'manual' | 'timesheet' | string }
 export interface ChecklistTimesheet { memberName: string; month: string; status: string; minutes: number }
 export interface ChecklistBudgetRow { categoryCode: string; name?: string; planned: number; claimedBefore: number }
 
@@ -90,6 +90,11 @@ export interface ClaimChecklistInput {
 export interface ClaimChecklist { items: ChecklistItem[]; canSubmit: boolean; early: boolean; blocking: ChecklistItem[]; warnings: ChecklistItem[] }
 
 const eurText = (cents: number): string => `${(cents / 100).toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`;
+/**
+ * WP1.19: tekst popisa za provjeru sprema se uz predaju i prikazuje svakome s `finance:read` – iznos pojedinog troška
+ * osoblja (otkriva satnicu) zato se u tekst nikad ne upisuje; zbrojevi po kategoriji ostaju.
+ */
+const amountText = (e: { amount: number; source?: string }): string => (e.source === 'timesheet' ? 'trošak osoblja' : eurText(e.amount));
 const hrDate = (iso: string): string => `${iso.slice(8, 10)}. ${iso.slice(5, 7)}. ${iso.slice(0, 4)}.`;
 /** Hrvatska množina: 1 trošak, 2–4 troška, 5+ (i 11–14) troškova. */
 const pl = (n: number, one: string, few: string, many: string): string => { const d = n % 10, h = n % 100; return d === 1 && h !== 11 ? one : d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many; };
@@ -157,8 +162,8 @@ export function claimChecklist(input: ClaimChecklistInput): ClaimChecklist {
     items.push({
       key: 'earlier_periods', ok: notSelected.length === 0, severity: 'warning', title: parts.join('; '), resolution: 'select_earlier',
       details: [
-        ...earlier.map((e) => `uključeno: ${hrDate(e.date)} ${e.description} (${eurText(e.amount)})`),
-        ...notSelected.map((e) => `nije uključeno: ${hrDate(e.date)} ${e.description} (${eurText(e.amount)}, RP${e.period})`),
+        ...earlier.map((e) => `uključeno: ${hrDate(e.date)} ${e.description} (${amountText(e)})`),
+        ...notSelected.map((e) => `nije uključeno: ${hrDate(e.date)} ${e.description} (${amountText(e)}, RP${e.period})`),
       ],
     });
   }

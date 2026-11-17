@@ -90,7 +90,7 @@ describe('Pristup po projektu (WP1.14, e2e)', () => {
     await http().post(`/api/projects/${f.A.id}/team`).set(t).send({ fullName: 'Tuđi partner', partnerId: B.self }).expect(404);
     await http().post(`/api/projects/${f.A.id}/claims`).set(t).send({ period: 2, partnerId: B.self }).expect(404);
     expect((await http().post(`/api/projects/${f.A.id}/expenses`).set(t).send({ categoryCode: 'VU', workPackageId: B.wp, date: '2027-02-01', description: 'Krivi WP', amount: 1 }).expect(400)).body.issues.join(' ')).toMatch(/nije na projektu/);
-    await http().put(`/api/projects/${f.A.id}/team/${f.A.pmMember}/timesheets/2027-03`).set(t).send({ entries: [{ day: 1, minutes: 60, workPackageId: B.wp }] }).expect(400);
+    await http().put(`/api/projects/${f.A.id}/team/${f.A.pmMember}/timesheets/2027-03`).set(t).send({ revision: 0, entries: [{ day: 1, minutes: 60, workPackageId: B.wp }] }).expect(400);
     // Projekt A: voditelj radi strukturu, troškove i timesheetove.
     await http().post(`/api/projects/${f.A.id}/work-packages`).set(t).send({ title: 'Diseminacija', startMonth: 1, endMonth: 12 }).expect(201);
     await http().post(`/api/projects/${f.A.id}/expenses`).set(t).send({ categoryCode: 'VU', date: '2027-03-01', description: 'Prijevod', amount: 10_000 }).expect(201);
@@ -144,8 +144,8 @@ describe('Pristup po projektu (WP1.14, e2e)', () => {
     await http().put(`/api/projects/${f.A.id}/budget/lines`).set(t).send({ lines: [] }).expect(403);
     await http().post(`/api/projects/${f.A.id}/expenses`).set(t).send({ categoryCode: 'VU', date: '2027-02-01', description: 'X', amount: 1 }).expect(403);
     await http().post(`/api/projects/${f.A.id}/team`).set(t).send({ fullName: 'X' }).expect(403);
-    await http().put(`/api/projects/${f.A.id}/team/${f.A.pmMember}/timesheets/2027-03`).set(t).send({ entries: [] }).expect(403); // tuđi
-    await http().put(`/api/projects/${f.A.id}/team/${f.A.member}/timesheets/2027-03`).set(t).send({ entries: [{ day: 1, minutes: 60 }] }).expect(200); // vlastiti
+    await http().put(`/api/projects/${f.A.id}/team/${f.A.pmMember}/timesheets/2027-03`).set(t).send({ revision: 0, entries: [] }).expect(403); // tuđi
+    await http().put(`/api/projects/${f.A.id}/team/${f.A.member}/timesheets/2027-03`).set(t).send({ revision: 0, entries: [{ day: 1, minutes: 60 }] }).expect(200); // vlastiti
     await http().post(`/api/projects/${f.A.id}/team/${f.A.member}/timesheets/${f.month}/approve`).set(t).expect(403);
     await http().get(`/api/projects/${f.A.id}/access`).set(t).expect(403);
     for (const path of ['', '/structure', '/team', '/expenses', '/claims']) await http().get(`/api/projects/${f.B.id}${path}`).set(t).expect(404);
@@ -166,7 +166,7 @@ describe('Pristup po projektu (WP1.14, e2e)', () => {
     // Bez upisanog troška timesheet se ne može odobriti (trošak osoblja ne bi bio točan).
     const extra = as(f.tokens.extra); // dodavanjem u tim dobio je ulogu člana tima na A
     expect(ids((await http().get('/api/projects').set(extra).expect(200)).body)).toEqual([f.A.id]);
-    await http().put(`/api/projects/${f.A.id}/team/${added.id}/timesheets/${f.month}`).set(extra).send({ entries: [{ day: 3, minutes: 120 }] }).expect(200);
+    await http().put(`/api/projects/${f.A.id}/team/${added.id}/timesheets/${f.month}`).set(extra).send({ revision: 0, entries: [{ day: 3, minutes: 120 }] }).expect(200);
     await http().post(`/api/projects/${f.A.id}/team/${added.id}/timesheets/${f.month}/submit`).set(extra).expect(201);
     expect((await http().post(`/api/projects/${f.A.id}/team/${added.id}/timesheets/${f.month}/approve`).set(as(f.tokens.pm)).expect(409)).body.message).toMatch(/godišnji trošak/);
     const upd = (await http().patch(`/api/projects/${f.A.id}/team/${added.id}`).set(as(f.tokens.fin)).send({ annualCost: 3_440_000 }).expect(200)).body;
@@ -262,10 +262,11 @@ describe('Pristup po projektu (WP1.14, e2e)', () => {
     const admin = as(f.tokens.admin);
     const p = (await http().post('/api/projects').set(admin).send({ acronym: `PC${tag.slice(0, 4)}`, title: 'Projekt C', packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', managerUserId: f.users.extra }).expect(201)).body;
     expect(Object.keys((await http().get('/api/me').set(as(f.tokens.extra)).expect(200)).body.projectPermissions)).toContain(p.id);
-    await http().patch(`/api/projects/${p.id}`).set(admin).send({ managerUserId: f.users.tm }).expect(200);
+    const rev = async () => (await http().get(`/api/projects/${p.id}`).set(admin).expect(200)).body.revision as number;
+    await http().patch(`/api/projects/${p.id}`).set(admin).send({ revision: await rev(), managerUserId: f.users.tm }).expect(200);
     expect((await http().get('/api/me').set(as(f.tokens.tm)).expect(200)).body.projectPermissions[p.id]).toContain('projects:write');
     const me = (await http().get('/api/me').set(admin).expect(200)).body.user.id;
-    await http().patch(`/api/projects/${p.id}`).set(admin).send({ managerUserId: me }).expect(200);
+    await http().patch(`/api/projects/${p.id}`).set(admin).send({ revision: await rev(), managerUserId: me }).expect(200);
     const users = (await http().get('/api/users').set(admin).expect(200)).body as { id: string; projectRoles: { projectId: string }[] }[];
     expect(users.find((u) => u.id === me)!.projectRoles.filter((r) => r.projectId === p.id)).toEqual([]);
   });

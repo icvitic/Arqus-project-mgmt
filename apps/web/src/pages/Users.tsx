@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { date } from '../lib/format';
 import { useLoad } from '../lib/hooks';
-import type { Me, ProjectSummary, RoleRow, UserRow } from '../lib/types';
+import type { Me, MfaPolicy, ProjectSummary, RoleRow, SecuritySettings, UserRow } from '../lib/types';
 import { ActionButton, ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
 import { can } from '../lib/access';
 
@@ -32,6 +32,7 @@ function UsersInner({ me }: { me: Me }) {
     <>
       <h1>Korisnici</h1>
       <p className="sub">Korisnici institucije i njihove uloge. Uloga <b>institucije</b> vrijedi za sve projekte; uloga <b>na projektu</b> samo za taj projekt (voditelj projekta A ne vidi projekt B). Promjena uloga vrijedi odmah; deaktivacija i reset lozinke odjavljuju korisnika sa svih uređaja.</p>
+      <MfaPolicyCard write={write} onChange={users.reload} />
       {write && (
         <div className="grid g2">
           <div className="card"><h2>Novi korisnik</h2>
@@ -83,7 +84,7 @@ function UsersInner({ me }: { me: Me }) {
                   </span>
                 ))}</td>
                 <td><Chip s={u.status} tone={u.status === 'active' ? 'ok' : u.status === 'disabled' ? 'bad' : 'warn'} /></td>
-                <td>{u.mfaEnabled ? <span className="chip ok">uključen</span> : <span className="chip">isključen</span>}</td>
+                <td>{u.mfaEnabled ? <span className="chip ok">uključen</span> : u.mfaRequired ? <span className="chip bad" title="Institucija zahtijeva MFA za ovu ulogu; do postavljanja korisnik ima pristup samo vlastitom računu">obvezan – nije postavljen</span> : <span className="chip">isključen</span>}</td>
                 <td>{u.lastLoginAt ? date(u.lastLoginAt) : '–'}</td>
                 {write && <td><div className="actions" style={{ marginTop: 0 }}>{u.id !== me.user.id && <>
                   {u.status === 'active'
@@ -98,5 +99,44 @@ function UsersInner({ me }: { me: Me }) {
         )}
       </div>
     </>
+  );
+}
+
+const MFA_OPTIONS: { value: MfaPolicy; label: string; hint: string }[] = [
+  { value: 'none', label: 'Nije obvezna', hint: 'svaki korisnik sam odlučuje (preporučeno samo za demo)' },
+  { value: 'privileged', label: 'Obvezna za povlaštene uloge', hint: 'administratori, ured za projekte, financije – tko na razini institucije upravlja korisnicima ili postavkama, vidi plaće ili reviziju ili mijenja financije' },
+  { value: 'all', label: 'Obvezna za sve', hint: 'svaki korisnik institucije' },
+];
+
+/**
+ * WP1.19: obvezna dvofaktorska prijava – postavka institucije. Mijenja je samo administrator korisnika (users:write);
+ * promjena se bilježi u reviziju. Korisnik kojem je MFA obvezan, a nema ga, pri sljedećem zahtjevu ide na postavljanje MFA.
+ */
+function MfaPolicyCard({ write, onChange }: { write: boolean; onChange: () => Promise<void> }) {
+  const s = useLoad(() => api<SecuritySettings>('GET', '/tenant/security'), []);
+  const [choice, setChoice] = useState<MfaPolicy | null>(null);
+  if (s.error) return <ErrorBox error={s.error} />;
+  if (!s.data) return <Loading what="sigurnosne postavke" />;
+  const value = choice ?? s.data.requireMfa;
+  const impact = s.data.impact[value];
+  return (
+    <div className="card" aria-label="Obvezna dvofaktorska prijava">
+      <h2>Obvezna dvofaktorska prijava (MFA)</h2>
+      <div className="form one">
+        {MFA_OPTIONS.map((o) => (
+          <label key={o.value} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 14 }}>
+            <input type="radio" name="requireMfa" value={o.value} checked={value === o.value} disabled={!write} onChange={() => setChoice(o.value)} />
+            <span><b>{o.label}</b> <span className="muted">– {o.hint}</span></span>
+          </label>
+        ))}
+      </div>
+      <p className="muted">{value === 'none' ? 'MFA nije obvezan ni za koga.' : `Odnosi se na ${impact.required} aktivnih korisnika; od njih ${impact.withoutMfa} još nema MFA i pri sljedećem zahtjevu bit će upućeni na postavljanje (do tada samo vlastiti račun i odjava).`}</p>
+      {write ? (
+        <div className="actions">
+          <ActionButton kind="primary" disabled={value === s.data.requireMfa} onClick={async () => { s.setData(await api<SecuritySettings>('PUT', '/tenant/security', { requireMfa: value })); setChoice(null); await onChange(); }}>Spremi postavku</ActionButton>
+          <span className="muted">Promjena se bilježi u reviziju. Tko postrožuje postavku, mora i sam imati MFA.</span>
+        </div>
+      ) : <p className="muted">Postavku mijenja administrator korisnika.</p>}
+    </div>
   );
 }

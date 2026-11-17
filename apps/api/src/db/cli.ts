@@ -1,7 +1,8 @@
 /* Operativni CLI za instalaciju (kontejner): `node dist/db/cli.js migrate | import-packages | seed | init`.
  * migrate – primjena migracija i usklađivanje sistemskih uloga (vlasnička uloga DATABASE_MIGRATE_URL)
  * import-packages – uvoz/osvježavanje globalnih paketa programa (ARQUS_PACKAGES_DIR)
- * seed – prvi stanar i administrator (SEED_TENANT_SLUG, SEED_TENANT_NAME, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD)
+ * seed – prvi stanar i administrator (SEED_TENANT_SLUG, SEED_TENANT_NAME, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD); u produkciji
+ *   novi stanar dobiva obvezni MFA za povlaštene uloge (WP1.19)
  * init – migrate + import-packages (pri svakom pokretanju kontejnera; idempotentno)
  * import-calls [--file a.json ...] – uvoz globalnih poziva s portala EU Funding & Tenders (ili iz spremljenih odgovora search API-ja)
  * demo [--reset] [--slug <oznaka>] – demo institucija s realnim podacima (WP1.13; nikad implicitno). Treba i DATABASE_URL (aplikacijska uloga);
@@ -40,8 +41,10 @@ async function main(cmd: string | undefined): Promise<void> {
   }
   if (cmd === 'seed') {
     if (process.env.NODE_ENV === 'production' && (process.env.SEED_ADMIN_PASSWORD ?? '').length < 12) throw new Error('U produkciji SEED_ADMIN_PASSWORD mora imati barem 12 znakova');
-    const r = await seedDemo({ url, importPackages: false });
-    console.log(`Stanar ${r.tenantSlug}, administrator ${r.adminEmail} (lozinka iz SEED_ADMIN_PASSWORD).`);
+    // WP1.19: nova produkcijska institucija ima obvezan MFA za povlaštene uloge (administrator pri prvoj prijavi postavlja MFA).
+    const production = process.env.NODE_ENV === 'production';
+    const r = await seedDemo({ url, importPackages: false, requireMfa: production ? 'privileged' : undefined });
+    console.log(`Stanar ${r.tenantSlug}, administrator ${r.adminEmail} (lozinka iz SEED_ADMIN_PASSWORD).${production ? ' Obvezni MFA: povlaštene uloge (administrator postavlja MFA pri prvoj prijavi).' : ''}`);
   }
   if (cmd === 'import-calls') {
     const files = process.argv.slice(3).filter((a) => a !== '--file');

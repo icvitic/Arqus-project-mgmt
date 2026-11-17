@@ -4,7 +4,7 @@ import { centsToInput, date, eur, label, monthLabel, parseEur, plural } from '..
 import { useLoad } from '../lib/hooks';
 import { defaultPeriod, groupExpenses, localToday, type ExpenseGroup } from '../lib/claims';
 import type { Claim, ClaimExpense, ChecklistItem, DecisionPreview, PreparationMeasures } from '../lib/types';
-import { ActionButton, ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
+import { ActionButton, ActionForm, Chip, ErrorBox, Field, HiddenAmount, Loading } from '../ui';
 import { can, type TabProps } from '../pages/ProjectDetail';
 
 const DECIDED = ['approved', 'partially_approved', 'rejected'];
@@ -186,14 +186,14 @@ function EarlierPanel({ c, base, write, reload }: { c: Claim; base: string; writ
             <td><input type="checkbox" aria-label={`Uključi: ${x.description}`} checked={chosen.has(x.id)} disabled={!write || x.selectedElsewhere !== null} onChange={() => toggle(x.id)} /></td>
             <td>{date(x.date)}<small className="muted">RP{x.period ?? '?'}</small></td>
             <td>{x.categoryCode} · {x.description}{x.supplier ? <span className="muted"> · {x.supplier}</span> : null}{x.selectedElsewhere !== null && <small className="muted">već odabran u nacrtu ZNS-a za RP{x.selectedElsewhere}</small>}</td>
-            <td className="num">{eur(x.amount)}</td>
+            <td className="num">{x.amountHidden ? <HiddenAmount /> : eur(x.amount)}</td>
             <td>{x.source !== 'manual' ? <span className="muted">timesheet</span> : x.documents ? `dokaz (${x.documents})` : <span className="chip warn">bez dokaza</span>}</td>
           </tr>
         ))}</tbody>
       </table>
       {write && (
         <div className="actions">
-          <ActionButton kind={dirty ? 'primary' : undefined} disabled={!dirty} onClick={async () => { await api('PUT', `${base}/earlier-expenses`, { expenseIds: [...chosen] }); await reload(); }}>Spremi odabir</ActionButton>
+          <ActionButton kind={dirty ? 'primary' : undefined} disabled={!dirty} onClick={async () => { await api('PUT', `${base}/earlier-expenses`, { revision: c.revision, expenseIds: [...chosen] }); await reload(); }}>Spremi odabir</ActionButton>
           <span className="muted">Odabrano: {chosen.size} od {list.length}</span>
         </div>
       )}
@@ -248,7 +248,7 @@ function ExpenseTable({ c }: { c: Claim }) {
               <tr>
                 <td>{date(g.date)}{g.rows.some((e) => e.earlier) && <><br /><span className="chip acc">ranije razdoblje</span></>}</td>
                 <td><button className="link" aria-expanded={open.has(g.key)} onClick={() => toggle(g.key)}>{open.has(g.key) ? '▾' : '▸'} Rad: {g.person}, {g.month ? monthLabel(g.month) : ''}</button> <span className="muted">· {g.rows.length} {plural(g.rows.length, 'radni paket', 'radna paketa', 'radnih paketa')}</span></td>
-                <td className="num">{eur(g.amount)}</td>{decided && <td className="num">{eur(g.recognised)}</td>}
+                <td className="num">{g.hidden ? <HiddenAmount /> : eur(g.amount)}</td>{decided && <td className="num">{g.hidden ? <HiddenAmount /> : eur(g.recognised)}</td>}
                 <td>{statusOf(g.rows) ? <Chip s={statusOf(g.rows)!} /> : <span className="chip warn">djelomično</span>}</td>
                 <td className="muted">timesheet</td>
               </tr>
@@ -256,7 +256,7 @@ function ExpenseTable({ c }: { c: Claim }) {
                 <tr key={e.id} className="sub-row">
                   <td />
                   <td style={{ paddingLeft: 28 }}>{e.workPackage ?? 'bez radnog paketa'} <span className="muted">· {e.description.replace(/^Rad: [^,]*, \d{4}-\d{2} /, '')}</span>{e.decisionReason && <small className="muted">Razlog: {e.decisionReason}</small>}</td>
-                  <td className="num">{eur(e.amount)}</td>{decided && <td className="num">{eur(e.recognised)}</td>}
+                  <td className="num">{e.amountHidden ? <HiddenAmount /> : eur(e.amount)}</td>{decided && <td className="num">{e.amountHidden ? <HiddenAmount /> : eur(e.recognised)}</td>}
                   <td><Chip s={e.status} /></td><td />
                 </tr>
               ))}
@@ -285,7 +285,9 @@ type Row = { recognised: string; reason: string };
 /** Odluka (ili ispravak odluke) po trošku: priznati iznos i razlog; izračun priznatog iznosa s poslužitelja uz iznos financijera. */
 function DecisionForm({ c, base, mode, reload, onCancel }: { c: Claim; base: string; mode: 'decide' | 'correct'; reload: () => Promise<void>; onCancel?: () => void }) {
   const today = localToday();
-  const [rows, setRows] = useState<Record<string, Row>>(() => Object.fromEntries(c.expenses.map((e) => [e.id, { recognised: centsToInput(e.recognised ?? e.amount) || '0', reason: e.decisionReason ?? '' }])));
+  // WP1.19: bez personnel:read trošak osoblja nema iznos u odgovoru i o njemu se ne odlučuje (ostaje priznat kako je zatražen).
+  const decidable = useMemo(() => c.expenses.filter((e) => e.amount !== null && !(e.source === 'timesheet' && !c.canDecidePersonnel)), [c.expenses, c.canDecidePersonnel]);
+  const [rows, setRows] = useState<Record<string, Row>>(() => Object.fromEntries(decidable.map((e) => [e.id, { recognised: centsToInput(e.recognised ?? e.amount ?? 0) || '0', reason: e.decisionReason ?? '' }])));
   const [decisionDate, setDecisionDate] = useState(mode === 'correct' ? (c.decisionDate ?? today) : today);
   const [funder, setFunder] = useState(mode === 'correct' && c.decision?.funderTotal != null ? centsToInput(c.decision.funderTotal) : '');
   const [note, setNote] = useState('');
@@ -296,8 +298,8 @@ function DecisionForm({ c, base, mode, reload, onCancel }: { c: Claim; base: str
   const parsed = (id: string): number | null => parseEur(rows[id]?.recognised ?? '');
   const funderCents = funder.trim() ? parseEur(funder) : null;
   const payload = () => {
-    const expenses = c.expenses.flatMap((e) => {
-      const v = parsed(e.id); if (v === null) return [];
+    const expenses = decidable.flatMap((e) => {
+      const v = parsed(e.id); if (v === null || e.amount === null) return [];
       const current = e.recognised ?? e.amount; const reason = rows[e.id]!.reason.trim();
       if (mode === 'decide' ? v === e.amount : v === current && reason === (e.decisionReason ?? '')) return [];
       return [{ id: e.id, recognised: v, ...(v < e.amount ? { reason } : {}) }];
@@ -313,22 +315,28 @@ function DecisionForm({ c, base, mode, reload, onCancel }: { c: Claim; base: str
   const set = (id: string, patch: Partial<Row>) => setRows((r) => ({ ...r, [id]: { ...r[id]!, ...patch } }));
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const rowInputs = (e: ClaimExpense) => {
+    if (e.amount === null || !rows[e.id]) {
+      return <><td className="num"><HiddenAmount /></td><td className="muted">priznat kako je zatražen</td><td className="muted">odlučuje uloga s pristupom podacima o osoblju</td></>;
+    }
+    const amount = e.amount;
     const v = parsed(e.id);
-    const reduced = v !== null && v < e.amount;
+    const reduced = v !== null && v < amount;
     return (
       <>
-        <td className="num">{eur(e.amount)}</td>
-        <td><input className="cell" aria-label={`Priznato: ${e.description}`} inputMode="decimal" value={rows[e.id]!.recognised} onChange={(ev) => set(e.id, { recognised: ev.target.value })} style={v === null || (v ?? 0) > e.amount ? { borderColor: 'var(--bad)' } : undefined} />
-          {' '}<button type="button" className="link" onClick={() => set(e.id, { recognised: reduced ? centsToInput(e.amount) : '0' })}>{reduced ? 'cijeli' : 'odbij'}</button></td>
+        <td className="num">{eur(amount)}</td>
+        <td><input className="cell" aria-label={`Priznato: ${e.description}`} inputMode="decimal" value={rows[e.id]!.recognised} onChange={(ev) => set(e.id, { recognised: ev.target.value })} style={v === null || (v ?? 0) > amount ? { borderColor: 'var(--bad)' } : undefined} />
+          {' '}<button type="button" className="link" onClick={() => set(e.id, { recognised: reduced ? centsToInput(amount) : '0' })}>{reduced ? 'cijeli' : 'odbij'}</button></td>
         <td><input aria-label={`Razlog: ${e.description}`} value={rows[e.id]!.reason} onChange={(ev) => set(e.id, { reason: ev.target.value })} placeholder={reduced ? 'razlog (obavezno)' : ''} disabled={!reduced} style={reduced && rows[e.id]!.reason.trim().length < MIN_REASON ? { borderColor: 'var(--warn)' } : undefined} /></td>
       </>
     );
   };
   const groupRecognised = (g: ExpenseGroup<ClaimExpense>) => g.rows.reduce((a, e) => a + (parsed(e.id) ?? 0), 0);
+  const personnelLocked = !c.canDecidePersonnel && c.expenses.some((e) => e.source === 'timesheet');
   return (
     <div className="sub-panel">
       <h3 style={{ marginTop: 0 }}>{mode === 'decide' ? 'Odluka o zahtjevu' : 'Ispravak odluke'}</h3>
       <p className="muted" style={{ marginTop: 0 }}>Priznati iznos po trošku (zadano cijeli). Kod umanjenja ili odbijanja razlog je obavezan. Priznati ukupni iznos računa se istim pravilima kao zahtjev (izravni → neizravni → stopa financiranja).</p>
+      {personnelLocked && <div className="warnbox">Troškovi osoblja ostaju priznati kako su zatraženi: o umanjenju ili odbijanju troška osoblja odlučuje uloga s pristupom podacima o osoblju (financije, ured za projekte), jer bi razlika otkrila plaću. Ostale troškove i odluku o zahtjevu unosiš ti.</div>}
       <div className="scroll">
         <table className="claim-table">
           <thead><tr><th>Trošak</th><th className="num">Traženo</th><th>Priznato (€)</th><th>Razlog</th></tr></thead>
@@ -336,7 +344,7 @@ function DecisionForm({ c, base, mode, reload, onCancel }: { c: Claim; base: str
             {groups.map((g) => g.kind === 'personnel' ? (
               <Fragment key={g.key}>
                 <tr><td><button type="button" className="link" aria-expanded={open.has(g.key)} onClick={() => toggle(g.key)}>{open.has(g.key) ? '▾' : '▸'} Rad: {g.person}, {g.month ? monthLabel(g.month) : ''}</button></td>
-                  <td className="num">{eur(g.amount)}</td><td className="num-inline">{eur(groupRecognised(g))}</td><td className="muted">{open.has(g.key) ? '' : 'otvori za odluku po radnom paketu'}</td></tr>
+                  <td className="num">{g.hidden ? <HiddenAmount /> : eur(g.amount)}</td><td className="num-inline">{g.hidden ? <HiddenAmount /> : eur(groupRecognised(g))}</td><td className="muted">{g.hidden ? 'priznat kako je zatražen' : open.has(g.key) ? '' : 'otvori za odluku po radnom paketu'}</td></tr>
                 {open.has(g.key) && g.rows.map((e) => <tr key={e.id}><td style={{ paddingLeft: 28 }}>{e.workPackage ?? 'bez radnog paketa'}</td>{rowInputs(e)}</tr>)}
               </Fragment>
             ) : g.rows.map((e) => <tr key={e.id}><td>{e.categoryCode} · {e.description}</td>{rowInputs(e)}</tr>))}

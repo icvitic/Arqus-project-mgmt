@@ -37,6 +37,8 @@ export interface ExportData {
   expenseFolder: Map<string, string>;
   evidence: Map<string, EvidenceRef[]>;
   personnel: PersonnelRow[];
+  /** Zbroj traženih i priznatih iznosa svih troškova zahtjeva (zbroj kao na listu Sažetak – vidljiv i bez personnel:read). */
+  expenseTotal: number; recognisedTotal: number;
   /** Izračun priznatog (nakon odluke) – izravni i neizravni po kategoriji. */
   recognised: PartnerBudgetResult | null;
   openedAt: Date;
@@ -45,6 +47,9 @@ export interface ExportData {
 export const CLAIM_STATUS: Record<string, string> = { draft: 'nacrt', submitted: 'predan – čeka odluku', approved: 'odobren', partially_approved: 'djelomično odobren', rejected: 'odbijen' };
 export const EXPENSE_STATUS: Record<string, string> = { recorded: 'evidentiran', claimed: 'u zahtjevu', accepted: 'prihvaćen', partially_accepted: 'djelomično priznat', rejected: 'odbijen' };
 const DRAFT_TEXT = 'NACRT – zahtjev nije predan; iznosi i troškovi još se mogu promijeniti';
+/** WP1.19: ćelija umjesto iznosa troška osoblja za izvoznika bez personnel:read. */
+const HIDDEN_CELL: Cell = { v: 'skriveno', s: 'wrap' };
+const HIDDEN_NOTE = 'Iznosi troškova osoblja po osobi, mjesecu i retku prikazuju se samo uz pristup podacima o osoblju (personnel:read); sati su vidljivi, a zbroj kategorije je na listu „Sažetak”.';
 
 const periodText = (c: ClaimView) => `RP${c.period.number}: ${hrDate(c.period.startDate)} – ${hrDate(c.period.endDate)}`;
 const decided = (c: ClaimView) => ['approved', 'partially_approved', 'rejected'].includes(c.status);
@@ -110,14 +115,15 @@ function expensesSheet(d: ExportData): Sheet {
     const ev = d.evidence.get(e.id) ?? [];
     rows.push([
       { v: i + 1, s: 'int' }, dateCell(e.date), e.categoryCode, names.get(e.categoryCode) ?? '', w ? `${w.code} ${w.title}` : '', e.description,
-      e.source === 'timesheet' ? 'evidencija rada (timesheet)' : (e.supplier ?? ''), money(e.amount), isDecided ? money(e.recognised ?? 0) : null,
+      e.source === 'timesheet' ? 'evidencija rada (timesheet)' : (e.supplier ?? ''), e.amountHidden ? HIDDEN_CELL : money(e.amount), isDecided ? (e.amountHidden ? HIDDEN_CELL : money(e.recognised ?? 0)) : null,
       EXPENSE_STATUS[e.status] ?? e.status, e.decisionReason ?? '', e.earlier ? 'ranije razdoblje' : `RP${c.period.number}`,
       e.source === 'timesheet' ? 'timesheet (evidencije-rada/)' : ev.length ? ev.map((x) => (x.omitted ? '[povjerljivi dokaz – izostavljen]' : x.fileName)).join('; ') : 'BEZ DOKAZA',
       d.expenseFolder.get(e.id) ?? '',
     ]);
   });
   const last = rows.length;
-  rows.push([null, null, null, null, null, bold('Ukupno izravni troškovi'), null, money(c.expenses.reduce((a, e) => a + e.amount, 0), true), isDecided ? money(c.expenses.reduce((a, e) => a + (e.recognised ?? 0), 0), true) : null]);
+  rows.push([null, null, null, null, null, bold('Ukupno izravni troškovi'), null, money(d.expenseTotal, true), isDecided ? money(d.recognisedTotal, true) : null]);
+  if (c.expenses.some((e) => e.amountHidden)) { rows.push([]); rows.push([null, null, null, null, null, { v: HIDDEN_NOTE, s: 'wrap' }]); }
   return { name: 'Troškovi', rows, widths: [5, 11, 7, 26, 22, 48, 28, 14, 14, 16, 34, 14, 40, 34], freezeRows: 3, autoFilter: `A3:N${Math.max(last, 3)}`, merges: ['A1:N1', 'A2:N2'] };
 }
 
@@ -139,16 +145,18 @@ function personnelSheet(d: ExportData): Sheet {
     const qty = daily ? p.minutes / 60 / perDay : p.minutes / 60;
     rows.push([
       p.person, p.role ?? '', { v: `${p.month}-01`, s: 'month' }, { v: p.minutes / 60, s: 'hours' }, daily ? 'dan' : 'sat', { v: Math.round(qty * 100) / 100, s: 'hours' }, basis,
+      // WP1.19: bez personnel:read ni stopa ni iznosi (po osobi, mjesecu i radnom paketu) – samo sati.
       d.canPersonnel && qty > 0 ? { v: Math.round((p.amount / 100 / qty) * 100) / 100, s: 'money' } : null,
-      money(p.amount), isDecided ? money(p.recognised ?? 0) : null,
-      ...used.flatMap((w) => { const x = p.byWp.get(w.id); return x ? [{ v: x.minutes / 60, s: 'hours' as const }, money(x.amount)] : [null, null]; }),
+      d.canPersonnel ? money(p.amount) : HIDDEN_CELL, isDecided ? (d.canPersonnel ? money(p.recognised ?? 0) : HIDDEN_CELL) : null,
+      ...used.flatMap((w) => { const x = p.byWp.get(w.id); return x ? [{ v: x.minutes / 60, s: 'hours' as const }, d.canPersonnel ? money(x.amount) : HIDDEN_CELL] : [null, null]; }),
     ]);
   }
   const sum = (f: (p: PersonnelRow) => number) => d.personnel.reduce((a, p) => a + f(p), 0);
-  rows.push([bold('Ukupno'), null, null, { v: sum((p) => p.minutes) / 60, s: 'hours' }, null, null, null, null, money(sum((p) => p.amount), true), isDecided ? money(sum((p) => p.recognised ?? 0), true) : null,
-    ...used.flatMap((w) => [{ v: sum((p) => p.byWp.get(w.id)?.minutes ?? 0) / 60, s: 'hours' as const }, money(sum((p) => p.byWp.get(w.id)?.amount ?? 0), true)])]);
+  const total = (cents: number) => (d.canPersonnel ? money(cents, true) : HIDDEN_CELL);
+  rows.push([bold('Ukupno'), null, null, { v: sum((p) => p.minutes) / 60, s: 'hours' }, null, null, null, null, total(sum((p) => p.amount)), isDecided ? total(sum((p) => p.recognised ?? 0)) : null,
+    ...used.flatMap((w) => [{ v: sum((p) => p.byWp.get(w.id)?.minutes ?? 0) / 60, s: 'hours' as const }, total(sum((p) => p.byWp.get(w.id)?.amount ?? 0))])]);
   rows.push([]);
-  if (!d.canPersonnel) rows.push([{ v: 'Stopa se prikazuje samo uz pristup podacima o osoblju (personnel:read); iznos je izračunat iz godišnjeg troška prema pravilu paketa.', s: 'wrap' }]);
+  if (!d.canPersonnel) rows.push([{ v: HIDDEN_NOTE, s: 'wrap' }]);
   if (!d.personnel.length) rows.push(['U zahtjevu nema troškova osoblja.']);
   const n = head.length;
   return { name: 'Troškovi osoblja', rows, widths: [24, 20, 10, 8, 8, 9, 36, 12, 14, 14, ...used.flatMap(() => [8, 12])], freezeRows: 3, merges: [`A1:${colName(n - 1)}1`, `A2:${colName(n - 1)}2`] };
@@ -166,6 +174,8 @@ interface SnapshotItem { key: string; ok: boolean; severity: string; title: stri
 interface Submission { checkedOn?: string; early?: boolean; earlyReason?: string | null; acknowledgedWithoutEvidence?: { date: string; description: string; amount: number }[]; warnings?: { key: string; title: string; details: string[] }[]; items?: SnapshotItem[]; earlierExpenses?: string[] }
 
 const eurText = (cents: number) => `${(cents / 100).toLocaleString('hr-HR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`;
+/** Iznos retka u kontrolnoj listi; trošak osoblja nikad s iznosom (WP1.19 – tekst je isti za svakog izvoznika). */
+const rowAmount = (e: { amount: number | null; source?: string }) => (e.source === 'timesheet' || e.amount === null ? 'trošak osoblja' : eurText(e.amount));
 
 export function checklistHtml(d: ExportData): string {
   const c = d.claim;
@@ -207,8 +217,8 @@ ${d.draft ? `<div class="draft">${esc(DRAFT_TEXT)}. Popis je stanje u trenutku i
 ${list}
 ${c.earlyReason || sub?.earlyReason ? `<h2>Rana predaja</h2><p>Zahtjev je predan prije kraja razdoblja. Razlog: <b>${esc(c.earlyReason ?? sub?.earlyReason ?? '')}</b></p>` : ''}
 ${ack.length ? `<h2>Troškovi bez dokaza – izričito potvrđeni pri predaji (${ack.length})</h2><ul>${ack.map((a) => `<li>${hrDate(a.date)} ${esc(a.description)} (${esc(eurText(a.amount))})</li>`).join('')}</ul>` : ''}
-${d.draft && evidenceMissing.length ? `<h2>Ručno uneseni troškovi bez dokaza (${evidenceMissing.length})</h2><ul>${evidenceMissing.map((e) => `<li>${hrDate(e.date)} ${esc(e.description)} (${esc(eurText(e.amount))})</li>`).join('')}</ul>` : ''}
-${earlier.length ? `<h2>Troškovi iz ranijih razdoblja – izričito uključeni (${earlier.length})</h2><ul>${earlier.map((e) => `<li>${hrDate(e.date)} ${esc(e.description)} (${esc(eurText(e.amount))})</li>`).join('')}</ul>` : ''}
+${d.draft && evidenceMissing.length ? `<h2>Ručno uneseni troškovi bez dokaza (${evidenceMissing.length})</h2><ul>${evidenceMissing.map((e) => `<li>${hrDate(e.date)} ${esc(e.description)} (${esc(rowAmount(e))})</li>`).join('')}</ul>` : ''}
+${earlier.length ? `<h2>Troškovi iz ranijih razdoblja – izričito uključeni (${earlier.length})</h2><ul>${earlier.map((e) => `<li>${hrDate(e.date)} ${esc(e.description)} (${esc(rowAmount(e))})</li>`).join('')}</ul>` : ''}
 ${!d.draft && warnings.length ? `<h2>Upozorenja zabilježena pri predaji (${warnings.length})</h2><ul>${warnings.map((w) => `<li><b>${esc(w.title)}</b>${w.details.length ? `<ul>${w.details.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>` : ''}
 ${omitted ? `<h2>Povjerljivi dokazi</h2><p>${omitted} povjerljivi dokaz(a) nije uključen(o) u ovaj paket jer izvoznik nema dozvolu za povjerljive dokumente; navedeni su u manifestu (bez naziva).</p>` : ''}
 <footer>Izvor: ArQus Projekti. Popis za provjeru: <i>docs/domena/zns-pravila.md</i>. Sadržaj paketa i kontrolni zbrojevi: <i>sadrzaj.csv</i>.</footer>
@@ -221,7 +231,11 @@ ${omitted ? `<h2>Povjerljivi dokazi</h2><p>${omitted} povjerljivi dokaz(a) nije 
 export interface ManifestFile { path: string; size: number; sha256: string; note?: string }
 export interface ManifestOmitted { note: string }
 
-const csvCell = (s: string | number) => { const t = String(s); return /[;"\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+/** WP1.19: zaštita od CSV injekcije (kao u izvozu revizije) – tekst koji počinje formulom dobiva apostrof; brojevi ostaju. */
+const csvCell = (s: string | number) => {
+  const t = typeof s === 'number' ? String(s) : /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return /[;"\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+};
 
 /** `sadrzaj.csv`: UTF-8 s BOM-om, razdjelnik `;` (hrvatski Excel). Retci `meta`, `datoteka` i `izostavljeno`; manifest ne sadrži vlastiti zbroj. */
 export function manifestCsv(meta: [string, string][], files: ManifestFile[], omitted: ManifestOmitted[]): string {

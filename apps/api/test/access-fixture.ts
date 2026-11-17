@@ -45,7 +45,7 @@ export async function buildAccessFixture(app: INestApplication, slug: string, op
     const deliverable = (await http().post(`/api/projects/${id}/work-packages/${wp}/deliverables`).set(auth(admin)).send({ title: 'Izvještaj', type: 'ISP', dissemination: 'JAV', dueMonth: 6 }).expect(201)).body.id as string;
     const milestone = (await http().post(`/api/projects/${id}/milestones`).set(auth(admin)).send({ title: 'Prekretnica', dueMonth: 6 }).expect(201)).body.id as string;
     const risk = (await http().post(`/api/projects/${id}/risks`).set(auth(admin)).send({ description: 'Rizik', likelihood: 2, impact: 2 }).expect(201)).body.id as string;
-    await http().put(`/api/projects/${id}/budget/lines`).set(auth(admin)).send({ lines: [{ partnerId: self, categoryCode: 'OS', amount: 2_000_000 }, { partnerId: self, categoryCode: 'VU', amount: 1_000_000 }] }).expect(200);
+    await http().put(`/api/projects/${id}/budget/lines`).set(auth(admin)).send({ revision: 0, lines: [{ partnerId: self, categoryCode: 'OS', amount: 2_000_000 }, { partnerId: self, categoryCode: 'VU', amount: 1_000_000 }] }).expect(200);
     const member = (await http().post(`/api/projects/${id}/team`).set(auth(admin)).send({ fullName: `Istraživač ${acronym}`, annualCost: 3_440_000 }).expect(201)).body.id as string;
     return { id, self, wp, task, deliverable, milestone, risk, member };
   };
@@ -69,7 +69,7 @@ export async function buildAccessFixture(app: INestApplication, slug: string, op
   const A = { ...a, ...(await finish(a)), pmMember };
   const B = { ...b, ...(await finish(b)) };
   // Timesheet člana tima B (predan) – za pokušaje tuđeg odobrenja.
-  await http().put(`/api/projects/${B.id}/team/${B.member}/timesheets/${month}`).set(auth(admin)).send({ entries: [{ day: 1, minutes: 480, workPackageId: B.wp }] }).expect(200);
+  await http().put(`/api/projects/${B.id}/team/${B.member}/timesheets/${month}`).set(auth(admin)).send({ revision: 0, entries: [{ day: 1, minutes: 480, workPackageId: B.wp }] }).expect(200);
   await http().post(`/api/projects/${B.id}/team/${B.member}/timesheets/${month}/submit`).set(auth(admin)).expect(201);
 
   const tokens = { admin, pm: await login(`pm@${slug}.hr`), tm: await login(`tm@${slug}.hr`), fin: await login(`fin@${slug}.hr`), rdr: await login(`rdr@${slug}.hr`), extra: await login(`extra@${slug}.hr`), lead: await login(`lead@${slug}.hr`) };
@@ -83,9 +83,9 @@ export async function buildAccessFixture(app: INestApplication, slug: string, op
     proposals = { mine: mine.id, other: other.id, otherMember: other.members[0]!.id };
   }
   // Član tima A unosi i predaje vlastiti timesheet; voditelj također (vlastiti, ne smije ga sam odobriti).
-  await http().put(`/api/projects/${A.id}/team/${tmMember}/timesheets/${month}`).set(auth(tokens.tm)).send({ entries: [{ day: 1, minutes: 480, workPackageId: A.wp }] }).expect(200);
+  await http().put(`/api/projects/${A.id}/team/${tmMember}/timesheets/${month}`).set(auth(tokens.tm)).send({ revision: 0, entries: [{ day: 1, minutes: 480, workPackageId: A.wp }] }).expect(200);
   await http().post(`/api/projects/${A.id}/team/${tmMember}/timesheets/${month}/submit`).set(auth(tokens.tm)).expect(201);
-  await http().put(`/api/projects/${A.id}/team/${pmMember}/timesheets/${month}`).set(auth(tokens.pm)).send({ entries: [{ day: 2, minutes: 240, workPackageId: A.wp }] }).expect(200);
+  await http().put(`/api/projects/${A.id}/team/${pmMember}/timesheets/${month}`).set(auth(tokens.pm)).send({ revision: 0, entries: [{ day: 2, minutes: 240, workPackageId: A.wp }] }).expect(200);
   await http().post(`/api/projects/${A.id}/team/${pmMember}/timesheets/${month}/submit`).set(auth(tokens.pm)).expect(201);
   return { slug, tokens, users, A: { ...A, member: tmMember }, B, month, proposals };
 }

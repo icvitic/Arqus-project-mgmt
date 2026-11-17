@@ -45,8 +45,9 @@ function sigOk(sig: Sig, b: Uint8Array): boolean {
 /** Naziv bez putanje i kontrolnih znakova, najviše 200 znakova (ekstenzija se čuva). */
 export function sanitizeFileName(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? '';
+  // WP1.19: i znakovi za smjer teksta (npr. U+202E) – naziv „racun\u202Efdp.docx” prikazivao bi se kao drugačija vrsta datoteke.
   // eslint-disable-next-line no-control-regex
-  let s = base.replace(/[\u0000-\u001f\u007f"<>|:*?]/g, '').replace(/\s+/g, ' ').trim().replace(/^\.+/, '');
+  let s = base.replace(/[\u0000-\u001f\u007f"<>|:*?\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim().replace(/^\.+/, '');
   if (s.length > 200) { const dot = s.lastIndexOf('.'); const ext = dot > 0 ? s.slice(dot) : ''; s = s.slice(0, 200 - ext.length) + ext; }
   return s || 'datoteka';
 }

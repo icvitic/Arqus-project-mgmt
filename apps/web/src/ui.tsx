@@ -19,6 +19,9 @@ export const Chip = ({ s, tone, f }: { s: string; tone?: string; f?: boolean }) 
   <span className={`chip ${tone ?? ({ active: 'ok', approved: 'ok', accepted: 'ok', achieved: 'ok', done: 'ok', submitted: 'acc', claimed: 'acc', locked: 'acc', rejected: 'bad', terminated: 'bad', missed: 'bad', high: 'bad', medium: 'warn', partially_approved: 'warn', partially_accepted: 'warn', draft: 'warn', contracting: 'warn' } as Record<string, string>)[s] ?? ''}`}>{label(s, f ? 'f' : 'm')}</span>
 );
 
+/** WP1.19: umjesto iznosa troška osoblja korisniku bez pristupa podacima o osoblju. */
+export const HiddenAmount = () => <span className="muted" title="Iznos troška osoblja vidljiv je samo uz pristup podacima o osoblju (personnel:read). Sati su u opisu, zbroj kategorije na kartici „Ugovoreno / ostvareno”.">skriveno</span>;
+
 export function Loading({ what }: { what?: string }) { return <p className="muted">Učitavam{what ? ` ${what}` : ''}…</p>; }
 
 /** Obrazac koji poziva radnju, prikazuje grešku i onemogućuje gumb tijekom slanja. */

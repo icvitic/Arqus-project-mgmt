@@ -31,14 +31,18 @@ Prijava: **Institucija (oznaka)** `demo`, lozinka za sve račune **`Plavi-Jadran
 | E-adresa | Osoba | Uloga | Opseg | Za što |
 | --- | --- | --- | --- | --- |
 | `ured@demo.local` | Ana Kovačević | voditeljica ureda za projekte | institucija | **glavni račun za demonstraciju**: radar, prijave, svi projekti, plaće, povjerljivi dokumenti, **Revizija**; odobrava timesheetove koje su voditelji unijeli za članove bez računa (četiri oka) |
-| `voditelj@demo.local` | doc. dr. sc. Petra Horvat | voditeljica projekta | **samo BLUESENSE** + voditeljica prijave **AQUAREST** | vidi samo svoj projekt; struktura, tim, odobrava timesheetove člana tima (ne vlastite ni one koje je sama predala), kartica **Pristup**; u **Prijavama** samo AQUAREST, koju sama priprema (proračun, dokumenti, konzorcij); ne vidi plaće ni radar |
+| `voditelj@demo.local` | doc. dr. sc. Petra Horvat | voditeljica projekta | **samo BLUESENSE** + voditeljica prijave **AQUAREST** | vidi samo svoj projekt; struktura, tim, odobrava timesheetove člana tima (ne vlastite ni one koje je sama predala), kartica **Pristup**; u **Prijavama** samo AQUAREST, koju sama priprema (proračun, dokumenti, konzorcij); ne vidi plaće ni radar; u **Troškovima** i **ZNS-u** troškove osoblja vidi u satima, iznos je „skriveno” (zbroj kategorije vidi) |
 | `voditelj2@demo.local` | Josip Barić | voditelj projekta | **samo ZELENI-LAB** | vidi samo svoj projekt (postao voditelj ugovaranjem prijave kojoj je bio nositelj) |
 | `clan@demo.local` | Luka Novak | član tima | **samo BLUESENSE** | vlastiti timesheetovi (jedan čeka odobrenje, tekući mjesec u nacrtu); ne vidi plaće ni povjerljive dokumente |
-| `financije@demo.local` | Maja Jurić | financije / računovodstvo | institucija | troškovi i dokazi na svim projektima, tim s godišnjim troškom, ZNS |
-| `uprava@demo.local` | prof. dr. sc. Tomislav Perić | uprava (samo čitanje) | institucija | nakon prijave **Portfelj** (svi projekti, novac, rokovi, ljudi, prijave); pregled projekata i financija |
+| `financije@demo.local` | Maja Jurić | financije / računovodstvo | institucija | troškovi i dokazi na svim projektima, tim s godišnjim troškom, ZNS – i iznosi troškova osoblja po osobi |
+| `uprava@demo.local` | prof. dr. sc. Tomislav Perić | uprava (samo čitanje) | institucija | nakon prijave **Portfelj** (svi projekti, novac, rokovi, ljudi, prijave); pregled projekata i financija – troškovi osoblja u satima, bez iznosa po osobi |
 | `admin@demo.local` | Nikola Radić | administrator stanara | institucija | korisnici i uloge (institucija i projekti), **Revizija** |
 
 Uloge „na projektu” vrijede samo za taj projekt (WP1.14, `docs/sigurnost/AUTORIZACIJA.md`): voditelj BLUESENSE-a ne vidi ZELENI-LAB ni na popisu ni izravnom poveznicom. Voditelj prijave (WP1.14b) radi na vlastitoj prijavi i bez uloge institucije: Petra Horvat sama je unijela proračun AQUAREST-a, priložila nacrt Part B i pokrenula pripremu; predaju, ishod i ugovaranje evidentira ured.
+
+**Plaće (WP1.19):** iznos troška osoblja (iz odobrenog timesheeta) vidi samo uloga s pristupom podacima o osoblju – `ured@`, `financije@`, `admin@`. `voditelj@`, `voditelj2@` i `uprava@` u **Troškovima**, **ZNS-u** i paketu za predaju vide sate po osobi i mjesecu i oznaku „skriveno” umjesto iznosa; zbrojeve po kategoriji (upravljanje proračunom) vide svi s pristupom financijama. Voditelj koji odlučuje o ZNS-u ne umanjuje pojedini trošak osoblja – to radi ured ili financije.
+
+**Dvofaktorska prijava (WP1.19):** demo institucija **ne zahtijeva** MFA (demonstracija bez trenja). Postavku pokazuje `admin@demo.local` u **Korisnici → Obvezna dvofaktorska prijava** (nije obvezna / povlaštene uloge / svi); prije postrožavanja administrator sam uključi MFA u **Moj račun**. Nakon demonstracije `demo.cmd reset` vraća postavku. Nova produkcijska institucija zadano zahtijeva MFA za povlaštene uloge.
 
 **Četiri oka (WP1.14b):** tko je predao timesheet, ne odobrava ga. Voditelji unose i predaju sate članova bez korisničkog računa (Marina Šimić, Ivana Marić), a odobrava ih ured za projekte; Lukine timesheetove (predaje ih sam) odobrava voditeljica.
 

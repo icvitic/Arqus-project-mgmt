@@ -10,6 +10,7 @@ import { loadProject } from '../common/project-access';
 import { currentContext } from '../common/tenant-context';
 import { canOnProject } from '../common/access';
 import { assertSpendable, notSelectedInDraft, projectEnd, selfPartner, strandedExpense } from './finance-common';
+import { hidesAmount, seesPersonnelAmounts } from '../common/personnel';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const expenseInput = z.object({
@@ -25,13 +26,20 @@ export const evidenceCount = (includeConfidential: boolean) => includeConfidenti
   : sql<number>`(select count(*)::int from documents d where d.entity_type = 'expense' and d.entity_id = "expenses"."id" and d.deleted_at is null and d.confidentiality <> 'confidential')`;
 /** Smije li korisnik iz konteksta vidjeti povjerljive dokumente projekta. */
 export const seesConfidential = (projectId: string): boolean => { const c = currentContext(); return !c || canOnProject(c, 'documents:confidential', projectId); };
-/** Trošak za prikaz; `person`/`month`/`workPackage` služe grupiranju troškova osoblja (osoba i mjesec → retci po radnom paketu). */
-const view = (e: typeof expenses.$inferSelect, documents = 0, extra: { person?: string | null; month?: string | null; wp?: number | null } = {}) => ({
-  id: e.id, partnerId: e.partnerId, categoryCode: e.categoryCode, workPackageId: e.workPackageId, date: e.date, description: e.description,
-  supplier: e.supplier, amount: e.amountCents, recognised: e.recognisedCents, decisionReason: e.decisionReason, evidenceRef: e.evidenceRef, source: e.source,
-  timesheetId: e.timesheetId, claimId: e.claimId, status: e.status, documents,
-  person: extra.person ?? null, month: extra.month ?? null, workPackage: extra.wp ? `WP${extra.wp}` : null,
-});
+/**
+ * Trošak za prikaz; `person`/`month`/`workPackage` služe grupiranju troškova osoblja (osoba i mjesec → retci po radnom paketu).
+ * WP1.19: `canSeePersonnel = false` – iznos i priznati iznos troška osoblja su `null`, `amountHidden: true` (sati ostaju u opisu).
+ */
+const view = (e: typeof expenses.$inferSelect, documents = 0, extra: { person?: string | null; month?: string | null; wp?: number | null } = {}, canSeePersonnel = true) => {
+  const hidden = hidesAmount(e.source, canSeePersonnel);
+  return {
+    id: e.id, partnerId: e.partnerId, categoryCode: e.categoryCode, workPackageId: e.workPackageId, date: e.date, description: e.description,
+    supplier: e.supplier, amount: hidden ? null : e.amountCents, recognised: hidden ? null : e.recognisedCents, amountHidden: hidden,
+    decisionReason: e.decisionReason, evidenceRef: e.evidenceRef, source: e.source,
+    timesheetId: e.timesheetId, claimId: e.claimId, status: e.status, documents,
+    person: extra.person ?? null, month: extra.month ?? null, workPackage: extra.wp ? `WP${extra.wp}` : null,
+  };
+};
 
 /** Evidencija troškova (invarijante 3 i 6) i pregled ugovoreno vs. ostvareno. */
 @Injectable()
@@ -60,7 +68,8 @@ export class ExpensesService {
       if (!rp) throw new NotFoundException(`Razdoblje RP${filter.period} ne postoji`);
       rows = rows.filter((e) => e.date >= rp.startDate && e.date <= rp.endDate);
     }
-    return rows.map((e) => view(e, e.docs, e.extra));
+    const canSee = seesPersonnelAmounts(projectId);
+    return rows.map((e) => view(e, e.docs, e.extra, canSee));
   }
 
   async create(tx: Tx, tenantId: string, projectId: string, input: z.infer<typeof expenseInput>, actorId?: string) {
@@ -127,11 +136,15 @@ export class ExpensesService {
     const claims = await tx.select({ c: reimbursementClaims, number: reportingPeriods.number }).from(reimbursementClaims)
       .innerJoin(reportingPeriods, eq(reportingPeriods.id, reimbursementClaims.reportingPeriodId)).where(eq(reimbursementClaims.projectId, projectId)).orderBy(asc(reportingPeriods.number));
     // WP1.16b: nepredani troškovi iz ranijih razdoblja (datirani u već predanom razdoblju, nisu odabrani ni u jednom nacrtu).
-    const stranded = (await tx.select({ n: sql<number>`count(*)::int`, amount: sql<string>`coalesce(sum(${expenses.amountCents}), 0)` }).from(expenses)
+    // WP1.19: bez personnel:read iznos ne uključuje troškove osoblja (jedan nepredan trošak osoblja otkrio bi satnicu).
+    const canSee = seesPersonnelAmounts(projectId);
+    const stranded = (await tx.select({ n: sql<number>`count(*)::int`,
+      amount: canSee ? sql<string>`coalesce(sum(${expenses.amountCents}), 0)` : sql<string>`coalesce(sum(${expenses.amountCents}) filter (where ${expenses.source} <> 'timesheet'), 0)`,
+      personnel: sql<number>`(count(*) filter (where ${expenses.source} = 'timesheet'))::int` }).from(expenses)
       .where(and(eq(expenses.projectId, projectId), strandedExpense(), notSelectedInDraft())))[0];
     return {
       projectId, budgetVersion: budget?.version ?? null, budgetStatus: budget?.status ?? 'none',
-      strandedExpenses: { count: stranded?.n ?? 0, amount: Number(stranded?.amount ?? 0) },
+      strandedExpenses: { count: stranded?.n ?? 0, amount: Number(stranded?.amount ?? 0), personnelAmountHidden: !canSee && (stranded?.personnel ?? 0) > 0 },
       planned: planned.totals, actual: actual.totals, unrecognised: diffTotals(claimedBasis.totals, actual.totals), byCategory,
       byPartner: partners.map((x, i) => ({ partnerId: x.id, name: x.name, planned: planned.partners[i]!.total, actual: actual.partners[i]!.total, unrecognised: claimedBasis.partners[i]!.total - actual.partners[i]!.total })),
       claims: claims.map(({ c, number }) => ({ id: c.id, period: number, partnerId: c.partnerId, status: c.status, requested: c.requestedCents, approved: c.approvedCents, paid: c.paidCents })),

@@ -70,7 +70,7 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 **Klik:** kartica **Tim i timesheetovi**.
 
 - Tim s **godišnjim troškom** (vidljiv samo ulogama s pravom na podatke o plaćama).
-  *Ako je prisutan netko iz financija:* „Član tima i voditelj projekta ne vide plaće – samo ured i financije.”
+  *Ako je prisutan netko iz financija:* „Član tima i voditelj projekta ne vide plaće – samo ured i financije. Ni iz troškova osoblja ne mogu izračunati satnicu: voditelj vidi sate, iznos po osobi vidi samo ured i financije, i to provjerava poslužitelj, ne samo zaslon.”
 - U drugoj kartici (prijavljen **Luka Novak**, `clan@demo.local`) otvori isti projekt → **Tim i timesheetovi**: tekući mjesec je nacrt, Luka unosi sate po danu i radnom paketu; prošli mjesec je **predan** i čeka odobrenje. Luka ne može uređivati tuđe timesheetove.
 - Natrag u karticu ureda: odaberi **Luka Novak** i prošli mjesec → **Odobri (stvara trošak osoblja)**.
   *„U trenutku odobrenja sustav po pravilu programa izračuna trošak osoblja po radnom paketu – za Horizon godišnji trošak / 215 dana. Nema ručnog prepisivanja sati u financijsku tablicu.”*
@@ -129,6 +129,6 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 | „Tko što smije?” | odjava → prijava `uprava@demo.local` (samo čitanje: nema gumba za izmjene); **Korisnici** kao `admin@demo.local` – uloge institucije i uloge na projektima, dodjela uloge na projektu |
 | „Imamo i druge programe” | **Paketi programa** → Novi paket po pozivu (nasljeđuje NPOO/HE, mijenjaju se samo razlike) |
 | „Kako izgleda za voditelja NPOO projekta?” | prijava `voditelj2@demo.local` → vidi samo ZELENI-LAB |
-| „A dvofaktorska prijava?” | ime korisnika gore desno → **Moj račun** → Uključi MFA |
+| „A dvofaktorska prijava?” | ime korisnika gore desno → **Moj račun** → Uključi MFA; institucija je može učiniti obveznom za povlaštene uloge ili sve (`admin@demo.local` → **Korisnici**) |
 
 **Nakon razgovora:** `demo.cmd reset` (ili `demo.cmd stop`).

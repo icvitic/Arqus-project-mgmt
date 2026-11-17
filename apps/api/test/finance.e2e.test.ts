@@ -47,7 +47,7 @@ describe('Financije: timesheetovi, troškovi, ZNS (e2e)', () => {
     const p = await http().post('/api/projects').set(auth(A)).send({ acronym: 'FINPROJ', title: 'Financijski tok', packageId: pozivId, actionType: 'BESPOVRATNA', contractNo: `UG-F-${tag}`, startDate: '2027-01-01', durationMonths: 12 }).expect(201);
     pid = p.body.id; self = p.body.partners[0].id;
     wp1 = (await http().post(`/api/projects/${pid}/work-packages`).set(auth(A)).send({ title: 'Istraživanje', startMonth: 1, endMonth: 12 }).expect(201)).body.id;
-    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ lines: [{ partnerId: self, categoryCode: 'OS', amount: 2_000_000 }, { partnerId: self, categoryCode: 'VU', amount: 1_000_000 }] }).expect(200);
+    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ revision: 0, lines: [{ partnerId: self, categoryCode: 'OS', amount: 2_000_000 }, { partnerId: self, categoryCode: 'VU', amount: 1_000_000 }] }).expect(200);
   });
   afterAll(async () => { vi.useRealTimers(); await app.close(); await owner.end(); });
 
@@ -64,21 +64,22 @@ describe('Financije: timesheetovi, troškovi, ZNS (e2e)', () => {
   });
 
   it('timesheet: djelatnica uređuje svoj, ne tuđi; greške 400, upozorenja vraćena; izvan trajanja 400', async () => {
-    const own = await http().put(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02`).set(auth(worker)).send({ entries: [
+    const own = await http().put(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02`).set(auth(worker)).send({ revision: 0, entries: [
       { day: 1, minutes: 480, workPackageId: wp1 }, { day: 2, minutes: 420, workPackageId: wp1 }, { day: 6, minutes: 120 },
     ] }).expect(200);
     expect(own.body).toMatchObject({ status: 'draft', totalMinutes: 1020 });
     expect(own.body.warnings).toEqual(['dan 6: rad vikendom']);
-    await http().put(`/api/projects/${pid}/team/${marko}/timesheets/2027-02`).set(auth(worker)).send({ entries: [{ day: 1, minutes: 60 }] }).expect(403);
-    const bad = await http().put(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02`).set(auth(worker)).send({ entries: [{ day: 30, minutes: 60 }] }).expect(400);
+    await http().put(`/api/projects/${pid}/team/${marko}/timesheets/2027-02`).set(auth(worker)).send({ revision: 0, entries: [{ day: 1, minutes: 60 }] }).expect(403);
+    const bad = await http().put(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02`).set(auth(worker)).send({ revision: own.body.revision, entries: [{ day: 30, minutes: 60 }] }).expect(400);
     expect(bad.body.issues[0]).toMatch(/ne postoji/);
-    await http().put(`/api/projects/${pid}/team/${ivana}/timesheets/2028-02`).set(auth(worker)).send({ entries: [] }).expect(400);
+    await http().put(`/api/projects/${pid}/team/${ivana}/timesheets/2028-02`).set(auth(worker)).send({ revision: 0, entries: [] }).expect(400);
     await http().get(`/api/projects/${pid}/team/${ivana}/timesheets/2027-13`).set(auth(A)).expect(400);
   });
 
   it('predaja (djelatnica) i odobrenje (voditelj, ne djelatnica): trošak osoblja po WP-u iz satnice paketa', async () => {
     await http().post(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02/submit`).set(auth(worker)).expect(201);
-    await http().put(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02`).set(auth(worker)).send({ entries: [] }).expect(409);
+    const submitted = (await http().get(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02`).set(auth(worker)).expect(200)).body;
+    await http().put(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02`).set(auth(worker)).send({ revision: submitted.revision, entries: [] }).expect(409);
     await http().post(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02/approve`).set(auth(worker)).expect(403);
     const ok = await http().post(`/api/projects/${pid}/team/${ivana}/timesheets/2027-02/approve`).set(auth(A)).expect(201);
     expect(ok.body.status).toBe('approved');
@@ -119,14 +120,15 @@ describe('Financije: timesheetovi, troškovi, ZNS (e2e)', () => {
 
   it('predaja se odbija dok popis za provjeru ima blokirajuće stavke: neodobren timesheet, trošak bez dokaza', async () => {
     // Marko ima predan, neodobren timesheet za ožujak → trošak osoblja nedostaje.
-    await http().put(`/api/projects/${pid}/team/${marko}/timesheets/2027-03`).set(auth(A)).send({ entries: [{ day: 1, minutes: 60, workPackageId: wp1 }] }).expect(200);
+    await http().put(`/api/projects/${pid}/team/${marko}/timesheets/2027-03`).set(auth(A)).send({ revision: 0, entries: [{ day: 1, minutes: 60, workPackageId: wp1 }] }).expect(200);
     await http().post(`/api/projects/${pid}/team/${marko}/timesheets/2027-03/submit`).set(auth(A)).expect(201);
     const r = await http().post(`/api/projects/${pid}/claims/${claim1}/submit`).set(auth(A)).send({ acknowledgeWithoutEvidence: [manualExpense] }).expect(409);
     expect(r.body.issues).toEqual([expect.stringMatching(/1 timesheet nije odobren.*Marko Kovač, 2027-03 \(čeka odobrenje, 1 h\)/)]);
     // Povrat u nacrt i dalje blokira (nacrt sa satima); prazan nacrt se ne broji.
     await http().post(`/api/projects/${pid}/team/${marko}/timesheets/2027-03/reopen`).set(auth(A)).expect(201);
     expect((await http().get(`/api/projects/${pid}/claims/${claim1}`).set(auth(A))).body.checklist.items.find((i: { key: string }) => i.key === 'timesheets_approved').details).toEqual(['Marko Kovač, 2027-03 (nacrt, 1 h)']);
-    await http().put(`/api/projects/${pid}/team/${marko}/timesheets/2027-03`).set(auth(A)).send({ entries: [] }).expect(200);
+    const reopened = (await http().get(`/api/projects/${pid}/team/${marko}/timesheets/2027-03`).set(auth(A)).expect(200)).body;
+    await http().put(`/api/projects/${pid}/team/${marko}/timesheets/2027-03`).set(auth(A)).send({ revision: reopened.revision, entries: [] }).expect(200);
     // Bez potvrde troška bez dokaza: 409 s popisom troška.
     const ev = await http().post(`/api/projects/${pid}/claims/${claim1}/submit`).set(auth(A)).send({}).expect(409);
     expect(ev.body.issues).toEqual([expect.stringMatching(/nema dokaz.*Anketa \(2\.000,00 EUR\)/)]);

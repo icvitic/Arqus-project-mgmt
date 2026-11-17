@@ -127,6 +127,9 @@ export class TimesheetsService {
       const found = await tx.select({ id: workPackages.id }).from(workPackages).where(and(eq(workPackages.projectId, projectId), inArray(workPackages.id, wpIds)));
       wpIds.filter((id) => !found.some((f) => f.id === id)).forEach((id) => errors.push(`radni paket ${id} nije na projektu`));
     }
+    // WP1.19: istovremena prva spremanja istog timesheeta idu jedno za drugim (zaključan redak člana tima) – drugo dobiva
+    // `revision_conflict`, ne generičku grešku jedinstvenosti.
+    await tx.select({ id: teamMembers.id }).from(teamMembers).where(eq(teamMembers.id, memberId)).for('no key update');
     let ts = (await tx.select().from(timesheets).where(and(eq(timesheets.teamMemberId, memberId), eq(timesheets.month, month))))[0];
     await assertRevision(tx, timesheets, ts?.id ?? null, input.revision, `Timesheet ${m.fullName} za ${month}`);
     if (errors.length) throw new BadRequestException({ message: 'Timesheet nije valjan', issues: errors });
@@ -188,7 +191,9 @@ export class TimesheetsService {
     }
     await tx.update(timesheets).set({ status: 'approved', approvedAt: new Date(), approvedBy: actorId ?? null, revision: bump(timesheets), updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
     await this.audit.record(tx, { entity: 'timesheet', entityId: ts.id, action: 'approve', diff: { meta: { month, memberId, submittedBy: ts.submittedBy, expenses: created } } });
-    return { ...(await this.get(tx, projectId, memberId, month)), personnelCost: created };
+    // WP1.19: odobravatelj bez personnel:read (npr. voditelj projekta) dobiva sate po radnom paketu, ne iznos (satnica).
+    const canSee = this.seesCost(projectId);
+    return { ...(await this.get(tx, projectId, memberId, month)), personnelCost: created.map((x) => (canSee ? { ...x, amountHidden: false } : { ...x, amount: null, amountHidden: true })) };
   }
 
   /** Povrat u nacrt: iz predanog, ili iz odobrenog dok troškovi osoblja nisu u zahtjevu za nadoknadu (brišu se). */

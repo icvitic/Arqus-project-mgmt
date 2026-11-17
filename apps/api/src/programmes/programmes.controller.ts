@@ -19,7 +19,7 @@ export class ProgrammesController {
   create(@Body() body: unknown) { const c = this.ctx.require(); return this.db.tx((tx) => this.packages.create(tx, c.tenantId, body, c.userId)); }
 
   @Post(':rowId/publish') @RequirePermission('packages:write')
-  publish(@Param('rowId') rowId: string) { const c = this.ctx.require(); return this.db.tx((tx) => this.packages.publish(tx, c.tenantId, rowId, c.userId)); }
+  publish(@Param('rowId', ParseUUIDPipe) rowId: string) { const c = this.ctx.require(); return this.db.tx((tx) => this.packages.publish(tx, c.tenantId, rowId, c.userId)); }
 
   @Get('rows/:rowId') @AnyScope('packages:read')
   raw(@Param('rowId', ParseUUIDPipe) rowId: string) { return this.db.tx((tx) => this.packages.raw(tx, rowId)); }

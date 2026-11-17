@@ -34,7 +34,7 @@ describe('Dokumenti (e2e)', () => {
     const p = await http().post('/api/projects').set(auth(A)).send({ acronym: 'DOKPROJ', title: 'Dokumenti', packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', contractNo: `UG-D-${tag}`, startDate: '2027-01-01', durationMonths: 12 }).expect(201);
     pid = p.body.id;
     await http().post(`/api/projects/${pid}/work-packages`).set(auth(A)).send({ title: 'Rad', startMonth: 1, endMonth: 12 }).expect(201);
-    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ lines: [{ partnerId: p.body.partners[0].id, categoryCode: 'VU', amount: 1_000_000 }] }).expect(200);
+    await http().put(`/api/projects/${pid}/budget/lines`).set(auth(A)).send({ revision: 0, lines: [{ partnerId: p.body.partners[0].id, categoryCode: 'VU', amount: 1_000_000 }] }).expect(200);
     await http().post(`/api/projects/${pid}/transition`).set(auth(A)).send({ to: 'active' }).expect(201);
     expenseId = (await http().post(`/api/projects/${pid}/expenses`).set(auth(A)).send({ categoryCode: 'VU', date: '2027-02-01', description: 'Usluga prijevoda', amount: 50_000 }).expect(201)).body.id;
   });

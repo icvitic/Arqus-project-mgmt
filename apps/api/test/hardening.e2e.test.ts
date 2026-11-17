@@ -68,10 +68,13 @@ describe('Dorade prije pilota (WP1.14b, e2e)', () => {
       expect(r.body.conflict.updatedAt).toBeTruthy();
       const now = (await http().get(`/api/projects/${pid}/budget`).set(auth(t.pm!)).expect(200)).body;
       expect(now.lines.map((l: { amount: number }) => l.amount)).toEqual([1_000_000]);
-      // S aktualnom revizijom spremanje prolazi; bez revizije (API klijent koji je ne šalje) također.
+      // S aktualnom revizijom spremanje prolazi. WP1.19: bez revizije spremanje se odbija (400), ništa se ne zapisuje.
       const ok = (await http().put(`/api/projects/${pid}/budget/lines`).set(auth(t.pm!)).send({ revision: now.revision, lines: [{ partnerId: self, categoryCode: 'A.1', amount: 2_000_000 }] }).expect(200)).body;
       expect(ok.revision).toBe(now.revision + 1);
-      await http().put(`/api/projects/${pid}/budget/lines`).set(auth(t.pm!)).send({ lines: [{ partnerId: self, categoryCode: 'A.1', amount: 2_000_000 }, { partnerId: self, categoryCode: 'C.1', amount: 100_000 }] }).expect(200);
+      const missing = await http().put(`/api/projects/${pid}/budget/lines`).set(auth(t.pm!)).send({ lines: [{ partnerId: self, categoryCode: 'A.1', amount: 2_000_000 }, { partnerId: self, categoryCode: 'C.1', amount: 100_000 }] }).expect(400);
+      expect(missing.body.issues).toEqual([expect.objectContaining({ path: '/revision', message: expect.stringMatching(/Nedostaje revizija/) })]);
+      const ok2 = (await http().put(`/api/projects/${pid}/budget/lines`).set(auth(t.pm!)).send({ revision: ok.revision, lines: [{ partnerId: self, categoryCode: 'A.1', amount: 2_000_000 }, { partnerId: self, categoryCode: 'C.1', amount: 100_000 }] }).expect(200)).body;
+      expect(ok2.lines).toHaveLength(2);
     });
 
     it('istovremena spremanja (stvarno paralelno): jedno prolazi, drugo 409', async () => {
@@ -110,7 +113,7 @@ describe('Dorade prije pilota (WP1.14b, e2e)', () => {
       await http().post(`${url}/approve`).set(auth(t.ured!)).expect(201);
       // Ured koji sam preda timesheet također ga ne odobrava – odobrava drugi korisnik s pravom odobravanja.
       const url2 = `/api/projects/${pid}/team/${noAccount}/timesheets/2027-03`;
-      await http().put(url2).set(auth(t.ured!)).send({ entries: [{ day: 2, minutes: 240, workPackageId: wp }] }).expect(200);
+      await http().put(url2).set(auth(t.ured!)).send({ revision: 0, entries: [{ day: 2, minutes: 240, workPackageId: wp }] }).expect(200);
       await http().post(`${url2}/submit`).set(auth(t.ured!)).expect(201);
       await http().post(`${url2}/approve`).set(auth(t.ured!)).expect(403);
       await http().post(`${url2}/approve`).set(auth(t.ured2!)).expect(201);
@@ -118,7 +121,7 @@ describe('Dorade prije pilota (WP1.14b, e2e)', () => {
 
     it('predan timesheet bez zabilježenog predavatelja (stariji od migracije) ne odobrava se: 409', async () => {
       const url = `/api/projects/${pid}/team/${noAccount}/timesheets/2027-04`;
-      await http().put(url).set(auth(t.pm!)).send({ entries: [{ day: 1, minutes: 60, workPackageId: wp }] }).expect(200);
+      await http().put(url).set(auth(t.pm!)).send({ revision: 0, entries: [{ day: 1, minutes: 60, workPackageId: wp }] }).expect(200);
       await http().post(`${url}/submit`).set(auth(t.pm!)).expect(201);
       await owner.query(`update timesheets set submitted_by = null where team_member_id = $1 and month = '2027-04'`, [noAccount]);
       await http().post(`${url}/approve`).set(auth(t.ured!)).expect(409);
@@ -151,8 +154,8 @@ describe('Dorade prije pilota (WP1.14b, e2e)', () => {
       await http().get('/api/programme-packages/horizon-europe-2021-2027').set(auth(t.lead!)).expect(200);
       let d = (await http().get(`/api/proposals/${mine}`).set(auth(t.lead!)).expect(200)).body;
       d = (await http().patch(`/api/proposals/${mine}`).set(auth(t.lead!)).send({ revision: d.revision, title: 'Prijava voditelja – nacrt 2', leadUserId: u.lead }).expect(200)).body;
-      await http().patch(`/api/proposals/${mine}`).set(auth(t.lead!)).send({ leadUserId: u.lead2 }).expect(403); // voditelja mijenja ured
-      await http().patch(`/api/proposals/${mine}`).set(auth(t.lead!)).send({ leadUserId: null }).expect(403);
+      await http().patch(`/api/proposals/${mine}`).set(auth(t.lead!)).send({ revision: d.revision, leadUserId: u.lead2 }).expect(403); // voditelja mijenja ured
+      await http().patch(`/api/proposals/${mine}`).set(auth(t.lead!)).send({ revision: d.revision, leadUserId: null }).expect(403);
       d = (await http().post(`/api/proposals/${mine}/members`).set(auth(t.lead!)).send({ organisationId: org, role: 'partner', confirmed: true }).expect(201)).body;
       d = (await http().post(`/api/proposals/${mine}/work-packages`).set(auth(t.lead!)).send({ title: 'Istraživanje', startMonth: 1, endMonth: 12 }).expect(201)).body;
       d = (await http().put(`/api/proposals/${mine}/budget/lines`).set(auth(t.lead!)).send({ revision: d.revision, lines: d.members.map((m: { id: string }) => ({ memberId: m.id, categoryCode: 'A.1', amount: 5_000_000 })) }).expect(200)).body;
@@ -202,7 +205,7 @@ describe('Dorade prije pilota (WP1.14b, e2e)', () => {
       expect(p.deviations.map((d: { key: string }) => d.key)).toEqual(['validity', 'rule:npoo-end-date']);
       expect(p.deviations[0].message).toMatch(/Početak projekta \(01\. 01\. 2026\.\) je izvan razdoblja valjanosti paketa/);
       // Odstupanja se računaju iznova: početak unutar valjanosti i kraj do 30. 6. 2026. → bez odstupanja.
-      const fixed = (await http().patch(`/api/projects/${p.id}`).set(auth(t.ured!)).send({ startDate: '2025-01-01', durationMonths: 12 }).expect(200)).body;
+      const fixed = (await http().patch(`/api/projects/${p.id}`).set(auth(t.ured!)).send({ revision: p.revision, startDate: '2025-01-01', durationMonths: 12 }).expect(200)).body;
       expect(fixed.deviations).toEqual([]);
       const pr = (await http().post('/api/proposals').set(auth(t.ured!)).send({ packageId: `istekli-${tag}`, actionType: 'BESPOVRATNA', acronym: 'KASNA', title: 'Prijava na isteklom pozivu' }).expect(201)).body;
       expect(pr.deviations).toEqual([expect.objectContaining({ key: 'validity', severity: 'warning', message: expect.stringMatching(/vrijedio je do 30\. 06\. 2025\./) })]);

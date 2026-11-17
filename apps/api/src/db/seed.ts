@@ -28,7 +28,11 @@ export async function importGlobalPackages(url: string, dir = defaultPackagesDir
 /** Zadane vrijednosti razvojnog seeda (`pnpm db:seed`); lokalno pokretanje i e2e u pregledniku. */
 export const SEED_DEFAULTS = { tenantSlug: 'razvoj', tenantName: 'Razvojna institucija', adminEmail: 'admin@razvoj.local', adminPassword: 'Zeleni-Kamen-2026' } as const;
 
-export async function seedDemo(opts: { url?: string; tenantSlug?: string; tenantName?: string; adminEmail?: string; adminPassword?: string; importPackages?: boolean } = {}) {
+/**
+ * `requireMfa` (WP1.19) – postavka obveznog MFA za NOVOG stanara (postojeći se ne mijenja). Produkcijska instalacija
+ * (`cli.js seed` uz NODE_ENV=production) zadaje `privileged`; razvoj, testovi i demo ostaju bez obveze.
+ */
+export async function seedDemo(opts: { url?: string; tenantSlug?: string; tenantName?: string; adminEmail?: string; adminPassword?: string; importPackages?: boolean; requireMfa?: 'none' | 'privileged' | 'all' } = {}) {
   const url = opts.url ?? process.env.DATABASE_MIGRATE_URL ?? 'postgres://arqus:arqus@127.0.0.1:5432/arqus';
   // WP1.14b: zadana oznaka razvojne institucije ne smije se poklapati s demo institucijom (`demo` – `cli demo`), a zadana
   // lozinka mora zadovoljiti politiku lozinki (ista provjera kao pri stvaranju korisnika kroz API).
@@ -50,7 +54,7 @@ export async function seedDemo(opts: { url?: string; tenantSlug?: string; tenant
       await IdentityService.ensureSystemRoles(tx);
       let tenant = (await tx.select().from(schema.tenants).where(eq(schema.tenants.slug, tenantSlug)))[0];
       if (!tenant) {
-        [tenant] = await tx.insert(schema.tenants).values({ slug: tenantSlug, name: tenantName }).returning();
+        [tenant] = await tx.insert(schema.tenants).values({ slug: tenantSlug, name: tenantName, settings: opts.requireMfa ? { requireMfa: opts.requireMfa } : {} }).returning();
       }
       if (!tenant) throw new Error('Stanar nije stvoren');
       await tx.execute(sql`select set_config('app.tenant_id', ${tenant.id}, true)`);

@@ -16,6 +16,7 @@ import { assertRevision, bump, revisionField } from '../common/revision';
 import { tenantTimeZone, tenantToday } from '../common/tenant-context';
 import { selfPartner, strandedExpense } from './finance-common';
 import { evidenceCount, seesConfidential } from './expenses.service';
+import { assertMayDecidePersonnel, hidesAmount, seesPersonnelAmounts } from '../common/personnel';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const note = z.string().trim().max(2000);
@@ -54,6 +55,8 @@ type ClaimRow = typeof reimbursementClaims.$inferSelect;
 type PeriodRow = typeof reportingPeriods.$inferSelect;
 type ExpenseRow = typeof expenses.$inferSelect;
 type StoredTotals = ReturnType<typeof computePartnerBudget>;
+/** Troškovi osoblja (iz timesheeta) među troškovima zahtjeva – o njima odlučuje samo uloga s personnel:read (WP1.19). */
+const personnelIds = (rows: ExpenseRow[]): Set<string> => new Set(rows.filter((e) => e.source === 'timesheet').map((e) => e.id));
 
 /** Zahtjev za nadoknadu (ZNS / financial statement) po izvještajnom razdoblju i partneru. Pravila: `docs/domena/zns-pravila.md`. */
 @Injectable()
@@ -148,7 +151,7 @@ export class ClaimsService {
       today: tenantToday(), period: { startDate: rp.startDate, endDate: rp.endDate },
       expenses: rows.map(asItem),
       earlier: earlier.map(asItem),
-      earlierNotSelected: notSelected.map((x) => ({ date: x.e.date, description: x.e.description, amount: x.e.amountCents, period: x.period ?? 0 })),
+      earlierNotSelected: notSelected.map((x) => ({ date: x.e.date, description: x.e.description, amount: x.e.amountCents, period: x.period ?? 0, source: x.e.source })),
       timesheets: ts,
       budget: [...codes].map((code) => ({ categoryCode: code, name: names.get(code), planned: Number(planned.find((x) => x.code === code)?.amount ?? 0), claimedBefore: Number(before.find((x) => x.code === code)?.amount ?? 0) })),
       earlyReason: opts.earlyReason, acknowledgedWithoutEvidence: opts.acknowledged,
@@ -170,6 +173,8 @@ export class ClaimsService {
     const candidates = c.status === 'draft' ? await this.earlierCandidates(tx, c, rp) : [];
     const candidateDocs = candidates.length ? await this.expenseInfo(tx, projectId, candidates.map((x) => x.e.id)) : new Map();
     const selected = new Set(c.earlierExpenseIds ?? []);
+    // WP1.19: iznos pojedinog troška osoblja samo uz personnel:read na projektu (inače null i `amountHidden`).
+    const canSee = seesPersonnelAmounts(projectId);
     const measures = c.status !== 'draft' && c.submittedAt ? preparationMeasures({
       periodEnd: rp.endDate, openedAt: c.createdAt.toISOString(), submittedAt: c.submittedAt.toISOString(),
       returns: (await this.audit.countByEntity(tx, 'claim', [c.id], 'decision.returned')).get(c.id) ?? 0,
@@ -181,9 +186,10 @@ export class ClaimsService {
       revision: c.revision, updatedAt: c.updatedAt,
       expenses: rows.map((e) => {
         const x = info.get(e.id);
+        const hidden = hidesAmount(e.source, canSee);
         return {
-          id: e.id, date: e.date, categoryCode: e.categoryCode, description: e.description, supplier: e.supplier, amount: e.amountCents,
-          recognised: e.recognisedCents, decisionReason: e.decisionReason, source: e.source, status: e.status, documents: x?.documents ?? 0,
+          id: e.id, date: e.date, categoryCode: e.categoryCode, description: e.description, supplier: e.supplier, amount: hidden ? null : e.amountCents,
+          recognised: hidden ? null : e.recognisedCents, amountHidden: hidden, decisionReason: e.decisionReason, source: e.source, status: e.status, documents: x?.documents ?? 0,
           timesheetId: e.timesheetId, workPackage: x?.wp ? `WP${x.wp}` : null, person: x?.person ?? null, month: x?.month ?? null,
           /** WP1.16b: trošak iz ranijeg razdoblja (datiran prije početka razdoblja zahtjeva). */
           earlier: e.date < rp.startDate,
@@ -191,7 +197,8 @@ export class ClaimsService {
       }),
       /** Samo u nacrtu: nepredani troškovi iz ranijih razdoblja koje priprematelj može izričito uključiti. */
       earlierCandidates: c.status === 'draft' ? candidates.map((x) => ({
-        id: x.e.id, date: x.e.date, categoryCode: x.e.categoryCode, description: x.e.description, supplier: x.e.supplier, amount: x.e.amountCents, source: x.e.source,
+        id: x.e.id, date: x.e.date, categoryCode: x.e.categoryCode, description: x.e.description, supplier: x.e.supplier,
+        amount: hidesAmount(x.e.source, canSee) ? null : x.e.amountCents, amountHidden: hidesAmount(x.e.source, canSee), source: x.e.source,
         documents: candidateDocs.get(x.e.id)?.documents ?? 0, period: x.period, selected: selected.has(x.e.id) && x.selectedElsewhere === null, selectedElsewhere: x.selectedElsewhere,
       })) : null,
       /** WP1.16b: prijavljeni sati pripreme i automatske mjere (nakon predaje). */
@@ -204,6 +211,8 @@ export class ClaimsService {
       unrecognised: isDecided ? live.unrecognised : null,
       checklist,
       earlyReason: c.earlyReason, submission: c.submission,
+      /** WP1.19: smije li korisnik odlučivati o pojedinom trošku osoblja (personnel:read); bez toga troškovi osoblja ostaju priznati kako su zatraženi. */
+      canDecidePersonnel: canSee,
       decision: isDecided ? { date: c.decisionDate, computed: live.recognised.requested, funderTotal: decision?.funderTotal ?? null, difference: decision?.funderTotal == null ? 0 : decision.funderTotal - live.recognised.requested, backfilled: !!decision?.backfilled } : null,
       requested: c.requestedCents, approved: c.approvedCents, paid: c.paidCents, submittedAt: c.submittedAt, decidedAt: c.decidedAt, decisionDate: c.decisionDate,
       paidAt: c.paidAt, paymentNote: c.paymentNote, note: c.note,
@@ -344,6 +353,7 @@ export class ClaimsService {
     const { c } = await this.claim(tx, projectId, id);
     if (c.status !== 'submitted' && !(DECIDED as readonly string[]).includes(c.status)) throw new ConflictException('Pregled odluke postoji samo za predan ili odlučen zahtjev');
     const rows = await tx.select().from(expenses).where(eq(expenses.claimId, c.id));
+    assertMayDecidePersonnel(projectId, personnelIds(rows), input.expenses);
     const merged = new Map(rows.map((e) => [e.id, { id: e.id, recognised: e.recognisedCents ?? e.amountCents, reason: e.decisionReason }]));
     for (const x of input.expenses ?? []) merged.set(x.id, { id: x.id, recognised: x.recognised, reason: x.reason ?? null });
     const r = await this.rules(tx, projectId, c.partnerId);
@@ -373,6 +383,7 @@ export class ClaimsService {
     const decisionDate = input.decisionDate ?? today;
     this.assertDecisionDate(c, decisionDate, today);
     const rows = await tx.select().from(expenses).where(eq(expenses.claimId, c.id));
+    assertMayDecidePersonnel(projectId, personnelIds(rows), input.expenses);
     const d = await this.applyDecision(tx, c, rows, { decisions: input.expenses ?? [], funderTotal: input.funderTotal, note: input.note, decisionDate }, actorId);
     await this.audit.record(tx, { entity: 'claim', entityId: c.id, action: `decision.${d.outcome}`, diff: {
       after: { status: d.outcome, approved: d.approved, computed: d.computed, funderTotal: d.funderTotal, decisionDate },
@@ -395,6 +406,7 @@ export class ClaimsService {
     const decisionDate = input.decisionDate ?? c.decisionDate ?? today;
     this.assertDecisionDate(c, decisionDate, today);
     const rows = await tx.select().from(expenses).where(eq(expenses.claimId, c.id));
+    assertMayDecidePersonnel(projectId, personnelIds(rows), input.expenses);
     const merged = new Map(rows.map((e) => [e.id, { id: e.id, recognised: e.recognisedCents ?? e.amountCents, reason: e.decisionReason }]));
     for (const x of input.expenses ?? []) {
       if (!merged.has(x.id)) throw new BadRequestException({ message: 'Odluka nije valjana', issues: [`trošak ${x.id} nije u zahtjevu`] });
