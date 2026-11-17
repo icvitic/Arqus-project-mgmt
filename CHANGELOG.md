@@ -3,6 +3,8 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+### Dodano
+- Usporedba EU pružatelja poslužitelja s preporukom (`docs/infrastruktura/usporedba-eu-pruzatelja.md`) – podloga za odluku o pilot-instalaciji i javnoj adresi.
 
 ## [0.25.0] - 2026-11-17
 ### Dodano
