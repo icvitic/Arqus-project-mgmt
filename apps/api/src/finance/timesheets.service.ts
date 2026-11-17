@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { daysInMonth, minutesByWorkPackage, personnelCostCents, timesheetIssues } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
@@ -174,6 +174,9 @@ export class TimesheetsService {
     if (ts.submittedBy === me) throw new ForbiddenException('Ne možeš odobriti timesheet koji si sam predao – odobrava ga druga osoba s pravom odobravanja na projektu (četiri oka)');
     if (m.annualCostCents === null) throw new ConflictException(`Za člana tima ${m.fullName} nije upisan godišnji trošak – upisuje ga uloga s pristupom podacima o osoblju (financije, ured za projekte)`);
     const annualCostCents = m.annualCostCents;
+    // WP1.17: trošak osoblja tog mjeseca već je uvezen kao potraživan izvan sustava (prije ArQusa) – ne nastaje dvaput.
+    const historic = await tx.select({ id: expenses.id }).from(expenses).where(and(eq(expenses.teamMemberId, m.id), eq(expenses.source, 'historic_personnel'), sql`to_char(${expenses.date}, 'YYYY-MM') = ${month}`)).limit(1);
+    if (historic.length) throw new ConflictException(`Za ${m.fullName} u ${month} već postoji trošak osoblja potraživan izvan sustava (uvezen iz Excela) – timesheet tog mjeseca se ne odobrava, da trošak ne nastane dvaput. Ako je uvoz pogrešan, poništi ga na kartici „Uvoz”.`);
     const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
     const category = pkg.personnelRule?.categoryCode;
     if (!category) throw new BadRequestException(`Paket ${p.packageId} nema personnelRule.categoryCode – trošak osoblja ne može se izračunati`);

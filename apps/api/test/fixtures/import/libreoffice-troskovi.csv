@@ -1,0 +1,6 @@
+Opis;Datum;Iznos (EUR);Kategorija;Radni paket;Dobavljač;Potraživano izvan sustava;Razdoblje / ZNS;Priznati iznos (EUR);Razlog umanjenja;Dokaz (broj računa);Moj stupac;Osoba
+Elaborat energetskog pregleda;10.02.2026;1234,56;VU;1;Energo-plan d.o.o.;DA;ZNS 1 – RP1;1000;Priznato do iznosa iz ugovora;R-88/2026;x;
+Putovanje na sastanak;15.3.2026.;86,50;PUT;WP2;Putnički nalog 3/2026;da;ZNS 1 – RP1;;;PN-3/2026;;
+Rad Ivane Kovač, veljača;28.02.2026;3000;OS;;;TOČNO;ZNS 1 – RP1;;;;;Ivana Kovač
+Kalibracija senzora;2026-08-05;1.250,00;VU – Vanjske usluge;2;Mjerna tehnika d.o.o.;NE;;;;R-655/2026;;
+=formula koja je samo tekst;01.09.2026;10;PV;;;;;;;;;

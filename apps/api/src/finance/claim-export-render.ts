@@ -42,10 +42,15 @@ export interface ExportData {
   /** Izračun priznatog (nakon odluke) – izravni i neizravni po kategoriji. */
   recognised: PartnerBudgetResult | null;
   openedAt: Date;
+  /**
+   * WP1.17: troškovi partnera potraživani izvan sustava (ZNS-ovi predani prije ArQusa, uvezeni iz Excela) – nisu dio
+   * zahtjeva, navode se radi kumulativa. `personnelHidden` – izvoznik bez personnel:read: zbrojevi su bez troškova osoblja.
+   */
+  historic: { count: number; claimed: number; recognised: number; personnelHidden: boolean } | null;
 }
 
 export const CLAIM_STATUS: Record<string, string> = { draft: 'nacrt', submitted: 'predan – čeka odluku', approved: 'odobren', partially_approved: 'djelomično odobren', rejected: 'odbijen' };
-export const EXPENSE_STATUS: Record<string, string> = { recorded: 'evidentiran', claimed: 'u zahtjevu', accepted: 'prihvaćen', partially_accepted: 'djelomično priznat', rejected: 'odbijen' };
+export const EXPENSE_STATUS: Record<string, string> = { recorded: 'evidentiran', claimed: 'u zahtjevu', accepted: 'prihvaćen', partially_accepted: 'djelomično priznat', rejected: 'odbijen', historic: 'potraživan izvan sustava' };
 const DRAFT_TEXT = 'NACRT – zahtjev nije predan; iznosi i troškovi još se mogu promijeniti';
 /** WP1.19: ćelija umjesto iznosa troška osoblja za izvoznika bez personnel:read. */
 const HIDDEN_CELL: Cell = { v: 'skriveno', s: 'wrap' };
@@ -80,6 +85,9 @@ function summarySheet(d: ExportData): Sheet {
   kv('Stopa financiranja', { v: c.totals.ratePercent / 100, s: 'percent' });
   const earlier = c.expenses.filter((e) => e.earlier).length;
   if (earlier) kv('Troškovi iz ranijih razdoblja', `${earlier} – izričito uključeni (označeni na listu „Troškovi”)`);
+  if (d.historic?.count) {
+    kv('Potraživano izvan sustava (prije ArQusa)', `${d.historic.count} – nisu dio ovog zahtjeva; ranije potraživano ${eurText(d.historic.claimed)}, priznato ${eurText(d.historic.recognised)}${d.historic.personnelHidden ? ' (bez troškova osoblja – vidljivi samo uz pristup podacima o osoblju)' : ''}`);
+  }
   rows.push([]);
   rows.push([header('Šifra'), header('Kategorija troška'), header('Traženo (EUR)'), header('Priznato (EUR)'), header('Nepriznato (EUR)')]);
   const line = (code: string, name: string, claimed: number, recognised: number | null, b = false): Cell[] =>

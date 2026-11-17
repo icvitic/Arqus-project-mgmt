@@ -446,7 +446,10 @@ export const reimbursementClaims = pgTable('reimbursement_claims', {
   foreignKey({ name: 'reimbursement_claims_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),
 ]);
 
-export type ExpenseStatus = 'recorded' | 'claimed' | 'accepted' | 'partially_accepted' | 'rejected';
+/** WP1.17: `historic` – trošak potraživan izvan sustava (u ZNS-u predanom prije ArQusa, uvezen iz Excela); ne ulazi u nove zahtjeve. */
+export type ExpenseStatus = 'recorded' | 'claimed' | 'accepted' | 'partially_accepted' | 'rejected' | 'historic';
+/** WP1.17: `historic_personnel` – trošak osoblja iz ranijeg razdoblja (iznos po osobi i mjesecu, potraživan izvan sustava). */
+export type ExpenseSource = 'manual' | 'timesheet' | 'historic_personnel';
 export const expenses = pgTable('expenses', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenantId: uuid('tenant_id').notNull(),
@@ -459,29 +462,43 @@ export const expenses = pgTable('expenses', {
   supplier: text('supplier'),
   amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
   evidenceRef: text('evidence_ref'),
-  source: text('source').$type<'manual' | 'timesheet'>().notNull().default('manual'),
+  source: text('source').$type<ExpenseSource>().notNull().default('manual'),
   timesheetId: uuid('timesheet_id'),
   claimId: uuid('claim_id'),
   status: text('status').$type<ExpenseStatus>().notNull().default('recorded'),
   /** WP1.16a: priznati iznos iz odluke o ZNS-u (null dok odluke nema; odbijen = 0) i razlog umanjenja ili odbijanja. */
   recognisedCents: bigint('recognised_cents', { mode: 'number' }),
   decisionReason: text('decision_reason'),
+  /** WP1.17: oznaka zahtjeva/razdoblja u kojem je trošak potraživan izvan sustava (npr. „ZNS 1 – RP1”). */
+  externalClaim: text('external_claim'),
+  /** WP1.17: član tima troška osoblja iz ranijeg razdoblja (`historic_personnel`). */
+  teamMemberId: uuid('team_member_id'),
+  /** WP1.17: uvoz iz kojeg je trošak nastao (poništavanje uvoza). */
+  importId: uuid('import_id'),
   ...audited,
 }, (t) => [
   index('expenses_project_date_idx').on(t.projectId, t.date),
+  index('expenses_import_idx').on(t.importId),
+  foreignKey({ name: 'expenses_member_fk', columns: [t.tenantId, t.teamMemberId], foreignColumns: [teamMembers.tenantId, teamMembers.id] }),
   projectFk('expenses_project_fk', t),
   foreignKey({ name: 'expenses_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),
   wpFk('expenses_wp_fk', t),
   foreignKey({ name: 'expenses_timesheet_fk', columns: [t.tenantId, t.timesheetId], foreignColumns: [timesheets.tenantId, timesheets.id] }).onDelete('cascade'),
   foreignKey({ name: 'expenses_claim_fk', columns: [t.tenantId, t.claimId], foreignColumns: [reimbursementClaims.tenantId, reimbursementClaims.id] }),
   check('expenses_amount_ck', sql`amount_cents >= 0`),
-  check('expenses_claim_status_ck', sql`(status = 'recorded') = (claim_id is null)`),
-  // Priznati iznos postoji točno kad je o trošku odlučeno, i odgovara statusu (cijeli / umanjen / 0).
-  check('expenses_decision_ck', sql`(status in ('accepted', 'partially_accepted', 'rejected')) = (recognised_cents is not null)
+  // WP1.17: trošak potraživan izvan sustava nije ni u jednom zahtjevu sustava.
+  check('expenses_claim_status_ck', sql`(status in ('recorded', 'historic')) = (claim_id is null)`),
+  // Priznati iznos postoji točno kad je o trošku odlučeno, i odgovara statusu (cijeli / umanjen / 0). Potraživan izvan
+  // sustava (WP1.17): priznati iznos neobavezan (prazno = priznat kako je zatražen), najviše traženi.
+  check('expenses_decision_ck', sql`(status = 'historic' and (recognised_cents is null or recognised_cents between 0 and amount_cents))
+    or (status <> 'historic' and (status in ('accepted', 'partially_accepted', 'rejected')) = (recognised_cents is not null)
     and (recognised_cents is null or recognised_cents between 0 and amount_cents)
     and (status <> 'accepted' or recognised_cents = amount_cents)
     and (status <> 'rejected' or recognised_cents = 0)
-    and (status <> 'partially_accepted' or (recognised_cents > 0 and recognised_cents < amount_cents))`),
+    and (status <> 'partially_accepted' or (recognised_cents > 0 and recognised_cents < amount_cents)))`),
+  // WP1.17: trošak osoblja iz ranijeg razdoblja postoji samo kao potraživan izvan sustava i uvijek uz osobu; oznaka zahtjeva samo uz takav trošak.
+  check('expenses_historic_ck', sql`(source <> 'historic_personnel' or (status = 'historic' and team_member_id is not null))
+    and (source = 'historic_personnel' or team_member_id is null) and (external_claim is null or status = 'historic')`),
 ]);
 
 /* ---------- M3 Radar poziva ---------- */
@@ -625,6 +642,44 @@ export const proposalBudgetLines = pgTable('proposal_budget_lines', {
   foreignKey({ name: 'proposal_budget_member_fk', columns: [t.tenantId, t.memberId], foreignColumns: [proposalMembers.tenantId, proposalMembers.id] }).onDelete('cascade'),
   check('proposal_budget_amount_ck', sql`amount_cents >= 0`),
 ]);
+
+/**
+ * WP1.17 – uvoz postojećeg projekta iz Excela: zapis svakog primijenjenog uvoza (datoteka, SHA-256, brojevi po listu, tko i
+ * kada) i popis onoga što je uvoz stvorio, za poništavanje. Aplikacija nema DELETE – poništen uvoz ostaje u povijesti.
+ */
+export type ProjectImportStatus = 'applied' | 'undone';
+export interface ProjectImportCreated {
+  workPackages: string[]; deliverables: string[]; milestones: string[]; teamMembers: string[]; expenses: string[]; roleAssignments: string[];
+  /** Proračun: novi (stvoren uvozom) ili zamijenjen nacrt s prijašnjim retcima; revizija proračuna nakon uvoza. */
+  budget: null | { budgetId: string; created: boolean; revisionAfter: number; previousLines: { partnerId: string; categoryCode: string; workPackageId: string | null; amountCents: number; description: string | null }[] };
+}
+export const projectImports = pgTable('project_imports', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  fileName: text('file_name').notNull(),
+  fileSha256: text('file_sha256').notNull(),
+  fileSize: integer('file_size').notNull(),
+  format: text('format').$type<'xlsx' | 'csv'>().notNull(),
+  status: text('status').$type<ProjectImportStatus>().notNull().default('applied'),
+  /** Listovi koji su primijenjeni i brojevi po listu (stvoreno / izmijenjeno / bez promjene). */
+  counts: jsonb('counts').$type<Record<string, { created: number; updated: number; unchanged: number; rows: number }>>().notNull(),
+  created: jsonb('created').$type<ProjectImportCreated>().notNull(),
+  /** Dozvole koje je uvoz tražio (poništavanje traži iste). */
+  permissions: text('permissions').array().notNull().default(sql`'{}'::text[]`),
+  fingerprint: text('fingerprint').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  undoneAt: timestamp('undone_at', { withTimezone: true }),
+  undoneBy: uuid('undone_by'),
+}, (t) => [
+  unique('project_imports_tenant_id_uq').on(t.tenantId, t.id),
+  index('project_imports_project_idx').on(t.projectId, t.createdAt),
+  projectFk('project_imports_project_fk', t),
+  check('project_imports_status_ck', sql`status in ('applied', 'undone') and (status = 'undone') = (undone_at is not null)`),
+  check('project_imports_format_ck', sql`format in ('xlsx', 'csv')`),
+]);
+export type ProjectImportRow = typeof projectImports.$inferSelect;
 
 /** M9 Dokumenti: logički dokument vezan uz entitet projekta ili prijave; verzije su nepromjenjive (samo INSERT za aplikaciju). */
 export const documents = pgTable('documents', {

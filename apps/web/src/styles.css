@@ -75,3 +75,20 @@ table.portfolio a,.card td a:not(.chip){color:var(--accent)}.break{overflow-wrap
 .audit-changes .before{color:var(--muted);text-decoration:line-through}.audit-changes .hidden{color:var(--warn);font-style:italic;text-decoration:none}
 @media(max-width:620px){.audit-changes{grid-template-columns:1fr}.audit-changes .h{display:none}.audit-table thead{display:none}.audit-table tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}.audit-table td{display:block;border:0;padding:2px 4px}}
 header.top nav{display:flex;flex-wrap:wrap;gap:2px;min-width:0;max-width:100%}nav a{white-space:nowrap}
+/* Uvoz iz Excela (WP1.17) */
+.import-hint{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px}
+.import-actions{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}.import-file input{max-width:100%}
+.import-banner{border-radius:8px;padding:10px 12px;margin-bottom:10px;border:1px solid var(--line);border-left-width:4px;background:var(--bg)}
+.import-banner.ok{border-left-color:var(--ok)}.import-banner.warn{border-left-color:var(--warn)}.import-banner.bad{border-left-color:var(--bad)}
+.import-sheets{display:grid;gap:10px}.import-sheet{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg)}
+.import-sheet.bad{border-left:3px solid var(--bad)}.import-sheet.warn{border-left:3px solid var(--warn)}.import-sheet.ok{border-left:3px solid var(--ok)}
+.import-sheet h4{margin:0;font-size:15px}.import-counts{margin:4px 0;font-size:14px}
+.import-warnings{margin:6px 0;padding-left:18px;font-size:13px;color:var(--warn)}.import-notes{font-size:13px;padding-left:18px}
+.import-items{list-style:none;padding:0;margin:6px 0;font-size:13px;max-height:420px;overflow:auto}.import-items li{padding:3px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.chip.historic{margin-left:6px}
+.issue-table{font-size:13px;margin-top:6px}.issue-table td:first-child{white-space:nowrap}
+.import-ack{display:flex;gap:8px;align-items:flex-start;margin:12px 0 4px;font-size:14px}
+.import-result ul{margin:6px 0;padding-left:18px}
+.blockers summary{cursor:pointer;color:var(--warn);font-size:13px}.blockers ul{margin:4px 0;padding-left:18px;font-size:13px}
+@media(max-width:620px){.issue-table thead,.import-history thead{display:none}.issue-table tr,.import-history tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}
+.issue-table td,.import-history td{display:block;border:0;padding:2px 4px}.issue-table td::before,.import-history td[data-l]:not([data-l=""])::before{content:attr(data-l) ": ";color:var(--muted);font-size:12px}}

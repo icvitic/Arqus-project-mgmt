@@ -40,11 +40,12 @@ export function ExpensesTab({ project: p, pkg, me }: TabProps) {
             <Field label="Iznos (€)"><input inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} required /></Field>
             <Field label="Dokaz (broj računa)"><input value={f.evidenceRef} onChange={(e) => setF({ ...f, evidenceRef: e.target.value })} /></Field>
           </ActionForm>
-          <p className="muted">Trošak osoblja nastaje odobrenjem timesheeta u kartici Tim i timesheetovi.</p>
+          <p className="muted">Trošak osoblja nastaje odobrenjem timesheeta u kartici Tim i timesheetovi. Troškove iz ranijih razdoblja (i one već potraživane prije ArQusa) možeš uvesti iz Excela na kartici <a href={`#/projekti/${p.id}/uvoz`}>Uvoz</a>.</p>
         </div>
       ) : <p className="muted">Troškovi se evidentiraju dok je projekt aktivan.</p>}
       <div className="card scroll">
         <h2>Troškovi</h2>
+        {(ex.data ?? []).some((e) => e.historic) && <p className="muted" role="note">Troškovi označeni „potraživan izvan sustava” bili su u zahtjevima za nadoknadu predanima prije ArQusa (uvoz iz Excela): računaju se u ostvareno (s priznatim iznosom), ali se ne nude ni u jednom novom ZNS-u i ne mijenjaju se – ispravak je poništavanje uvoza.</p>}
         {hiddenRows && <p className="muted" role="note">Iznosi troškova osoblja (plaće) vidljivi su samo uz pristup podacima o osoblju (financije, ured za projekte). Ovdje vidiš sate po osobi i mjesecu; zbroj troškova osoblja po kategoriji je na kartici „Ugovoreno / ostvareno”.</p>}
         <ErrorBox error={ex.error} />
         {!ex.data ? <Loading /> : (
@@ -60,7 +61,9 @@ export function ExpensesTab({ project: p, pkg, me }: TabProps) {
               </Fragment>
             ) : g.rows.map((e) => (
               <Fragment key={e.id}><tr><td>{date(e.date)}</td><td title={catName(e.categoryCode)}>{e.categoryCode}</td><td>{e.description}{e.decisionReason && <small className="muted">Razlog: {e.decisionReason}</small>}</td><td>{e.supplier ?? '–'}{e.evidenceRef ? ` · ${e.evidenceRef}` : ''}</td>
-                <td className="num">{eur(e.amount)}</td><td className="num">{e.recognised === null ? '–' : eur(e.recognised)}</td><td>ručno</td><td><Chip s={e.status} /></td>
+                <td className="num">{e.amountHidden ? <HiddenAmount /> : eur(e.amount)}</td><td className="num">{e.amountHidden ? <HiddenAmount /> : e.recognised === null ? (e.historic ? eur(e.amount) : '–') : eur(e.recognised)}</td>
+                <td>{e.historic ? <span title="Trošak je bio u zahtjevu za nadoknadu predanom prije ArQusa (uvezen iz Excela). Računa se u ostvareno, ne ulazi u nove ZNS-ove.">uvoz – prije ArQusa</span> : e.imported ? 'uvoz' : 'ručno'}</td>
+                <td><Chip s={e.status} tone={e.historic ? 'warn' : undefined} />{e.historic && e.externalClaim && <small className="muted">{e.externalClaim}</small>}</td>
                 <td style={{ whiteSpace: 'nowrap' }}><button onClick={() => setOpen(open === e.id ? null : e.id)} aria-expanded={open === e.id}>Dokazi ({e.documents})</button>
                   {write && e.status === 'recorded' && <ActionButton kind="danger" confirm="Obrisati trošak?" onClick={async () => { await api('DELETE', `/projects/${p.id}/expenses/${e.id}`); await ex.reload(); }}>obriši</ActionButton>}</td></tr>
               {open === e.id && <tr><td colSpan={9}><DocumentList target={{ entityType: 'expense', entityId: e.id }} defaultKind="evidence" canWrite={can(me, 'documents:write', p.id) && e.status === 'recorded'} allowConfidential={can(me, 'documents:confidential', p.id)} onChange={ex.reload} /></td></tr>}</Fragment>

@@ -6,6 +6,7 @@
 import { addDays, addMonths, daysInMonth, DEFAULT_TIME_ZONE, todayIn } from '@arqus/domain';
 import { DemoApi } from './client';
 import { demoPdf } from './pdf';
+import { DEMO_IMPORT_FILE, DEMO_IMPORT_PROJECT } from './import-example';
 
 /** `project` = uloga se ne dodjeljuje na razini institucije; korisnik dobiva pristup samo projektu na kojem je voditelj ili član tima (WP1.14). */
 export interface DemoUser { key: string; local: string; displayName: string; role: string; scope: 'tenant' | 'project'; roleLabel: string; note: string }
@@ -375,6 +376,14 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   // Na stranici Revizija promjenu plaće s iznosima vide samo uloge s pristupom podacima o osoblju.
   await finance.patch(`/projects/${heId}/team/${ivana}`, { annualCost: 4_680_000 });
   log('HE: BLUESENSE aktivan, timesheetovi i troškovi uneseni');
+
+  // ---------- WP1.17: projekt u tijeku koji se uvozi iz Excela (uživo na demonstraciji) ----------
+  // U ArQusu su samo osnovni podaci, partneri i aktivacija (razdoblja); radni paketi, proračun, tim i troškovi – i troškovi
+  // RP1 već potraživani u ZNS-u prije ArQusa – su u `docs/primjeri/uvoz-projekta-DIGI-ARHIV.xlsx` (kartica „Uvoz”).
+  const digi = await office.post<Row>('/projects', { ...DEMO_IMPORT_PROJECT, packageId: npooPackageId, actionType: 'BESPOVRATNA', role: 'coordinator', partners: [{ organisationId: orgs.hr!.id, role: 'partner' }] });
+  await office.post(`/projects/${digi.id}/transition`, { to: 'active' });
+  sum.projects.push(DEMO_IMPORT_PROJECT.acronym);
+  log(`${DEMO_IMPORT_PROJECT.acronym}: projekt u tijeku otvoren u ArQusu – ostalo se uvozi iz Excela (docs/primjeri/${DEMO_IMPORT_FILE})`);
 
   // ---------- prijava u pripremi (iz odluke go na radaru) ----------
   const aq = await office.post<Row>(`/calls/${calls.heA!.id}/proposal`, { acronym: 'AQUAREST', title: 'Obnova obalnih staništa uz podvodne senzorske mreže i digitalne blizance', durationMonths: 48, internalDeadline: inDays(27), leadUserId: userIds.pm });

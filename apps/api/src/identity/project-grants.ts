@@ -51,11 +51,14 @@ export async function ensureManagerAccess(tx: Tx, audit: AuditService, tenantId:
   await grantProjectRole(tx, audit, { tenantId, userId, projectId, roleCode: 'project-manager', actorId, reason: 'voditelj projekta' });
 }
 
-/** Član tima povezan s korisničkim računom dobiva ulogu člana tima na projektu ako tamo još nema dodjelu (i ako mu ona išta dodaje). */
-export async function ensureTeamMemberAccess(tx: Tx, audit: AuditService, tenantId: string, projectId: string, userId: string, actorId?: string): Promise<void> {
-  if ((await projectRoleCodesOf(tx, userId, projectId)).length) return;
+/**
+ * Član tima povezan s korisničkim računom dobiva ulogu člana tima na projektu ako tamo još nema dodjelu (i ako mu ona išta dodaje).
+ * Vraća novu dodjelu (ili null) – uvoz iz Excela (WP1.17) je pamti da je poništavanje uvoza može ukloniti.
+ */
+export async function ensureTeamMemberAccess(tx: Tx, audit: AuditService, tenantId: string, projectId: string, userId: string, actorId?: string) {
+  if ((await projectRoleCodesOf(tx, userId, projectId)).length) return null;
   const role = await findRole(tx, tenantId, 'team-member');
   const tenantPerms = await tenantPermissionsOf(tx, userId);
-  if (role.permissions.every((p) => hasPermission(tenantPerms, p as never))) return;
-  await grantProjectRole(tx, audit, { tenantId, userId, projectId, roleCode: 'team-member', actorId, reason: 'član tima' });
+  if (role.permissions.every((p) => hasPermission(tenantPerms, p as never))) return null;
+  return grantProjectRole(tx, audit, { tenantId, userId, projectId, roleCode: 'team-member', actorId, reason: 'član tima' });
 }

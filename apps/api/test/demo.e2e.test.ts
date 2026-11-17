@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
@@ -12,6 +12,7 @@ import { AppModule } from '../src/app.module';
 import { seedDemo } from '../src/db/seed';
 import { runDemo } from '../src/demo/demo';
 import { DEMO_DEFAULT_PASSWORD, DEMO_USERS } from '../src/demo/scenario';
+import { DEMO_IMPORT_FILE, demoImportWorkbook } from '../src/demo/import-example';
 
 const ADMIN_URL = process.env.TEST_DATABASE_MIGRATE_URL ?? 'postgres://arqus@127.0.0.1:5433/arqus_test';
 const APP_URL = process.env.TEST_DATABASE_URL ?? 'postgres://arqus_app:arqus@127.0.0.1:5433/arqus_test';
@@ -49,7 +50,7 @@ describe('Demo okruženje (WP1.13)', () => {
   it('puni demo instituciju kroz API: korisnici, radar, prijave, projekti, timesheetovi, troškovi, dokazi, ZNS', async () => {
     const r = await runDemo({ ownerUrl: ADMIN_URL, appUrl: APP_URL, slug, importPackages: false });
     expect(r.status).toBe('created'); firstTenantId = r.tenantId;
-    expect(r.summary).toMatchObject({ projects: ['ZELENI-LAB', 'BLUESENSE'], calls: 6 });
+    expect(r.summary).toMatchObject({ projects: ['ZELENI-LAB', 'BLUESENSE', 'DIGI-ARHIV'], calls: 6 });
 
     // Svi demo računi mogu se prijaviti demo lozinkom.
     const tokens: Record<string, string> = {};
@@ -85,7 +86,7 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(prep.members.length).toBeGreaterThanOrEqual(4); expect(prep.workPackages.length).toBeGreaterThan(0); expect(prep.budget.totals.total).toBeGreaterThan(0);
 
     const projects = (await http().get('/api/projects').set(as('office')).expect(200)).body as Row[];
-    expect(projects.map((p) => p.status)).toEqual(['active', 'active']);
+    expect(projects.map((p) => p.status)).toEqual(['active', 'active', 'active']);
     const he = projects.find((p) => p.acronym === 'BLUESENSE')!; const npoo = projects.find((p) => p.acronym === 'ZELENI-LAB')!;
     expect(npoo.id).toBe(contracted.projectId);
 
@@ -236,4 +237,32 @@ describe('Demo okruženje (WP1.13)', () => {
     await expect(runDemo({ ownerUrl: ADMIN_URL, appUrl: APP_URL, slug: other, reset: true, importPackages: false })).rejects.toThrow(/NIJE demo stanar/);
     expect(await tenantRows(otherTenant!.id)).toBe(afterLogin);
   }, 120_000);
+
+  it('WP1.17: primjer radne knjige u docs/primjeri je aktualan i uvozi se u DIGI-ARHIV (pregled + potvrda) za nekoliko sekundi', async () => {
+    const committed = readFileSync(join(__dirname, '..', '..', '..', 'docs', 'primjeri', DEMO_IMPORT_FILE));
+    expect(committed.equals(await demoImportWorkbook()), 'docs/primjeri nije aktualan – pokreni pnpm --filter @arqus/api demo:import-example').toBe(true);
+    const office = await login(slug, `ured@${slug}.local`, pw);
+    const as = { Authorization: `Bearer ${office}` };
+    const digi = ((await http().get('/api/projects').set(as).expect(200)).body as Row[]).find((p) => p.acronym === 'DIGI-ARHIV')!;
+    expect((await http().get(`/api/projects/${digi.id}/structure`).set(as).expect(200)).body.workPackages).toEqual([]);
+    expect((await http().get(`/api/projects/${digi.id}/imports`).set(as).expect(200)).body).toEqual([]);
+    const started = Date.now();
+    const plan = (await http().post(`/api/projects/${digi.id}/import/preview`).set(as).attach('file', committed, DEMO_IMPORT_FILE).expect(201)).body;
+    expect(plan.errors).toBe(0);
+    expect(plan.warnings).toBe(0);
+    expect(Object.fromEntries(plan.sheets.map((s: { key: string; created: number }) => [s.key, s.created]))).toEqual({ workPackages: 3, deliverables: 2, milestones: 1, budget: 7, team: 3, expenses: 19 });
+    await http().post(`/api/projects/${digi.id}/import/confirm`).set(as).field({ sha256: plan.sha256, revision: String(plan.projectRevision), fingerprint: plan.fingerprint }).attach('file', committed, DEMO_IMPORT_FILE).expect(201);
+    const ms = Date.now() - started;
+    expect(ms).toBeLessThan(10_000);
+    console.warn(`WP1.17 demo: pregled i potvrda uvoza ${DEMO_IMPORT_FILE} – ${ms} ms`);
+    const fin = (await http().get(`/api/projects/${digi.id}/finance`).set(as).expect(200)).body;
+    // Ostvareno: RP1 potraživano izvan sustava (osoblje 13.380 EUR, usluga priznata 11.900, oprema 18.600, put 640,50, promidžba 1.150) + RP2 (6.200 + 210,40 + 480).
+    expect(fin.byCategory.find((c: { code: string }) => c.code === 'VU')).toMatchObject({ actual: 1_810_000, unrecognised: 50_000 });
+    expect(fin.byCategory.find((c: { code: string }) => c.code === 'OS').actual).toBe(1_338_000);
+    expect(fin.planned.total).toBeGreaterThan(fin.actual.total);
+    const pf = (await http().get('/api/portfolio').set(as).expect(200)).body;
+    const row = pf.projects.find((x: Row) => x.acronym === 'DIGI-ARHIV');
+    expect(row.budget.projectActual).toBe(fin.actual.total);
+    expect(row.attention).toMatchObject({ unclaimedPeriods: 0, expensesWithoutEvidence: 3, strandedExpenses: 0 });
+  }, 60_000);
 });
