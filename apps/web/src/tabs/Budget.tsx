@@ -3,30 +3,44 @@ import { api } from '../lib/api';
 import { centsToInput, eur, parseEur } from '../lib/format';
 import { useLoad } from '../lib/hooks';
 import { enterable, type Budget } from '../lib/types';
-import { ActionButton, Chip, ErrorBox, Loading } from '../ui';
+import { ActionButton, Chip, ConflictNotice, ErrorBox, Loading, conflictOf, editedKeys, isConflict, type Conflict } from '../ui';
 import { can, type TabProps } from '../pages/ProjectDetail';
 
 /** Tablični unos proračuna: partner × kategorija u koju se unose iznosi; neizravni i doprinos računa server iz paketa. */
 export function BudgetTab({ project: p, me }: TabProps) {
   const b = useLoad(() => api<Budget>('GET', `/projects/${p.id}/budget`), [p.id]);
   const [cells, setCells] = useState<Record<string, string>>({});
+  // WP1.14b: istovremena izmjena – vlastiti unos ostaje sačuvan dok korisnik ne odluči (vrati u tablicu ili odbaci).
+  const [conflict, setConflict] = useState<Conflict<Record<string, string>> | null>(null);
   const editable = can(me, 'finance:write', p.id) && b.data?.status !== 'locked' && !['closed', 'terminated', 'archived'].includes(p.status);
   const cats = b.data ? enterable(b.data.categories) : [];
   const key = (partnerId: string, code: string) => `${partnerId}|${code}`;
-  useEffect(() => {
-    if (!b.data) return;
+  const stored = (data: Budget): Record<string, string> => {
     const sums: Record<string, number> = {};
-    for (const l of b.data.lines) sums[key(l.partnerId, l.categoryCode)] = (sums[key(l.partnerId, l.categoryCode)] ?? 0) + l.amount;
-    setCells(Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, centsToInput(v)])));
-  }, [b.data]);
+    for (const l of data.lines) sums[key(l.partnerId, l.categoryCode)] = (sums[key(l.partnerId, l.categoryCode)] ?? 0) + l.amount;
+    return Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, centsToInput(v)]));
+  };
+  useEffect(() => { if (b.data) setCells(stored(b.data)); }, [b.data]);
   if (b.error) return <ErrorBox error={b.error} />;
   if (!b.data) return <Loading what="proračun" />;
   const invalid = Object.entries(cells).filter(([, v]) => parseEur(v) === null).map(([k]) => k);
   const hasWpSplit = b.data.lines.some((l) => l.workPackageId);
   const save = async () => {
     const lines = Object.entries(cells).map(([k, v]) => { const [partnerId, categoryCode] = k.split('|') as [string, string]; return { partnerId, categoryCode, amount: parseEur(v) ?? 0 }; }).filter((l) => l.amount > 0);
-    b.setData(await api<Budget>('PUT', `/projects/${p.id}/budget/lines`, { lines }));
+    try {
+      b.setData(await api<Budget>('PUT', `/projects/${p.id}/budget/lines`, { revision: b.data!.revision, lines }));
+      setConflict(null);
+    } catch (e) {
+      if (!isConflict(e)) throw e;
+      setConflict(conflictOf(e, { ...cells }, stored(b.data!)));
+    }
   };
+  const partnerName = (id: string) => b.data!.partners.find((x) => x.partnerId === id)?.name ?? 'partner';
+  const amount = (v: string | undefined) => { const c = parseEur(v ?? ''); return c ? eur(c) : ''; };
+  // Samo polja koja je korisnik sam promijenio (u odnosu na stanje koje je bio učitao), uz ono što je sada spremljeno.
+  const edited = conflict ? editedKeys(conflict.mine, conflict.base, (x, y) => amount(x) === amount(y)) : [];
+  const diff = edited.filter((k) => amount(conflict!.mine[k]) !== amount(cells[k]))
+    .map((k) => { const [pid, code] = k.split('|') as [string, string]; return { label: `${partnerName(pid)} · ${code}`, mine: amount(conflict!.mine[k]), now: amount(cells[k]) }; });
   return (
     <div className="card scroll">
       <h2>Proračun {b.data.version ? `v${b.data.version}` : ''} <Chip s={b.data.status} /></h2>
@@ -46,6 +60,9 @@ export function BudgetTab({ project: p, me }: TabProps) {
         <tfoot><tr><td>Ukupno</td>{cats.map((c) => <td key={c.code} />)}<td className="num">{eur(b.data.totals.indirect)}</td><td className="num">{eur(b.data.totals.total)}</td><td /><td className="num">{eur(b.data.totals.requested)}</td></tr></tfoot>
       </table>
       {b.data.warnings.map((w) => <div className="warnbox" key={w}>{w}</div>)}
+      {conflict && <ConflictNotice conflict={conflict} what="Proračun" diff={diff}
+        onReload={async () => { await b.reload(); setConflict({ ...conflict, reloaded: true }); }}
+        onRestore={() => { setCells({ ...cells, ...Object.fromEntries(edited.map((k) => [k, conflict.mine[k] ?? ''])) }); setConflict(null); }} onDismiss={() => setConflict(null)} />}
       {editable && <div className="actions">
         {invalid.length > 0 && <span className="chip bad">neispravan iznos u {invalid.length} polja</span>}
         <ActionButton kind="primary" onClick={async () => { if (invalid.length) throw new Error('Ispravi označene iznose'); await save(); }}>Spremi proračun</ActionButton>

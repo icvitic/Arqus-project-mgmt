@@ -24,7 +24,7 @@ pnpm --filter @arqus/api db:seed
 ```bash
 pnpm --filter @arqus/api db:import-packages   # osvježi globalne pakete nakon promjene JSON-a u docs/domena/paketi
 ```
-Seed stvara sistemske uloge i demo stanara `demo` s administratorom `admin@demo.local` / `Demo-lozinka-1` (promjenjivo kroz `SEED_*` varijable). Prijava: `POST /api/auth/login {tenantSlug, email, password}` → `accessToken` (Bearer).
+Seed stvara sistemske uloge i razvojnog stanara `razvoj` s administratorom `admin@razvoj.local` / `Zeleni-Kamen-2026` (promjenjivo kroz `SEED_*` varijable; lozinka iz `SEED_ADMIN_PASSWORD` mora zadovoljiti politiku lozinki, administrator se traži samo unutar tog stanara). Oznaka `demo` ostaje slobodna za demo instituciju (`cli demo`). Prijava: `POST /api/auth/login {tenantSlug, email, password}` → `accessToken` (Bearer).
 
 Dvije uloge u bazi: `arqus` (vlasnik, migracije) i `arqus_app` (aplikacija, bez BYPASSRLS). API uvijek radi pod `arqus_app`, pa RLS politike vrijede i za grešku u kodu. Testovi traže PostgreSQL na `127.0.0.1:5433` (`TEST_DATABASE_MIGRATE_URL`, `TEST_DATABASE_URL`); CI ga diže kao servis.
 
@@ -41,7 +41,7 @@ pnpm typecheck && pnpm lint && pnpm test
 ```
 
 ## Web sučelje
-`pnpm dev` diže API (3000) i web (5173, proxy `/api`). Prijava: oznaka institucije `demo`, `admin@demo.local` / `Demo-lozinka-1` (nakon `db:seed`).
+`pnpm dev` diže API (3000) i web (5173, proxy `/api`). Prijava: oznaka institucije `razvoj`, `admin@razvoj.local` / `Zeleni-Kamen-2026` (nakon `db:seed`).
 Pakete po pozivu ured za projekte stvara u izborniku **Paketi programa → Novi paket po pozivu** (nasljeđuje programski paket, provjera prije spremanja, objava).
 
 ## E2E provjera u pregledniku
@@ -63,9 +63,12 @@ Izgradi sve, primijeni migracije i seed, digne API i `vite preview` te Playwrigh
 ## Pravila
 - Moduli API-ja ne čitaju tuđe tablice; komunikacija kroz servise i događaje (ADR-0002, domenski model odj. 1).
 - Izračuni koji ovise o pravilima programa žive u `@arqus/domain`, ne u kontrolerima.
-- Svaka nova ruta dobiva točno jednu oznaku autorizacije (`apps/api/src/identity/auth.guard.ts`): ruta s projektom u putanji `@ProjectPermission(p)` (parametar `:id`), entitet projekta bez projekta u putanji `@ResolvesProject(p)` uz provjeru vlasnika u servisu (`assertProjectPermission`), radnja institucije `@RequirePermission(p)`. Ruta bez oznake se odbija, a `test/route-coverage.e2e.test.ts` pada – novi parametar putanje dodaj u `paramsB` tog testa. Model: `docs/sigurnost/AUTORIZACIJA.md`.
+- Svaka nova ruta dobiva točno jednu oznaku autorizacije (`apps/api/src/identity/auth.guard.ts`): ruta s projektom u putanji `@ProjectPermission(p)` (parametar `:id`), ruta s prijavom u putanji `@ProposalPermission(p)` (institucija ili voditelj te prijave), entitet projekta bez projekta u putanji `@ResolvesProject(p)` uz provjeru vlasnika u servisu (`assertProjectPermission`), radnja institucije `@RequirePermission(p)`. Ruta bez oznake se odbija, a `test/route-coverage.e2e.test.ts` pada – novi parametar putanje dodaj u `paramsB` tog testa. Model: `docs/sigurnost/AUTORIZACIJA.md`.
 - Svaki poslovni upit ide kroz `DbService.tx()` (stanar iz konteksta) ili `withTenant()`; `withoutTenant()` samo za prijavu i sistemske poslove.
-- Svaka promjena poslovnih podataka zove `AuditService.record()` u istoj transakciji. Zapis neuspjele radnje ide u zasebnoj transakciji.
+- Svaka promjena poslovnih podataka zove `AuditService.record()` u istoj transakciji. Zapis neuspjele radnje ide u zasebnoj transakciji. Tajne (lozinke, hashevi, MFA tajne, tokeni) ne idu u `diff` – `record()` ih ionako uklanja; iznosi plaća smiju (pregled ih skriva bez `personnel:read`).
+- Jedna transakcija = jedan klijent baze: upiti na istom `tx` jedan za drugim, nikad `Promise.all` (prestaje raditi u pg 9).
+- Spremanje koje zamjenjuje cijeli skup ili zapis (proračun, timesheet, osnovni podaci) prima `revision` (`common/revision.ts`: `assertRevision` kao prva radnja, `bump` u svakoj izmjeni); sučelje je šalje i prikazuje `ConflictNotice` na 409.
+- „Danas” se uvijek računa u zoni institucije: `tenantToday()` / `tenantTimeZone()` (`common/tenant-context.ts`), u domeni `todayIn()`; nikad `toISOString().slice(0, 10)`.
 - Tablica koja pokazuje na drugi redak stanara ima kompozitni strani ključ `(tenant_id, <fk>)` → `(tenant_id, id)`; sam RLS ne štiti strane ključeve.
 - Migracije generiraj s `pnpm --filter @arqus/api db:generate --name <naziv>`: skripta sama premješta UNIQUE ograničenja ispred stranih ključeva koji ih koriste.
 - Nova tablica = migracija s `ENABLE/FORCE ROW LEVEL SECURITY`, politika po `app_current_tenant()`, GRANT za `arqus_app` i test u `test/rls.test.ts`.

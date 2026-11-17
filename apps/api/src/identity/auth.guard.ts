@@ -4,7 +4,7 @@ import type { Request } from 'express';
 import { TokenService } from './token.service';
 import { hasPermission, type Permission } from './permissions';
 import { IdentityService } from './identity.service';
-import { assertProjectPermission, canAnywhere } from '../common/access';
+import { assertProjectPermission, assertProposalPermission, canAnyProposal, canAnywhere } from '../common/access';
 import type { RequestContext } from '../common/tenant-context';
 
 /**
@@ -20,6 +20,9 @@ import type { RequestContext } from '../common/tenant-context';
  *                                    opsegu, servis razrješava vlasnika i provjerava pristup upravo tom projektu.
  * - `@AnyScope(p)`                 – popisi i referentni podaci: dozvola na razini institucije ili na barem jednom projektu;
  *                                    servis vraća samo ono što korisnik smije vidjeti (npr. /projects).
+ * - `@ProposalPermission(p, param)` – WP1.14b: prijava u putanji: dozvola na razini institucije ILI voditelj te prijave
+ *                                    (samo dozvole voditelja); nevidljiva prijava → 404, vidljiva bez dozvole → 403.
+ *                                    `param = null` – popis: institucija ili voditelj barem jedne prijave; servis filtrira.
  */
 export const PUBLIC_KEY = 'arqus:public';
 export const AUTHENTICATED_KEY = 'arqus:authenticated';
@@ -27,6 +30,7 @@ export const PERMISSION_KEY = 'arqus:permission';
 export const PROJECT_PERMISSION_KEY = 'arqus:project-permission';
 export const RESOLVES_PROJECT_KEY = 'arqus:resolves-project';
 export const ANY_SCOPE_KEY = 'arqus:any-scope';
+export const PROPOSAL_PERMISSION_KEY = 'arqus:proposal-permission';
 
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
 export const Authenticated = () => SetMetadata(AUTHENTICATED_KEY, true);
@@ -34,13 +38,15 @@ export const RequirePermission = (p: Permission) => SetMetadata(PERMISSION_KEY, 
 export const ProjectPermission = (p: Permission, param = 'id') => SetMetadata(PROJECT_PERMISSION_KEY, { permission: p, param });
 export const ResolvesProject = (p: Permission) => SetMetadata(RESOLVES_PROJECT_KEY, p);
 export const AnyScope = (p: Permission) => SetMetadata(ANY_SCOPE_KEY, p);
+export const ProposalPermission = (p: Permission, param: string | null = 'id') => SetMetadata(PROPOSAL_PERMISSION_KEY, { permission: p, param });
 
 export type RouteAccess =
   | { kind: 'public' } | { kind: 'authenticated' }
   | { kind: 'tenant'; permission: Permission }
   | { kind: 'project'; permission: Permission; param: string }
   | { kind: 'resolves-project'; permission: Permission }
-  | { kind: 'any-scope'; permission: Permission };
+  | { kind: 'any-scope'; permission: Permission }
+  | { kind: 'proposal'; permission: Permission; param: string | null };
 
 /** Oznaka rute (metoda ima prednost pred klasom). Više oznaka ili nijedna → greška razvrstavanja. */
 export function routeAccess(reflector: Reflector, targets: Parameters<Reflector['getAllAndOverride']>[1]): RouteAccess | { kind: 'invalid'; reason: string } {
@@ -55,6 +61,8 @@ export function routeAccess(reflector: Reflector, targets: Parameters<Reflector[
   if (resolves) found.push({ kind: 'resolves-project', permission: resolves });
   const any = reflector.getAllAndOverride<Permission | undefined>(ANY_SCOPE_KEY, targets);
   if (any) found.push({ kind: 'any-scope', permission: any });
+  const proposal = reflector.getAllAndOverride<{ permission: Permission; param: string | null } | undefined>(PROPOSAL_PERMISSION_KEY, targets);
+  if (proposal) found.push({ kind: 'proposal', ...proposal });
   if (found.length !== 1) return { kind: 'invalid', reason: found.length ? `više oznaka: ${found.map((f) => f.kind).join(', ')}` : 'ruta nije razvrstana' };
   return found[0]!;
 }
@@ -81,6 +89,7 @@ export class AuthGuard implements CanActivate {
       tenantId: claims.tid, userId: claims.sub, ip: req.ip, sessionId: claims.sid,
       permissions: new Set(fresh.tenant),
       projectPermissions: new Map(Object.entries(fresh.projects).map(([id, perms]) => [id, new Set(perms)])),
+      leadProposals: new Set(fresh.leadProposals), timeZone: fresh.timeZone,
     };
     switch (access.kind) {
       case 'tenant':
@@ -95,6 +104,16 @@ export class AuthGuard implements CanActivate {
       case 'resolves-project': case 'any-scope':
         if (!canAnywhere(ctx, access.permission)) throw new ForbiddenException(`Nedostaje dozvola ${access.permission}`);
         break;
+      case 'proposal': {
+        if (access.param === null) {
+          if (!canAnyProposal(ctx, access.permission)) throw new ForbiddenException(`Nedostaje dozvola ${access.permission} (na razini institucije)`);
+          break;
+        }
+        const proposalId = (req.params as Record<string, string | undefined>)[access.param];
+        if (!proposalId) throw new ForbiddenException('Ruta nema parametar prijave');
+        assertProposalPermission(ctx, proposalId, access.permission);
+        break;
+      }
       case 'authenticated': break;
     }
     // Kontekst se postavlja u interceptoru (ContextInterceptor) jer guard ne obavija izvršenje handlera.

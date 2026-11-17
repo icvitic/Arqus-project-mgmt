@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { date, eur, monthLabel, parseEur } from '../lib/format';
-import { groupExpenses } from '../lib/claims';
+import { groupExpenses, localToday } from '../lib/claims';
 import { useLoad } from '../lib/hooks';
 import { enterable, type Expense, type Structure } from '../lib/types';
 import { ActionButton, ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
@@ -18,7 +18,7 @@ export function ExpensesTab({ project: p, pkg, me }: TabProps) {
   const groups = useMemo(() => groupExpenses(ex.data ?? []).reverse(), [ex.data]);
   const toggle = (k: string) => setExpanded((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const write = can(me, 'finance:write', p.id) && ['active', 'suspended', 'closing'].includes(p.status);
-  const [f, setF] = useState({ categoryCode: cats[0]?.code ?? '', workPackageId: '', date: new Date().toISOString().slice(0, 10), description: '', supplier: '', amount: '', evidenceRef: '' });
+  const [f, setF] = useState({ categoryCode: cats[0]?.code ?? '', workPackageId: '', date: localToday(), description: '', supplier: '', amount: '', evidenceRef: '' });
   const catName = (c: string) => cats.find((x) => x.code === c)?.name ?? c;
   return (
     <>

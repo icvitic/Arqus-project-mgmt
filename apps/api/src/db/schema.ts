@@ -79,6 +79,8 @@ export const roleAssignments = pgTable('role_assignments', {
 }, (t) => [
   index('role_assignments_user_idx').on(t.tenantId, t.userId),
   index('role_assignments_project_idx').on(t.tenantId, t.projectId),
+  // WP1.14b: ista uloga istom korisniku u istom opsegu samo jednom (NULL = institucija se smatra jednakim opsegom).
+  unique('role_assignments_scope_uq').on(t.tenantId, t.userId, t.roleId, t.projectId).nullsNotDistinct(),
   foreignKey({ name: 'role_assignments_project_fk', columns: [t.tenantId, t.projectId], foreignColumns: [projects.tenantId, projects.id] }).onDelete('cascade'),
 ]);
 
@@ -169,6 +171,8 @@ export const projects = pgTable('projects', {
   managerUserId: uuid('manager_user_id'),
   sourceProposalId: uuid('source_proposal_id'),
   activatedAt: timestamp('activated_at', { withTimezone: true }),
+  /** WP1.14b: revizija za zaštitu od istovremenog prepisivanja (raste pri svakoj izmjeni). */
+  revision: integer('revision').notNull().default(1),
   ...audited,
 }, (t) => [
   unique('projects_tenant_id_uq').on(t.tenantId, t.id),
@@ -318,6 +322,8 @@ export const projectBudgets = pgTable('project_budgets', {
   version: integer('version').notNull(),
   status: text('status').$type<BudgetStatus>().notNull().default('draft'),
   lockedAt: timestamp('locked_at', { withTimezone: true }),
+  /** WP1.14b: revizija za zaštitu od istovremenog prepisivanja (raste pri svakoj izmjeni). */
+  revision: integer('revision').notNull().default(1),
   ...audited,
 }, (t) => [unique('project_budgets_tenant_id_uq').on(t.tenantId, t.id), uniqueIndex('project_budgets_version_uq').on(t.projectId, t.version), projectFk('project_budgets_project_fk', t)]);
 
@@ -371,8 +377,12 @@ export const timesheets = pgTable('timesheets', {
   month: text('month').notNull(),
   status: text('status').$type<TimesheetStatus>().notNull().default('draft'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  /** WP1.14b: tko je predao timesheet – ne smije ga i odobriti (četiri oka). */
+  submittedBy: uuid('submitted_by'),
   approvedAt: timestamp('approved_at', { withTimezone: true }),
   approvedBy: uuid('approved_by'),
+  /** WP1.14b: revizija za zaštitu od istovremenog prepisivanja (raste pri svakoj izmjeni). */
+  revision: integer('revision').notNull().default(1),
   ...audited,
 }, (t) => [
   unique('timesheets_tenant_id_uq').on(t.tenantId, t.id),
@@ -424,6 +434,8 @@ export const reimbursementClaims = pgTable('reimbursement_claims', {
   earlierExpenseIds: uuid('earlier_expense_ids').array().notNull().default(sql`'{}'::uuid[]`),
   /** WP1.16b: prijavljeno vrijeme pripreme zahtjeva u minutama (neobavezno; osnova izvještaja o uštedi). */
   preparationMinutes: integer('preparation_minutes'),
+  /** WP1.14b: revizija za zaštitu od istovremenog prepisivanja (raste pri svakoj izmjeni). */
+  revision: integer('revision').notNull().default(1),
   ...audited,
 }, (t) => [
   unique('reimbursement_claims_tenant_id_uq').on(t.tenantId, t.id),
@@ -549,6 +561,8 @@ export const proposals = pgTable('proposals', {
   submission: jsonb('submission').$type<Record<string, unknown>>(),
   outcome: jsonb('outcome').$type<{ result: string; score?: string; note?: string; at: string }>(),
   projectId: uuid('project_id'),
+  /** WP1.14b: revizija za zaštitu od istovremenog prepisivanja (raste pri svakoj izmjeni). */
+  revision: integer('revision').notNull().default(1),
   ...audited,
 }, (t) => [
   unique('proposals_tenant_id_uq').on(t.tenantId, t.id),

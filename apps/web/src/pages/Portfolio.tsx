@@ -274,7 +274,7 @@ function Pipeline({ d }: { d: Data }) {
   return (
     <div className="card">
       <h2>Prijave</h2>
-      {pl.byStatus.length > 0 && <div className="chips status-row">{pl.byStatus.map((s) => <span key={s.status} className="chip" title={`traženo ukupno ${eur(s.requested)}`}>{s.status === 'rejected' ? 'odbijena' : label(s.status)}: <b>{s.count}</b>{s.requestedOwn ? ` · ${eur(s.requestedOwn)}` : ''}</span>)}</div>}
+      {pl.byStatus.length > 0 && <div className="chips status-row">{pl.byStatus.map((s) => <span key={s.status} className="chip" title={`traženo ukupno ${eur(s.requested)}`}>{label(s.status, 'f')}: <b>{s.count}</b>{s.requestedOwn ? ` · ${eur(s.requestedOwn)}` : ''}</span>)}</div>}
       {pl.proposals.length === 0 ? <p className="muted">Nema prijava u tijeku. Prijava se otvara iz odluke go na <a href="#/radar">radaru poziva</a>.</p> : (
         <div className="scroll">
           <table>
@@ -282,7 +282,7 @@ function Pipeline({ d }: { d: Data }) {
             <tbody>{pl.proposals.map((x) => (
               <tr key={x.id} className="row" tabIndex={0} onClick={() => go(`prijave/${x.id}`)} onKeyDown={(e) => e.key === 'Enter' && go(`prijave/${x.id}`)}>
                 <td><b>{x.acronym}</b><br /><span className="muted clamp">{x.title}</span></td>
-                <td><Chip s={x.status} /></td>
+                <td><Chip f s={x.status} /></td>
                 <td>{x.callCode ?? <span className="muted">–</span>}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>{x.internalDeadline ? <>{date(x.internalDeadline)} {daysChip(x.days)}</> : <span className="muted">–</span>}</td>
                 <td className="num">{eur(x.requestedOwn)}</td><td className="num">{eur(x.requested)}</td>

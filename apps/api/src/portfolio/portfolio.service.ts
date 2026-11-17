@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import {
-  annualProductiveHours, budgetPercent, claimSavings, computeProjectBudget, preparationMeasures, daysBetween, deadlineCounts, isoToday, lastMonths, mergeDeadlines, monthEndDate,
+  annualProductiveHours, budgetPercent, claimSavings, computeProjectBudget, preparationMeasures, daysBetween, deadlineCounts, dateIn, lastMonths, mergeDeadlines, monthEndDate,
   PIPELINE_STATUSES, personWorkload, progressSignal, successRate, timeProgress, DAILY_HOURS_LIMIT, PROGRESS_THRESHOLD_PP,
   type CallDeadline, type DeadlineInput, type ProgrammePackage, type TeamMemberRef, type WorkDay,
 } from '@arqus/domain';
@@ -12,7 +12,7 @@ import {
 } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
-import { TenantContext } from '../common/tenant-context';
+import { TenantContext, tenantTimeZone, tenantToday } from '../common/tenant-context';
 import { canInTenant, canOnProject, projectsWith } from '../common/access';
 import { notSelectedInDraft, strandedExpense } from '../finance/finance-common';
 
@@ -83,13 +83,15 @@ export class PortfolioService {
 
   async overview(tx: Tx, opts: { days: number; now?: Date }) {
     const ctx = this.ctx.require();
-    const today = isoToday(opts.now ?? new Date());
+    const today = tenantToday(opts.now ?? new Date()); // WP1.14b: kalendarski dan institucije (Europe/Zagreb), ne UTC
     const full = canInTenant(ctx, 'portfolio:read');
+    // WP1.14b: voditelj prijave bez dozvole institucije vidi u pregledu prijava samo vlastite prijave.
+    const ownProposals = full || canInTenant(ctx, 'proposals:read') ? null : [...(ctx.leadProposals ?? [])];
     const visible = full ? 'all' : projectsWith(ctx, 'projects:read');
     const access = {
       full,
       people: full || (canInTenant(ctx, 'projects:read') && canInTenant(ctx, 'timesheets:read')),
-      pipeline: full || canInTenant(ctx, 'proposals:read'),
+      pipeline: full || canInTenant(ctx, 'proposals:read') || !!ownProposals?.length,
       calls: full || canInTenant(ctx, 'calls:read'),
     };
     const seesFinance = (id: string) => full || canOnProject(ctx, 'finance:read', id);
@@ -222,7 +224,7 @@ export class PortfolioService {
         for (const d of (c.deadlines as CallDeadline[]).filter((x) => SUBMISSION_KINDS.includes(x.kind))) {
           const at = new Date(d.at);
           if (Number.isNaN(at.getTime())) continue;
-          deadlines.push({ kind: 'call_submission', date: at.toISOString().slice(0, 10), at: d.at, overdueRelevant: false, title: c.title, detail: `${d.label ?? 'rok predaje'} · ${detail}`, link: `radar/${c.id}`, callId: c.id, scope: c.code });
+          deadlines.push({ kind: 'call_submission', date: dateIn(tenantTimeZone(), at), at: d.at, overdueRelevant: false, title: c.title, detail: `${d.label ?? 'rok predaje'} · ${detail}`, link: `radar/${c.id}`, callId: c.id, scope: c.code });
         }
         if (c.internal) deadlines.push({ kind: 'call_internal', date: c.internal, overdueRelevant: false, title: c.title, detail, link: `radar/${c.id}`, callId: c.id, scope: c.code });
       }
@@ -231,7 +233,8 @@ export class PortfolioService {
     // ---------- prijave ----------
     let pipeline = null; let success = null; let byStatus: { status: string; count: number; requested: number; requestedOwn: number }[] | null = null;
     if (access.pipeline) {
-      const rows = await tx.select({ p: proposals, callCode: calls.code }).from(proposals).leftJoin(calls, eq(calls.id, proposals.callId)).where(isNull(proposals.deletedAt));
+      const rows = await tx.select({ p: proposals, callCode: calls.code }).from(proposals).leftJoin(calls, eq(calls.id, proposals.callId))
+        .where(and(isNull(proposals.deletedAt), ownProposals ? inArray(proposals.id, ownProposals) : undefined));
       const pids = rows.map((r) => r.p.id);
       const members = pids.length ? await tx.select({ id: proposalMembers.id, proposalId: proposalMembers.proposalId, beneficiaryType: proposalMembers.beneficiaryType, isSelf: organisations.isSelf })
         .from(proposalMembers).innerJoin(organisations, eq(organisations.id, proposalMembers.organisationId)).where(inArray(proposalMembers.proposalId, pids)).orderBy(asc(proposalMembers.orderNo)) : [];

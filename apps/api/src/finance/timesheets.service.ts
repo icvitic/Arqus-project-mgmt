@@ -12,6 +12,7 @@ import { canOnProject } from '../common/access';
 import { ensureTeamMemberAccess } from '../identity/project-grants';
 import { assertSpendable, projectEnd, selfPartner } from './finance-common';
 import { loadTimesheetRecords, renderTimesheetRecord } from './timesheet-record';
+import { assertRevision, bump, revisionField } from '../common/revision';
 
 export const memberInput = z.object({
   fullName: z.string().trim().min(2).max(200), userId: z.string().uuid().optional(), partnerId: z.string().uuid().optional(),
@@ -21,7 +22,11 @@ export const memberInput = z.object({
 });
 export const memberPatch = memberInput.omit({ userId: true, partnerId: true }).partial().extend({ active: z.boolean().optional() }).strict();
 const COST_DENIED = 'Godišnji trošak (plaću) unosi i mijenja samo uloga s pristupom podacima o osoblju (personnel:read)';
-export const timesheetInput = z.object({ entries: z.array(z.object({ day: z.number().int(), minutes: z.number().int(), workPackageId: z.string().uuid().nullable().optional() })).max(31 * 10) });
+export const timesheetInput = z.object({
+  entries: z.array(z.object({ day: z.number().int(), minutes: z.number().int(), workPackageId: z.string().uuid().nullable().optional() })).max(31 * 10),
+  /** WP1.14b: revizija timesheeta koju je klijent učitao (0 = timesheet još ne postoji); razlika → 409, ništa se ne zapisuje. */
+  revision: revisionField,
+});
 export const monthParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'mjesec u obliku GGGG-MM');
 
 /** Tim projekta i mjesečni timesheetovi; odobrenje timesheeta stvara troškove osoblja prema pravilu paketa. */
@@ -53,7 +58,8 @@ export class TimesheetsService {
     const [row] = await tx.insert(teamMembers).values({ tenantId, projectId, partnerId, userId: input.userId ?? null, fullName: input.fullName, role: input.role ?? null, annualCostCents: input.annualCost ?? null, createdBy: actorId, updatedBy: actorId }).returning();
     // Član tima s korisničkim računom dobiva pristup projektu (uloga člana tima), da može voditi vlastite timesheetove.
     if (input.userId) await ensureTeamMemberAccess(tx, this.audit, tenantId, projectId, input.userId, actorId);
-    await this.audit.record(tx, { entity: 'team_member', entityId: row!.id, action: 'create', diff: { after: { ...row, annualCostCents: '***' }, meta: { projectId } } });
+    // Godišnji trošak se bilježi (tko je upisao koju plaću); pregled revizije ga prikazuje samo uz personnel:read (WP1.14b).
+    await this.audit.record(tx, { entity: 'team_member', entityId: row!.id, action: 'create', diff: { after: row, meta: { projectId } } });
     return this.memberView(row!, this.seesCost(projectId));
   }
 
@@ -63,7 +69,9 @@ export class TimesheetsService {
     const before = await this.member(tx, projectId, memberId);
     const { annualCost, ...rest } = patch;
     const [row] = await tx.update(teamMembers).set({ ...rest, ...(annualCost !== undefined ? { annualCostCents: annualCost } : {}), updatedAt: new Date(), updatedBy: actorId }).where(eq(teamMembers.id, before.id)).returning();
-    await this.audit.record(tx, { entity: 'team_member', entityId: memberId, action: 'update', diff: { before: { fullName: before.fullName, role: before.role, active: before.active }, after: { ...rest, ...(annualCost !== undefined ? { annualCostCents: '***' } : {}) }, meta: { projectId } } });
+    await this.audit.record(tx, { entity: 'team_member', entityId: memberId, action: 'update', diff: {
+      before: { fullName: before.fullName, role: before.role, active: before.active, ...(annualCost !== undefined ? { annualCostCents: before.annualCostCents } : {}) },
+      after: { ...rest, ...(annualCost !== undefined ? { annualCostCents: annualCost } : {}) }, meta: { projectId } } });
     return this.memberView(row!, this.seesCost(projectId));
   }
 
@@ -94,6 +102,7 @@ export class TimesheetsService {
     const list = entries.map((e) => ({ day: e.day, minutes: e.minutes, workPackageId: e.workPackageId }));
     return {
       teamMemberId: m.id, fullName: m.fullName, month, id: ts?.id ?? null, status: ts?.status ?? 'none', submittedAt: ts?.submittedAt ?? null, approvedAt: ts?.approvedAt ?? null,
+      submittedBy: ts?.submittedBy ?? null, revision: ts?.revision ?? 0, updatedAt: ts?.updatedAt ?? null,
       entries: list, totalMinutes: list.reduce((a, e) => a + e.minutes, 0), warnings: timesheetIssues(month, list).warnings,
     };
   }
@@ -118,14 +127,15 @@ export class TimesheetsService {
       const found = await tx.select({ id: workPackages.id }).from(workPackages).where(and(eq(workPackages.projectId, projectId), inArray(workPackages.id, wpIds)));
       wpIds.filter((id) => !found.some((f) => f.id === id)).forEach((id) => errors.push(`radni paket ${id} nije na projektu`));
     }
-    if (errors.length) throw new BadRequestException({ message: 'Timesheet nije valjan', issues: errors });
     let ts = (await tx.select().from(timesheets).where(and(eq(timesheets.teamMemberId, memberId), eq(timesheets.month, month))))[0];
+    await assertRevision(tx, timesheets, ts?.id ?? null, input.revision, `Timesheet ${m.fullName} za ${month}`);
+    if (errors.length) throw new BadRequestException({ message: 'Timesheet nije valjan', issues: errors });
     if (ts && ts.status !== 'draft') throw new ConflictException(`Timesheet je u statusu "${ts.status}" – vrati ga u nacrt za izmjene`);
     if (!ts) [ts] = await tx.insert(timesheets).values({ tenantId, projectId, teamMemberId: memberId, month, createdBy: actorId, updatedBy: actorId }).returning();
     await tx.delete(timesheetEntries).where(eq(timesheetEntries.timesheetId, ts!.id));
     const rows = input.entries.filter((e) => e.minutes > 0);
     if (rows.length) await tx.insert(timesheetEntries).values(rows.map((e) => ({ tenantId, timesheetId: ts!.id, day: e.day, minutes: e.minutes, workPackageId: e.workPackageId ?? null })));
-    await tx.update(timesheets).set({ updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts!.id));
+    await tx.update(timesheets).set({ revision: bump(timesheets), updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts!.id));
     return this.get(tx, projectId, memberId, month);
   }
 
@@ -140,7 +150,7 @@ export class TimesheetsService {
     this.assertOwnOrApprover(await this.member(tx, projectId, memberId));
     const ts = await this.load(tx, projectId, memberId, month);
     if (ts.status !== 'draft') throw new ConflictException(`Timesheet je u statusu "${ts.status}"`);
-    await tx.update(timesheets).set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
+    await tx.update(timesheets).set({ status: 'submitted', submittedAt: new Date(), submittedBy: actorId ?? null, revision: bump(timesheets), updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
     await this.audit.record(tx, { entity: 'timesheet', entityId: ts.id, action: 'submit', diff: { meta: { month, memberId } } });
     return this.get(tx, projectId, memberId, month);
   }
@@ -151,9 +161,14 @@ export class TimesheetsService {
     assertSpendable(p);
     const m = await this.member(tx, projectId, memberId);
     // Nitko ne odobrava vlastiti timesheet, bez obzira na ulogu (razdvajanje dužnosti).
-    if (m.userId && m.userId === this.ctx.require().userId) throw new ForbiddenException('Ne možeš odobriti vlastiti timesheet – odobrava ga voditelj projekta ili ured za projekte');
+    const me = this.ctx.require().userId;
+    if (m.userId && m.userId === me) throw new ForbiddenException('Ne možeš odobriti vlastiti timesheet – odobrava ga voditelj projekta ili ured za projekte');
     const ts = await this.load(tx, projectId, memberId, month);
     if (ts.status !== 'submitted') throw new ConflictException(`Odobrava se samo predan timesheet (trenutno "${ts.status}")`);
+    // WP1.14b – četiri oka: tko je predao timesheet, ne odobrava ga (i kad je unio sate za člana bez korisničkog računa).
+    // Predan timesheet bez zabilježenog predavatelja (stariji od migracije 0023 bez revizijskog zapisa) ne odobrava se – vrati ga u nacrt i predaj ponovno.
+    if (!ts.submittedBy) throw new ConflictException('Nije poznato tko je predao ovaj timesheet – vrati ga u nacrt i predaj ponovno, pa ga odobrava druga osoba');
+    if (ts.submittedBy === me) throw new ForbiddenException('Ne možeš odobriti timesheet koji si sam predao – odobrava ga druga osoba s pravom odobravanja na projektu (četiri oka)');
     if (m.annualCostCents === null) throw new ConflictException(`Za člana tima ${m.fullName} nije upisan godišnji trošak – upisuje ga uloga s pristupom podacima o osoblju (financije, ured za projekte)`);
     const annualCostCents = m.annualCostCents;
     const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
@@ -171,8 +186,8 @@ export class TimesheetsService {
       await tx.insert(expenses).values({ tenantId, projectId, partnerId: m.partnerId, categoryCode: category, workPackageId: wp, date: expenseDate,
         description: `Rad: ${m.fullName}, ${month} (${(minutes / 60).toFixed(2).replace('.', ',')} h)`, amountCents: amount, source: 'timesheet', timesheetId: ts.id, createdBy: actorId, updatedBy: actorId });
     }
-    await tx.update(timesheets).set({ status: 'approved', approvedAt: new Date(), approvedBy: actorId ?? null, updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
-    await this.audit.record(tx, { entity: 'timesheet', entityId: ts.id, action: 'approve', diff: { meta: { month, memberId, expenses: created } } });
+    await tx.update(timesheets).set({ status: 'approved', approvedAt: new Date(), approvedBy: actorId ?? null, revision: bump(timesheets), updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
+    await this.audit.record(tx, { entity: 'timesheet', entityId: ts.id, action: 'approve', diff: { meta: { month, memberId, submittedBy: ts.submittedBy, expenses: created } } });
     return { ...(await this.get(tx, projectId, memberId, month)), personnelCost: created };
   }
 
@@ -183,7 +198,7 @@ export class TimesheetsService {
     if (ts.status === 'locked') throw new ConflictException('Timesheet je u zahtjevu za nadoknadu i zaključan je');
     if (ts.status === 'draft') throw new ConflictException('Timesheet je već nacrt');
     if (ts.status === 'approved') await tx.delete(expenses).where(and(eq(expenses.timesheetId, ts.id), eq(expenses.status, 'recorded')));
-    await tx.update(timesheets).set({ status: 'draft', submittedAt: null, approvedAt: null, approvedBy: null, updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
+    await tx.update(timesheets).set({ status: 'draft', submittedAt: null, submittedBy: null, approvedAt: null, approvedBy: null, revision: bump(timesheets), updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
     await this.audit.record(tx, { entity: 'timesheet', entityId: ts.id, action: 'reopen', diff: { before: { status: ts.status }, after: { status: 'draft' } } });
     return this.get(tx, projectId, memberId, month);
   }

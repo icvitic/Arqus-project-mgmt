@@ -1,6 +1,8 @@
 /* E2E provjera web sučelja na pravom API-ju (Playwright). Pokretanje: apps/web/e2e/run-local.sh
  * Tok: prijava → paket → radar (go) → organizacija → prijava na poziv (konzorcij, RP, proračun, predaja, ishod) → ugovaranje u projekt → aktivacija → tim i timesheet (predaja, odobrenje)
- *      → trošak (dokaz) → ZNS (provjera, rana predaja, odluka po trošku, isplata, paket za predaju) → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → portfelj → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve. */
+ *      → trošak (dokaz) → ZNS (provjera, rana predaja, odluka po trošku, isplata, paket za predaju) → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → portfelj → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve.
+ * WP1.14b: istovremena izmjena proračuna (drugi korisnik – ured za projekte – sprema prvi; poruka o sukobu, učitavanje, vraćanje vlastitog unosa),
+ *      četiri oka na timesheetu (predavatelj ne vidi „Odobri”, odobrava ured), stranica Revizija (filtri, prije/poslije, CSV). */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -26,7 +28,9 @@ const tag = Date.now().toString(36);
   page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) problems.push(`console: ${m.text()}`); });
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   // Neočekivani HTTP odgovori; 401 na prijavi s MFA je očekivan (traži se kod).
-  page.on('response', (r) => { if (r.url().includes('/api/') && r.status() >= 400 && !(r.status() === 401 && r.url().endsWith('/api/auth/login'))) problems.push(`HTTP ${r.status()} ${r.request().method()} ${r.url()}`); });
+  // WP1.14b: 409 pri spremanju proračuna u koraku istovremene izmjene je očekivan (sukob revizija).
+  let expectConflict = false;
+  page.on('response', (r) => { if (r.url().includes('/api/') && r.status() >= 400 && !(r.status() === 401 && r.url().endsWith('/api/auth/login')) && !(expectConflict && r.status() === 409 && r.url().endsWith('/budget/lines'))) problems.push(`HTTP ${r.status()} ${r.request().method()} ${r.url()}`); });
   page.on('dialog', (d) => d.accept());
   const step = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
@@ -34,6 +38,23 @@ const tag = Date.now().toString(36);
     console.log('ok');
   };
   const shot = async (name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true }); };
+  // Drugi korisnik (ured za projekte) u zasebnoj sesiji preglednika – za istovremenu izmjenu i četiri oka (WP1.14b).
+  const officeEmail = `ured.${tag}@e2e.local`; const officePw = `zelena-staza-${tag}-kroz-polje`;
+  let office = null;
+  const openOffice = async () => {
+    if (office) return office;
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    office = await ctx.newPage();
+    office.on('pageerror', (e) => problems.push(`pageerror (ured): ${e.message}`));
+    office.on('dialog', (d) => d.accept());
+    await office.goto(WEB);
+    await office.getByLabel('Institucija (oznaka)').fill(SLUG);
+    await office.getByLabel('E-adresa').fill(officeEmail);
+    await office.getByLabel('Lozinka').fill(officePw);
+    await office.getByRole('button', { name: 'Prijava' }).click();
+    await office.getByRole('heading', { name: 'Portfelj' }).waitFor();
+    return office;
+  };
 
   await step('prijava', async () => {
     await page.goto(WEB);
@@ -42,6 +63,9 @@ const tag = Date.now().toString(36);
     await page.getByLabel('Lozinka').fill(PW);
     await page.getByRole('button', { name: 'Prijava' }).click();
     await page.getByRole('heading', { name: 'Portfelj' }).waitFor(); // početna stranica uz portfolio:read (WP1.15)
+    // Drugi korisnik: voditeljica ureda za projekte (kroz API, kao administrator).
+    const status = await page.evaluate(async ([email, pw]) => (await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` }, body: JSON.stringify({ email, displayName: 'Iva Ured', password: pw, roleCodes: ['project-office'] }) })).status, [officeEmail, officePw]);
+    if (status !== 201) throw new Error(`korisnik ureda nije stvoren (${status})`);
   });
   await step('paket po pozivu (sučelje)', async () => {
     await page.getByRole('link', { name: 'Paketi programa' }).click();
@@ -145,6 +169,36 @@ const tag = Date.now().toString(36);
     await page.locator('tfoot').getByText(/33\.000,00/).first().waitFor();
     await shot('proracun');
   });
+  await step('proračun: istovremena izmjena – poruka o sukobu, najnovije stanje, vlastiti unos sačuvan', async () => {
+    const projectUrl = page.url();
+    // Oboje imaju otvoren isti proračun; ured sprema prvi.
+    const o = await openOffice();
+    await o.goto(projectUrl);
+    await o.locator('input[aria-label$=" OS"]').first().waitFor();
+    await o.locator('input[aria-label$=" OS"]').first().fill('21.000');
+    await o.getByRole('button', { name: 'Spremi proračun' }).click();
+    await o.locator('tfoot').getByText(/34\.150,00/).first().waitFor(); // OS 21.000 + VU 10.000 + neizravni 15 % OS
+    // Administrator (stara revizija) mijenja VU i sprema → 409, ništa nije spremljeno.
+    expectConflict = true;
+    await page.locator('input[aria-label$=" VU"]').first().fill('11.000');
+    await page.getByRole('button', { name: 'Spremi proračun' }).click();
+    const notice = page.locator('.alert.conflict');
+    await notice.getByText('Tvoje izmjene nisu spremljene.').waitFor();
+    await notice.getByText(/promijenio korisnik Iva Ured/).waitFor();
+    await shot('proracun-sukob');
+    await notice.getByRole('button', { name: 'Učitaj najnovije stanje' }).click();
+    await notice.getByText('Učitano je najnovije stanje').waitFor();
+    await page.locator('tfoot').getByText(/34\.150,00/).first().waitFor(); // tablica prikazuje spremljeno stanje (ured)
+    await notice.getByRole('cell', { name: /VU/ }).waitFor(); // vlastita nespremljena izmjena ostaje vidljiva
+    await notice.getByRole('cell', { name: /11\.000,00/ }).waitFor();
+    if (await notice.getByRole('cell', { name: /OS/ }).count()) throw new Error('polje koje korisnik nije mijenjao ne smije se nuditi kao njegova izmjena');
+    await shot('proracun-sukob-ucitano');
+    await notice.getByRole('button', { name: 'Primijeni moje izmjene na najnovije stanje' }).click();
+    expectConflict = false;
+    await page.getByRole('button', { name: 'Spremi proračun' }).click();
+    await page.locator('tfoot').getByText(/35\.150,00/).first().waitFor(); // obje izmjene: OS 21.000 (ured) + VU 11.000 (moja) + neizravni 3.150
+    if (await page.locator('.alert.conflict').count()) throw new Error('obavijest o sukobu nije nestala nakon spremanja');
+  });
   await step('aktivacija', async () => {
     await page.getByRole('tab', { name: 'Pregled' }).click();
     await page.getByRole('button', { name: '→ aktivan' }).click();
@@ -162,7 +216,16 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Spremi', exact: true }).click();
     await page.getByText('ukupno 15,5 h').waitFor();
     await page.getByRole('button', { name: 'Predaj na odobrenje' }).click();
-    await page.getByRole('button', { name: /Odobri/ }).click();
+    // WP1.14b – četiri oka: tko je predao timesheet, ne vidi „Odobri”; odobrava ured za projekte.
+    await page.getByText('Timesheet koji si predao odobrava druga osoba s pravom odobravanja (četiri oka).').waitFor();
+    if (await page.getByRole('button', { name: /Odobri/ }).count()) throw new Error('predavatelj ne smije vidjeti gumb Odobri');
+    const o = await openOffice();
+    await o.goto(page.url());
+    await o.getByLabel('Mjesec').fill('2027-02');
+    await o.getByRole('button', { name: /Odobri/ }).click();
+    await o.locator('h3 .chip', { hasText: 'odobren' }).waitFor();
+    await page.reload();
+    await page.getByLabel('Mjesec').fill('2027-02');
     await page.locator('h3 .chip', { hasText: 'odobren' }).waitFor();
     // WP1.16b: mjesečna evidencija za ispis i potpis (isti dokument kao u paketu ZNS-a).
     await page.getByRole('button', { name: 'Evidencija za ispis i potpis' }).click();
@@ -256,6 +319,26 @@ const tag = Date.now().toString(36);
     await row.getByRole('link', { name: `E2E${tag}`.slice(0, 20) }).click();
     await page.getByRole('tab', { name: 'Pregled' }).waitFor();
     await shot('portfelj');
+  });
+  await step('revizija: tko je što promijenio – filtri, prije/poslije, izvoz u CSV', async () => {
+    await page.getByRole('link', { name: 'Revizija' }).click();
+    await page.getByRole('heading', { name: 'Revizija' }).waitFor();
+    await page.locator('table.audit-table tbody tr').first().waitFor();
+    await page.locator('label.field', { hasText: /^Vrsta zapisa/ }).locator('select').selectOption({ label: 'proračun projekta' });
+    await page.locator('label.field', { hasText: /^Korisnik/ }).locator('select').selectOption({ label: 'Iva Ured' });
+    await page.getByRole('button', { name: 'Primijeni filtre' }).click();
+    const row = page.locator('table.audit-table tbody tr', { hasText: 'izmjena proračuna' }).first();
+    await row.getByText('Iva Ured').waitFor();
+    await row.getByRole('button', { name: 'Prikaži prije / poslije' }).click();
+    await page.locator('.audit-changes').getByText('poslije').first().waitFor();
+    await page.locator('.audit-changes').getByText(/34\.150,00/).first().waitFor();
+    await shot('revizija');
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Izvoz u CSV' }).click()]);
+    if (!/^revizija_\d{4}-\d{2}-\d{2}\.csv$/.test(dl.suggestedFilename())) throw new Error(`preuzeto: ${dl.suggestedFilename()}`);
+    const csv = require('node:fs').readFileSync(await dl.path());
+    if (csv[0] !== 0xef || csv[1] !== 0xbb || csv[2] !== 0xbf) throw new Error('CSV bez BOM-a');
+    const lines = csv.toString('utf8').replace(/^\uFEFF/, '').trim().split('\r\n');
+    if (!lines[0].startsWith('id;vrijeme;korisnik') || lines.length < 2 || !lines.slice(1).every((l) => l.includes(';Iva Ured;') && l.includes(';project_budget;'))) throw new Error(`neočekivan CSV: ${lines.slice(0, 3).join(' | ')}`);
   });
   const newEmail = `ana.${tag}@e2e.local`; const newPw = `plava-staza-${tag}-uz-more`;
   const acronym = `E2E${tag}`.slice(0, 20);

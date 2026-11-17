@@ -2,13 +2,13 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
-import { claimTotals, flattenCategories, isoToday, monthsInPeriod, type PartnerBudgetResult } from '@arqus/domain';
+import { claimTotals, flattenCategories, monthsInPeriod, type PartnerBudgetResult } from '@arqus/domain';
 import { DbService, type Tx } from '../db/db.service';
 import { documents, documentVersions, expenses, organisations, projectPartners, reimbursementClaims, teamMembers, timesheetEntries, timesheets, users, workPackages } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { DocumentStorage } from '../documents/document-storage';
-import { TenantContext } from '../common/tenant-context';
+import { TenantContext, tenantToday } from '../common/tenant-context';
 import { canOnProject } from '../common/access';
 import { loadProject } from '../common/project-access';
 import { readVersion } from '../health/health.controller';
@@ -86,7 +86,7 @@ export class ClaimExportService {
       status: data.claim.status, draft: data.draft, files: files.length + 1, evidence: evidence.length, evidenceBytes: total, omittedConfidential: omitted.length, manifestSha256: sha256(manifest),
     } } }));
 
-    const fileName = `ZNS_${asciiSlug(data.project.acronym, 40)}_RP${data.claim.period.number}${data.draft ? '_NACRT' : ''}_${isoToday(now)}.zip`;
+    const fileName = `ZNS_${asciiSlug(data.project.acronym, 40)}_RP${data.claim.period.number}${data.draft ? '_NACRT' : ''}_${tenantToday(now)}.zip`;
     const storage = this.storage; const log = this.log; const userId = ctx.userId;
     async function* chunks(): AsyncGenerator<Buffer> {
       const zip = new ZipWriter(now);

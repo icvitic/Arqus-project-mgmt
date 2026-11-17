@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseEur, eur, parseHours, minutesToHours, centsToInput, date, plural, hours, monthLabel } from './format';
+import { parseEur, eur, parseHours, minutesToHours, centsToInput, date, plural, hours, monthLabel, label } from './format';
 
 describe('format', () => {
   it('parseEur prihvaća hrvatski i engleski zapis', () => {
@@ -30,5 +30,18 @@ describe('format', () => {
     expect([1, 2, 4, 5, 11, 12, 21, 22, 25, 111].map((n) => plural(n, 'isporuka', 'isporuke', 'isporuka.'))).toEqual(['isporuka', 'isporuke', 'isporuke', 'isporuka.', 'isporuka.', 'isporuka.', 'isporuka', 'isporuke', 'isporuka.', 'isporuka.']);
     expect(hours(450)).toBe('7,5'); expect(hours(480)).toBe('8');
     expect(monthLabel('2027-02')).toBe('velj. 2027.'); expect(monthLabel('2027-12', true)).toBe('pro.');
+  });
+});
+
+describe('oznake statusa u rodu imenice (WP1.14b)', () => {
+  it('prijava, isporuka i prekretnica – ženski rod; projekt, proračun, ZNS – muški', () => {
+    expect(label('rejected', 'f')).toBe('odbijena');
+    expect(label('submitted', 'f')).toBe('predana');
+    expect(label('accepted', 'f')).toBe('prihvaćena');
+    expect(label('achieved', 'f')).toBe('ostvarena');
+    expect(label('funded', 'f')).toBe('financirana');
+    expect(label('rejected')).toBe('odbijen');
+    expect(label('submitted')).toBe('predan');
+    expect(label('active', 'f')).toBe('aktivan'); // bez ženskog oblika – zajednička oznaka
   });
 });

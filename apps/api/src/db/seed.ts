@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { passwordIssues } from '@arqus/domain';
 import * as schema from './schema';
 import { IdentityService } from '../identity/identity.service';
 import { hashPassword } from '../identity/password';
@@ -24,12 +25,23 @@ export async function importGlobalPackages(url: string, dir = defaultPackagesDir
   finally { await pool.end(); }
 }
 
+/** Zadane vrijednosti razvojnog seeda (`pnpm db:seed`); lokalno pokretanje i e2e u pregledniku. */
+export const SEED_DEFAULTS = { tenantSlug: 'razvoj', tenantName: 'Razvojna institucija', adminEmail: 'admin@razvoj.local', adminPassword: 'Zeleni-Kamen-2026' } as const;
+
 export async function seedDemo(opts: { url?: string; tenantSlug?: string; tenantName?: string; adminEmail?: string; adminPassword?: string; importPackages?: boolean } = {}) {
   const url = opts.url ?? process.env.DATABASE_MIGRATE_URL ?? 'postgres://arqus:arqus@127.0.0.1:5432/arqus';
-  const tenantSlug = opts.tenantSlug ?? process.env.SEED_TENANT_SLUG ?? 'demo';
-  const tenantName = opts.tenantName ?? process.env.SEED_TENANT_NAME ?? 'Demo institucija';
-  const adminEmail = (opts.adminEmail ?? process.env.SEED_ADMIN_EMAIL ?? 'admin@demo.local').toLowerCase();
-  const adminPassword = opts.adminPassword ?? process.env.SEED_ADMIN_PASSWORD ?? 'Demo-lozinka-1';
+  // WP1.14b: zadana oznaka razvojne institucije ne smije se poklapati s demo institucijom (`demo` – `cli demo`), a zadana
+  // lozinka mora zadovoljiti politiku lozinki (ista provjera kao pri stvaranju korisnika kroz API).
+  const tenantSlug = opts.tenantSlug ?? process.env.SEED_TENANT_SLUG ?? SEED_DEFAULTS.tenantSlug;
+  const tenantName = opts.tenantName ?? process.env.SEED_TENANT_NAME ?? SEED_DEFAULTS.tenantName;
+  const adminEmail = (opts.adminEmail ?? process.env.SEED_ADMIN_EMAIL ?? SEED_DEFAULTS.adminEmail).toLowerCase();
+  const adminPassword = opts.adminPassword ?? process.env.SEED_ADMIN_PASSWORD ?? SEED_DEFAULTS.adminPassword;
+  // Lozinka iz okruženja (SEED_ADMIN_PASSWORD) ili zadana prolazi istu provjeru kao lozinka zadana kroz API; testovi koji je
+  // zadaju izravno (`opts.adminPassword`) koriste namjerno kratke lozinke i ne provjeravaju se.
+  if (opts.adminPassword === undefined) {
+    const issues = passwordIssues(adminPassword, { email: adminEmail, displayName: 'Administrator', tenantSlug });
+    if (issues.length) throw new Error(`Lozinka administratora (SEED_ADMIN_PASSWORD) ne zadovoljava pravila: ${issues.join('; ')}`);
+  }
   if (opts.importPackages !== false) await importGlobalPackages(url);
   const pool = new Pool({ connectionString: url, max: 1 });
   const db = drizzle(pool, { schema });
@@ -42,7 +54,8 @@ export async function seedDemo(opts: { url?: string; tenantSlug?: string; tenant
       }
       if (!tenant) throw new Error('Stanar nije stvoren');
       await tx.execute(sql`select set_config('app.tenant_id', ${tenant.id}, true)`);
-      let admin = (await tx.select().from(schema.users).where(eq(schema.users.email, adminEmail)))[0];
+      // Vlasnička veza zaobilazi RLS – administrator se uvijek traži unutar ovog stanara (ista e-adresa u drugom stanaru je drugi korisnik).
+      let admin = (await tx.select().from(schema.users).where(and(eq(schema.users.tenantId, tenant.id), eq(schema.users.email, adminEmail))))[0];
       if (!admin) {
         [admin] = await tx.insert(schema.users).values({ tenantId: tenant.id, email: adminEmail, displayName: 'Administrator', passwordHash: await hashPassword(adminPassword), status: 'active' }).returning();
         const role = (await tx.select().from(schema.roles).where(eq(schema.roles.code, 'tenant-admin')))[0];

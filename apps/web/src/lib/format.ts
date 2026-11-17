@@ -52,7 +52,16 @@ export const GENERIC_STATUS: Record<string, string> = {
   open: 'otvoren', mitigated: 'ublažen', occurred: 'nastupio', recorded: 'evidentiran', claimed: 'u zahtjevu', partially_accepted: 'djelomično priznat', invited: 'pozvan', disabled: 'deaktiviran', published: 'objavljen', deprecated: 'zastario', announced: 'najavljen', go: 'go', no_go: 'no-go', watch: 'pratimo',
   idea: 'ideja', preparation: 'u pripremi', internal_review: 'interna provjera', in_evaluation: 'u evaluaciji', funded: 'financirana', reserve: 'rezervna lista', withdrawn: 'povučena', contracted: 'ugovorena',
 };
-export const label = (s: string): string => PROJECT_STATUS[s] ?? GENERIC_STATUS[s] ?? s;
+/**
+ * WP1.14b: oznaka statusa u rodu imenice uz koju stoji. Zadano muški rod (projekt, proračun, ZNS, timesheet, trošak);
+ * `'f'` za imenice ženskog roda – prijava, isporuka, prekretnica („predana”, „odbijena”, „ostvarena”).
+ */
+export type Gender = 'm' | 'f';
+const FEMININE: Record<string, string> = {
+  submitted: 'predana', approved: 'odobrena', partially_approved: 'djelomično odobrena', rejected: 'odbijena', accepted: 'prihvaćena', locked: 'zaključana',
+  planned: 'planirana', achieved: 'ostvarena', missed: 'propuštena', open: 'otvorena', closed: 'zatvorena', cancelled: 'otkazana', done: 'gotova',
+};
+export const label = (s: string, gender: Gender = 'm'): string => (gender === 'f' ? FEMININE[s] : undefined) ?? PROJECT_STATUS[s] ?? GENERIC_STATUS[s] ?? s;
 
 /** Hrvatska množina: 1 isporuka, 2–4 isporuke, 5+ (i 11–14) isporuka. */
 export function plural(n: number, one: string, few: string, many: string): string {

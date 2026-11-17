@@ -12,6 +12,7 @@ import { Packages } from './pages/Packages';
 import { Radar } from './pages/Radar';
 import { Proposals } from './pages/Proposals';
 import { Portfolio } from './pages/Portfolio';
+import { AuditLog } from './pages/AuditLog';
 import { Loading } from './ui';
 import { can, canAny } from './lib/access';
 
@@ -35,6 +36,8 @@ export function App() {
   // Početna stranica: portfelj za upravu i ured (portfolio:read institucije), inače popis projekata (WP1.15).
   const [routePage, id, tab] = route;
   const page = routePage ?? (can(me, 'portfolio:read') ? 'portfelj' : 'projekti');
+  // WP1.14b: prijave vidi i voditelj prijave bez uloge institucije (samo vlastite).
+  const proposals = can(me, 'proposals:read') || !!me.leadProposals?.length;
   return (
     <>
       <header className="top">
@@ -44,11 +47,12 @@ export function App() {
               projekti, organizacije i paketi dostupni su i uz ulogu samo na projektu. */}
           {canAny(me, 'projects:read') && <a href="#/portfelj" className={page === 'portfelj' ? 'active' : ''}>Portfelj</a>}
           {can(me, 'calls:read') && <a href="#/radar" className={page === 'radar' ? 'active' : ''}>Radar poziva</a>}
-          {can(me, 'proposals:read') && <a href="#/prijave" className={page === 'prijave' ? 'active' : ''}>Prijave</a>}
+          {proposals && <a href="#/prijave" className={page === 'prijave' ? 'active' : ''}>Prijave</a>}
           {canAny(me, 'projects:read') && <a href="#/projekti" className={page === 'projekti' ? 'active' : ''}>Projekti</a>}
           {canAny(me, 'organisations:read') && <a href="#/organizacije" className={page === 'organizacije' ? 'active' : ''}>Organizacije</a>}
           {canAny(me, 'packages:read') && <a href="#/paketi" className={page === 'paketi' ? 'active' : ''}>Paketi programa</a>}
           {can(me, 'users:read') && <a href="#/korisnici" className={page === 'korisnici' ? 'active' : ''}>Korisnici</a>}
+          {can(me, 'audit:read') && <a href="#/revizija" className={page === 'revizija' ? 'active' : ''}>Revizija</a>}
         </nav>
         <div className="spacer" />
         <a href="#/racun" className="muted" style={{ textDecoration: 'none' }} title="Moj račun">{me.user.displayName}{!me.user.mfaEnabled && ' · bez MFA'}</a>
@@ -60,7 +64,8 @@ export function App() {
           : page === 'korisnici' ? <Users me={me} />
           : page === 'paketi' ? (canAny(me, 'packages:read') ? <Packages me={me} route={route} /> : <NoAccess />)
           : page === 'radar' ? (can(me, 'calls:read') ? <Radar me={me} route={route} /> : <NoAccess />)
-          : page === 'prijave' ? (can(me, 'proposals:read') ? <Proposals me={me} route={route} /> : <NoAccess />)
+          : page === 'prijave' ? (proposals ? <Proposals me={me} route={route} /> : <NoAccess />)
+          : page === 'revizija' ? (can(me, 'audit:read') ? <AuditLog me={me} /> : <NoAccess />)
           : !canAny(me, 'projects:read') ? <NoAccess what="Nemaš pristup nijednom projektu. Administrator ili voditelj projekta može ti dodijeliti ulogu na projektu." />
           : page === 'portfelj' ? <Portfolio me={me} />
           : id ? <ProjectDetail id={id} tab={tab ?? 'pregled'} me={me} />

@@ -1,13 +1,14 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { generateReportingPeriods, transitionIssues, type ProjectStatus, type ProgrammePackage } from '@arqus/domain';
+import { generateReportingPeriods, packageAvailabilityIssue, packageDeviations, projectEndDate, transitionIssues, type ProjectStatus, type ProgrammePackage } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
-import { organisations, projectBudgets, projectPartners, projects, reportingPeriods, users, type Organisation, type Project } from '../db/schema';
+import { budgetLines, organisations, projectBudgets, projectPartners, projects, reportingPeriods, users, type Organisation, type Project } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { OrganisationsService } from '../organisations/organisations.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
-import { currentContext } from '../common/tenant-context';
+import { currentContext, tenantToday } from '../common/tenant-context';
+import { assertRevision, bump, revisionField } from '../common/revision';
 import { projectsWith } from '../common/access';
 import { loadProject } from '../common/project-access';
 import { ensureManagerAccess } from '../identity/project-grants';
@@ -40,6 +41,8 @@ export const projectPatch = z.object({
   startDate: isoDate.nullable().optional(),
   durationMonths: z.number().int().min(1).max(120).nullable().optional(),
   managerUserId: z.string().uuid().nullable().optional(),
+  /** WP1.14b: revizija projekta koju je klijent učitao; razlika → 409, ništa se ne zapisuje. */
+  revision: revisionField,
 }).strict();
 export const partnerAdd = partnerInput;
 export const transitionInput = z.object({ to: z.enum(STATUSES) });
@@ -51,7 +54,7 @@ const projectView = (p: Project) => ({
   id: p.id, acronym: p.acronym, title: p.title, status: p.status, role: p.role, actionType: p.actionType,
   package: { rowId: p.packageRowId, id: p.packageId, version: p.packageVersion },
   contractNo: p.contractNo, startDate: p.startDate, durationMonths: p.durationMonths, managerUserId: p.managerUserId,
-  sourceProposalId: p.sourceProposalId, activatedAt: p.activatedAt, createdAt: p.createdAt, updatedAt: p.updatedAt,
+  sourceProposalId: p.sourceProposalId, activatedAt: p.activatedAt, createdAt: p.createdAt, updatedAt: p.updatedAt, revision: p.revision,
 });
 
 /** M6 Projekt: stvaranje (izravni unos; ugovaranje iz prijave dolazi s M5), partneri, prijelazi statusa, izvještajna razdoblja. */
@@ -79,9 +82,21 @@ export class ProjectsService {
     const periods = await tx.select().from(reportingPeriods).where(eq(reportingPeriods.projectId, id)).orderBy(asc(reportingPeriods.number));
     return {
       ...projectView(p),
+      deviations: await this.deviations(tx, p),
       partners: partners.map(({ pp, org }) => ({ id: pp.id, organisationId: org.id, name: org.name, country: org.country, isSelf: org.isSelf, role: pp.role, beneficiaryType: pp.beneficiaryType, orderNo: pp.orderNo })),
       reportingPeriods: periods.map((r) => ({ number: r.number, startDate: r.startDate, endDate: r.endDate, dueDate: r.dueDate })),
     };
+  }
+
+  /**
+   * WP1.14b: odstupanja od pravila programa (valjanost paketa, provjerljiva pravila `validations` nad datumima i proračunom).
+   * Računaju se pri svakom čitanju – promjena datuma, proračuna ili paketa odmah se vidi. Proračun: zadnja verzija.
+   */
+  private async deviations(tx: Tx, p: Project) {
+    const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
+    const lines = await tx.select({ categoryCode: budgetLines.categoryCode, amount: budgetLines.amountCents }).from(budgetLines).innerJoin(projectBudgets, eq(projectBudgets.id, budgetLines.budgetId))
+      .where(and(eq(projectBudgets.projectId, p.id), sql`${projectBudgets.version} = (select max(b2.version) from project_budgets b2 where b2.project_id = ${p.id})`));
+    return packageDeviations(pkg, { today: tenantToday(), kind: 'project', startDate: p.startDate, endDate: projectEndDate(p.startDate, p.durationMonths), budget: lines });
   }
 
   /** Paket mora biti vidljiv stanaru (globalni ili vlastiti) i ne smije biti zastario; vrsta akcije mora postojati u paketu. */
@@ -118,6 +133,9 @@ export class ProjectsService {
 
   async create(tx: Tx, tenantId: string, input: ProjectInput, actorId?: string) {
     const { pkg } = await this.resolvePackage(tx, input.packageId, input.packageVersion, input.actionType);
+    // WP1.14b: paket koji još ne vrijedi blokira; izlazak iz razdoblja valjanosti i kršenje pravila su upozorenja (`deviations` u odgovoru).
+    const unavailable = packageAvailabilityIssue(pkg, pkg._row.status, tenantToday());
+    if (unavailable) throw new BadRequestException(unavailable);
     await this.assertManager(tx, input.managerUserId);
     await this.assertContractNoFree(tx, input.contractNo);
     const self = await this.orgs.ensureSelf(tx, tenantId);
@@ -160,6 +178,7 @@ export class ProjectsService {
     if (project.status !== 'contracting') throw new ConflictException('Partneri se mijenjaju samo u ugovaranju; kasnije kroz amandman');
     const { pkg } = await this.resolvePackage(tx, project.packageId, project.packageVersion, project.actionType);
     const row = await this.insertPartner(tx, tenantId, project, pkg, input, actorId);
+    await this.touch(tx, projectId);
     await this.audit.record(tx, { entity: 'project', entityId: projectId, action: 'partner.add', diff: { after: row } });
     return this.get(tx, projectId);
   }
@@ -173,12 +192,21 @@ export class ProjectsService {
     if (!row) throw new NotFoundException('Partner ne postoji na projektu');
     if (row.org.isSelf) throw new ConflictException('Vlastita organizacija ne može se ukloniti s projekta');
     await tx.delete(projectPartners).where(eq(projectPartners.id, partnerId));
+    await this.touch(tx, projectId);
     await this.audit.record(tx, { entity: 'project', entityId: projectId, action: 'partner.remove', diff: { before: row.pp } });
     return this.get(tx, projectId);
   }
 
-  async update(tx: Tx, id: string, patch: ProjectPatch, actorId?: string) {
+  /** Izmjena povezanih podataka projekta (partneri) povećava reviziju projekta (WP1.14b). */
+  private async touch(tx: Tx, id: string): Promise<void> {
+    const actor = currentContext()?.userId ?? null;
+    await tx.update(projects).set({ revision: bump(projects), updatedAt: new Date(), updatedBy: actor }).where(eq(projects.id, id));
+  }
+
+  async update(tx: Tx, id: string, input: ProjectPatch, actorId?: string) {
+    const { revision, ...patch } = input;
     const before = await this.getRow(tx, id);
+    await assertRevision(tx, projects, id, revision, 'Projekt');
     const terminal = ['closed', 'terminated', 'archived'].includes(before.status);
     if (terminal) throw new ConflictException(`Projekt u statusu "${before.status}" se ne mijenja`);
     if (before.status !== 'contracting' && (patch.startDate !== undefined || patch.durationMonths !== undefined)) {
@@ -186,7 +214,7 @@ export class ProjectsService {
     }
     await this.assertManager(tx, patch.managerUserId);
     await this.assertContractNoFree(tx, patch.contractNo, id);
-    const [after] = await tx.update(projects).set({ ...patch, updatedAt: new Date(), updatedBy: actorId }).where(eq(projects.id, id)).returning();
+    const [after] = await tx.update(projects).set({ ...patch, revision: bump(projects), updatedAt: new Date(), updatedBy: actorId }).where(eq(projects.id, id)).returning();
     if (patch.managerUserId && patch.managerUserId !== before.managerUserId) await ensureManagerAccess(tx, this.audit, before.tenantId, id, patch.managerUserId, actorId);
     await this.audit.record(tx, { entity: 'project', entityId: id, action: 'update', diff: { before: projectView(before), after: projectView(after!) } });
     return this.get(tx, id);
@@ -198,7 +226,7 @@ export class ProjectsService {
     const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(projectPartners).where(eq(projectPartners.projectId, id)) as [{ n: number }];
     const issues = transitionIssues(p.status, to, { contractNo: p.contractNo, startDate: p.startDate, durationMonths: p.durationMonths, packageStatus: pkg._row.status, partnerCount: n });
     if (issues.length) throw new ConflictException({ message: 'Prijelaz statusa nije moguć', issues });
-    const set: Partial<Project> = { status: to, updatedAt: new Date(), updatedBy: actorId ?? null };
+    const set = { status: to, updatedAt: new Date(), updatedBy: actorId ?? null, revision: bump(projects) } as Partial<Project> & { revision: ReturnType<typeof bump> };
     if (p.status === 'contracting' && to === 'active') {
       const plan = generateReportingPeriods(p.startDate!, p.durationMonths!, pkg.reporting.periodMonths, pkg.reporting.submissionDeadlineDays);
       await tx.insert(reportingPeriods).values(plan.map((r) => ({ tenantId, projectId: id, ...r })));

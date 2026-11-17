@@ -4,6 +4,30 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-17
+### Dodano
+- WP1.14b **Bez tihog prepisivanja** (optimistička istovremenost): cjelobrojna revizija retka (`revision`) na projektu, proračunu projekta, prijavi, timesheetu i ZNS-u, raste pri svakoj izmjeni. Spremanje proračuna projekta i prijave, mjesečnog timesheeta, osnovnih podataka projekta i prijave te odabira troškova iz ranijih razdoblja prima `revision`; ako se pohranjena razlikuje, odgovor je 409 (`code: revision_conflict`, tko i kada je promijenio) i ništa se ne zapisuje (provjera uz zaključavanje retka). Sučelje šalje reviziju i na sukob prikazuje obavijest: tko je i kada spremio, učitavanje najnovijeg stanja, popis vlastitih nespremljenih izmjena (polje, tvoj unos, sada spremljeno) i primjena vlastitih izmjena na najnovije stanje.
+- **Revizija** – stranica za `audit:read` (administrator, ured za projekte): najnovije prvo, filtri (razdoblje u danima institucije, korisnik, vrsta zapisa, id zapisa, radnja), učitavanje starijih zapisa (keyset), čitljiv prikaz „prije / poslije”, izvoz filtriranog rezultata u CSV (UTF-8 s BOM-om, `;`, zaštita od CSV injekcije). API: `GET /api/audit` (filtri, `before`), `GET /api/audit/facets`, `GET /api/audit/export.csv`. Čitanje se ne revidira, izvoz se revidira.
+- **Četiri oka na timesheetovima**: tko je predao timesheet (`submitted_by`), ne odobrava ga – odobrava drugi korisnik s `timesheets:approve` na projektu; sučelje predavatelju ne nudi „Odobri”.
+- **Voditelj vlastite prijave**: voditelj prijave bez uloge institucije čita i priprema svoju prijavu (osnovno osim voditelja, konzorcij, radni paketi, proračun, dokumenti, priprema i interna provjera); u popisu prijava i u portfelju vidi samo vlastite. Nova oznaka rute `@ProposalPermission`; tuđa prijava 404; test pokrivenosti ruta provjerava svaku rutu prijave.
+- **Valjanost paketa programa**: paket koji još ne vrijedi blokira novi projekt i prijavu (kao zastario); početak izvan razdoblja valjanosti, istekao paket i provjerljiva pravila `validations` (npr. NPOO `project.endDate > 2026-06-30`, udjeli kategorija) daju **odstupanja od pravila programa** na pregledu projekta i prijave i u odgovoru pri stvaranju, računaju se iznova (`packages/domain/src/package-rules.ts`).
+- **„Danas” u zoni institucije**: postavka `tenants.settings.timeZone` (zadano Europe/Zagreb); radar (status, „još N dana”, interni rokovi), portfelj, popis za provjeru ZNS-a, datumi odluke i isplate, naziv paketa za predaju i demo računaju kalendarski dan u toj zoni (`packages/domain/src/time.ts`).
+- Migracija 0023: revizije, predavatelj timesheeta (dopuna iz revizijskog zapisa), jedinstvenost dodjele uloge (korisnik, uloga, opseg; postojeći duplikati se uklanjaju uz revizijski zapis).
+- Demo: voditelji unose sate članova bez računa, ured ih odobrava; Petra Horvat kao voditeljica sama priprema prijavu AQUAREST; promjena plaće u reviziji; ZELENI-LAB kao namjerni primjer odstupanja od pravila programa (RRF krajnji rok). Scenarij: korak „Revizija”.
+
+### Promijenjeno
+- Godišnji trošak člana tima bilježi se u reviziji s iznosom (prije `***`); pregled revizije ga i iz njega izvedene troškove osoblja bez `personnel:read` prikazuje kao `[skriveno]`. Tajne se uklanjaju iz revizijskog zapisa pri upisu i prikazu.
+- Razvojni seed: oznaka `razvoj` (ne sudara se s demo institucijom), administrator `admin@razvoj.local`, lozinka koja zadovoljava politiku lozinki; administrator se traži samo unutar svog stanara.
+- Oznake statusa u rodu imenice (prijava, isporuka, prekretnica: „predana”, „odbijena”, „ostvarena”).
+- Dokument koji se više ne mijenja (dokaz troška u predanom ZNS-u, zatvoren projekt, zaključena prijava) nosi razlog (`frozen`); sučelje ne nudi „Ukloni” ni novu verziju.
+- Izbornik se na uskom zaslonu prelama bez vodoravnog pomicanja.
+
+### Ispravljeno
+- Radar: interni rok u „Nadolazećim rokovima” prikazuje se kao datum (prije se zbog pretvorbe vremena prikazivao kao 01:59 sljedećeg dana).
+- Struktura projekta više ne šalje istovremene upite na jednoj transakciji (upozorenje `pg` o istodobnim upitima nestalo iz testova).
+- Ista uloga navedena dvaput pri stvaranju korisnika stvara jednu dodjelu.
+- Tekući mjesec timesheeta i zadani datum troška u sučelju po lokalnom kalendaru (ne UTC).
+
 ## [0.24.1] - 2026-11-17
 ### Ispravljeno
 - Demo okruženje: `demo.cmd` i `scripts/demo.sh` više ne ovise o portu 8080. Ako port nije dostupan (zauzet ili ga je Windows rezervirao – „bind: … forbidden by its access permissions”), skripta redom proba 8081, 8088, 18080 i 28080, zapamti odabrani (`infra/demo/.port`) i ispiše adresu; vlastiti port kroz `ARQUS_DEMO_PORT`. Izgradnja slike odvojena je od pokretanja, pa se greška izgradnje ne miješa s greškom porta.

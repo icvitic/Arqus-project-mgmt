@@ -65,3 +65,13 @@ table.portfolio a,.card td a:not(.chip){color:var(--accent)}.break{overflow-wrap
 .form.one{grid-template-columns:minmax(0,480px)}
 .claim-table{min-width:680px}.claim-table td:nth-child(2){min-width:240px}.claim-table button.link{text-align:left}.claim-table td:first-child{white-space:nowrap}
 .expense-table td:first-child{white-space:nowrap}
+/* Dorade prije pilota (WP1.14b) */
+.alert.conflict{border-color:var(--warn)}.conflict-diff{margin-top:4px;font-size:13px;max-width:640px}.conflict-diff th,.conflict-diff td{padding:4px 8px}
+.deviations{border-left:3px solid var(--warn);background:var(--card);border-radius:10px;border:1px solid var(--line);border-left-width:3px;border-left-color:var(--warn);padding:12px 16px;margin-bottom:16px}
+.deviations h2{margin:0 0 6px;font-size:15px}.deviations ul{margin:0;padding-left:18px}.deviations li.error{color:var(--bad)}
+.audit-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 14px;align-items:end}
+.audit-table td{font-size:13px}.audit-table td.when{white-space:nowrap}.audit-changes{display:grid;grid-template-columns:minmax(120px,max-content) 1fr 1fr;gap:2px 12px;font-size:13px;margin:4px 0}
+.audit-changes>b{color:var(--muted);font-weight:500;overflow-wrap:anywhere}.audit-changes>span{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.audit-changes .h{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.audit-changes .before{color:var(--muted);text-decoration:line-through}.audit-changes .hidden{color:var(--warn);font-style:italic;text-decoration:none}
+@media(max-width:620px){.audit-changes{grid-template-columns:1fr}.audit-changes .h{display:none}.audit-table thead{display:none}.audit-table tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}.audit-table td{display:block;border:0;padding:2px 4px}}
+header.top nav{display:flex;flex-wrap:wrap;gap:2px;min-width:0;max-width:100%}nav a{white-space:nowrap}

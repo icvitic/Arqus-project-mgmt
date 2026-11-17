@@ -3,10 +3,16 @@ import { api } from '../lib/api';
 import { centsToInput, date, dateTime, eur, label, parseEur } from '../lib/format';
 import { go, useLoad } from '../lib/hooks';
 import { enterable, type Me, type Organisation, type PackageDetail, type PackageSummary, type Proposal, type ProposalSummary, type UserRow } from '../lib/types';
-import { ActionButton, ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
+import { ActionButton, ActionForm, Chip, ConflictNotice, ErrorBox, Field, Loading, conflictOf, editedKeys, isConflict, type Conflict } from '../ui';
 import { DocumentList } from '../tabs/Documents';
+import { Deviations } from '../tabs/Overview';
 
+/** Dozvola na razini institucije. */
 const can = (me: Me, p: string) => me.permissions.includes('*') || me.permissions.includes(p);
+/** WP1.14b: voditelj prijave priprema vlastitu prijavu i bez uloge institucije (predaja, ishod, ugovaranje i promjena voditelja ostaju uredu). */
+const isLead = (me: Me, id: string) => !!me.leadProposals?.includes(id);
+const LEAD_STEPS = ['preparation', 'internal_review'];
+const BASIC = [['acronym', 'Akronim'], ['title', 'Naslov'], ['durationMonths', 'Trajanje (mjeseci)'], ['internalDeadline', 'Interni rok']] as const;
 const STEPS = ['idea', 'preparation', 'internal_review', 'submitted', 'in_evaluation', 'funded', 'contracted'];
 const TONE: Record<string, string> = { funded: 'ok', contracted: 'ok', submitted: 'acc', in_evaluation: 'acc', reserve: 'warn', internal_review: 'warn', rejected: 'bad', withdrawn: 'bad' };
 const ROLE: Record<string, string> = { coordinator: 'koordinator', partner: 'partner', associated: 'pridruženi', third_party: 'treća strana' };
@@ -38,7 +44,7 @@ function ProposalList({ me }: { me: Me }) {
                 <td><b>{p.acronym}</b><br /><span className="muted">{p.title}</span></td>
                 <td>{p.callCode ?? '–'}<br /><span className="muted">{p.packageId} · {p.actionType}</span></td>
                 <td>{date(p.internalDeadline)}</td><td className="num">{p.members}</td><td className="num">{p.requested !== null ? eur(p.requested) : '–'}</td>
-                <td><Chip s={p.status} tone={TONE[p.status]} /></td>
+                <td><Chip f s={p.status} tone={TONE[p.status]} /></td>
               </tr>
             ))}</tbody>
           </table>
@@ -82,27 +88,30 @@ function ProposalView({ me, id }: { me: Me; id: string }) {
   if (!p.data) return <Loading what="prijavu" />;
   const d = p.data;
   const write = can(me, 'proposals:write');
-  const editable = write && ['idea', 'preparation'].includes(d.status);
+  const prep = write || isLead(me, d.id); // priprema: ured ili voditelj ove prijave
+  const editable = prep && ['idea', 'preparation'].includes(d.status);
   const set = (x: Proposal) => p.setData(x);
   const stepIdx = STEPS.indexOf(d.status);
   return (
     <>
       <p><a href="#/prijave">← Prijave</a></p>
-      <h1>{d.acronym} <Chip s={d.status} tone={TONE[d.status]} /></h1>
+      <h1>{d.acronym} <Chip f s={d.status} tone={TONE[d.status]} /></h1>
       <p className="sub">{d.title} · {d.package.id} v{d.package.version} · {d.actionType} · {ROLE[d.role]}{d.call && <> · poziv <a href={`#/radar/${d.call.id}`}>{d.call.code}</a> <Chip s={d.call.status} /></>}</p>
-      <ol className="stepper" aria-label="Faze prijave">{STEPS.map((s, i) => <li key={s} className={s === d.status ? 'cur' : stepIdx > i ? 'done' : ''}>{label(s)}</li>)}</ol>
+      {isLead(me, d.id) && !write && <p className="muted" style={{ marginTop: -8 }}>Ti si voditelj ove prijave: uređuješ pripremu (osnovno, konzorcij, radne pakete, proračun, dokumente) i šalješ je na internu provjeru; predaju, ishod i ugovaranje evidentira ured za projekte.</p>}
+      <Deviations list={d.deviations} />
+      <ol className="stepper" aria-label="Faze prijave">{STEPS.map((s, i) => <li key={s} className={s === d.status ? 'cur' : stepIdx > i ? 'done' : ''}>{label(s, 'f')}</li>)}</ol>
       <div className="grid g2">
         <div className="card"><h2>Spremnost za predaju {d.ready ? <Chip s="spremna" tone="ok" /> : <Chip s="nije spremna" tone="warn" />}</h2>
           <ul className="checklist">{d.readiness.map((r) => <li key={r.key} className={r.ok ? 'ok' : 'bad'}>{r.ok ? '✓' : '✗'} {r.label}</li>)}</ul>
         </div>
         <StatusCard d={d} me={me} set={set} />
       </div>
-      <Basics d={d} editable={write && !['contracted', 'withdrawn', 'rejected'].includes(d.status)} durationEditable={editable} me={me} set={set} />
+      <Basics d={d} editable={prep && !['contracted', 'withdrawn', 'rejected'].includes(d.status)} durationEditable={editable} me={me} set={set} />
       <Consortium d={d} editable={editable} set={set} />
       <WorkPlan d={d} editable={editable} set={set} />
       <BudgetGrid d={d} editable={editable} set={set} />
       <div className="card scroll"><h2>Dokumenti prijave</h2>
-        <DocumentList target={{ entityType: 'proposal', entityId: d.id }} defaultKind="proposal" allowConfidential={can(me, 'documents:confidential')} canWrite={can(me, 'documents:write') && can(me, 'proposals:write') && !['contracted', 'withdrawn', 'rejected'].includes(d.status)} />
+        <DocumentList target={{ entityType: 'proposal', entityId: d.id }} defaultKind="proposal" allowConfidential={can(me, 'documents:confidential')} canWrite={((can(me, 'documents:write') && write) || isLead(me, d.id)) && !['contracted', 'withdrawn', 'rejected'].includes(d.status)} />
       </div>
     </>
   );
@@ -110,6 +119,8 @@ function ProposalView({ me, id }: { me: Me; id: string }) {
 
 function StatusCard({ d, me, set }: { d: Proposal; me: Me; set: (p: Proposal) => void }) {
   const write = can(me, 'proposals:write');
+  const lead = isLead(me, d.id);
+  const steps = (NEXT[d.status] ?? []).filter(([to]) => write || (lead && LEAD_STEPS.includes(to) && d.status !== 'submitted'));
   const [sub, setSub] = useState({ portal: d.package.id.startsWith('horizon') ? 'EU Funding & Tenders' : 'eFondovi', reference: '' });
   const [out, setOut] = useState({ result: 'funded', score: '', note: '' });
   const [con, setCon] = useState({ contractNo: '', startDate: '' });
@@ -117,11 +128,11 @@ function StatusCard({ d, me, set }: { d: Proposal; me: Me; set: (p: Proposal) =>
   return (
     <div className="card"><h2>Tijek prijave</h2>
       {d.submission && <p>Predano {dateTime(d.submission.at)} na <b>{d.submission.portal}</b> ({d.submission.reference}), proračun v{d.submission.budgetVersion}: ukupno {eur(d.submission.total)}, zatraženo <b>{eur(d.submission.requested)}</b>.</p>}
-      {d.outcome && <p>Ishod: <Chip s={d.outcome.result} tone={TONE[d.outcome.result]} />{d.outcome.score && ` · bodovi ${d.outcome.score}`}{d.outcome.note && ` · ${d.outcome.note}`}</p>}
+      {d.outcome && <p>Ishod: <Chip f s={d.outcome.result} tone={TONE[d.outcome.result]} />{d.outcome.score && ` · bodovi ${d.outcome.score}`}{d.outcome.note && ` · ${d.outcome.note}`}</p>}
       {d.projectId && <p><a href={`#/projekti/${d.projectId}`}>Otvori projekt →</a></p>}
-      {write && <div className="actions">
-        {(NEXT[d.status] ?? []).map(([to, l]) => <ActionButton key={to} kind={to === 'preparation' && d.status === 'internal_review' ? undefined : 'primary'} onClick={tr(to)}>{l}</ActionButton>)}
-        {!['rejected', 'withdrawn', 'contracted'].includes(d.status) && <ActionButton kind="danger" confirm="Povući prijavu? Radnja se ne može poništiti." onClick={tr('withdrawn')}>Povuci prijavu</ActionButton>}
+      {(write || steps.length > 0) && <div className="actions">
+        {steps.map(([to, l]) => <ActionButton key={to} kind={to === 'preparation' && d.status === 'internal_review' ? undefined : 'primary'} onClick={tr(to)}>{l}</ActionButton>)}
+        {write && !['rejected', 'withdrawn', 'contracted'].includes(d.status) && <ActionButton kind="danger" confirm="Povući prijavu? Radnja se ne može poništiti." onClick={tr('withdrawn')}>Povuci prijavu</ActionButton>}
       </div>}
       {write && d.status === 'internal_review' && (
         <ActionForm submit="Evidentiraj predaju" onSubmit={async () => set(await api<Proposal>('POST', `/proposals/${d.id}/submit`, sub))}>
@@ -149,6 +160,8 @@ function StatusCard({ d, me, set }: { d: Proposal; me: Me; set: (p: Proposal) =>
 
 function Basics({ d, editable, durationEditable, me, set }: { d: Proposal; editable: boolean; durationEditable: boolean; me: Me; set: (p: Proposal) => void }) {
   const users = useLoad(() => (can(me, 'users:read') ? api<UserRow[]>('GET', '/users') : Promise.resolve([] as UserRow[])), []);
+  const assignLead = can(me, 'proposals:write'); // voditelja prijave određuje ured za projekte
+  const [conflict, setConflict] = useState<Conflict<typeof init> | null>(null);
   const init = { acronym: d.acronym, title: d.title, durationMonths: String(d.durationMonths), internalDeadline: d.internalDeadline ?? '', leadUserId: d.leadUserId ?? '' };
   const [f, setF] = useState(init);
   useEffect(() => setF(init), [d]);
@@ -156,14 +169,23 @@ function Basics({ d, editable, durationEditable, me, set }: { d: Proposal; edita
   if (!editable) return null;
   return (
     <div className="card"><h2>Osnovno</h2>
-      <ActionForm submit="Spremi" onSubmit={async () => set(await api<Proposal>('PATCH', `/proposals/${d.id}`, {
-        acronym: f.acronym, title: f.title, internalDeadline: f.internalDeadline || null, leadUserId: f.leadUserId || null, ...(durationEditable ? { durationMonths: Number(f.durationMonths) } : {}),
-      }))}>
+      {conflict && <ConflictNotice conflict={conflict} what="Prijavu"
+        diff={BASIC.filter(([k]) => conflict.mine[k] !== conflict.base[k] && conflict.mine[k] !== init[k]).map(([k, l]) => ({ label: l, mine: conflict.mine[k], now: init[k] }))}
+        onReload={async () => { set(await api<Proposal>('GET', `/proposals/${d.id}`)); setConflict({ ...conflict, reloaded: true }); }}
+        onRestore={() => { setF({ ...init, ...Object.fromEntries(BASIC.filter(([k]) => conflict.mine[k] !== conflict.base[k]).map(([k]) => [k, conflict.mine[k]])) }); setConflict(null); }} onDismiss={() => setConflict(null)} />}
+      <ActionForm submit="Spremi" onSubmit={async () => {
+        try {
+          set(await api<Proposal>('PATCH', `/proposals/${d.id}`, {
+            revision: d.revision, acronym: f.acronym, title: f.title, internalDeadline: f.internalDeadline || null, ...(assignLead ? { leadUserId: f.leadUserId || null } : {}), ...(durationEditable ? { durationMonths: Number(f.durationMonths) } : {}),
+          }));
+          setConflict(null);
+        } catch (e) { if (!isConflict(e)) throw e; setConflict(conflictOf(e, { ...f }, { ...init })); }
+      }}>
         <Field label="Akronim"><input value={f.acronym} onChange={s('acronym')} required /></Field>
         <Field label="Naslov"><input value={f.title} onChange={s('title')} required /></Field>
         <Field label="Trajanje (mjeseci)"><input type="number" min={1} max={120} value={f.durationMonths} onChange={s('durationMonths')} disabled={!durationEditable} /></Field>
         <Field label="Interni rok"><input type="date" value={f.internalDeadline} onChange={s('internalDeadline')} /></Field>
-        <Field label="Voditelj prijave"><select value={f.leadUserId} onChange={s('leadUserId')}><option value="">–</option>{users.data?.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}</select></Field>
+        {assignLead && <Field label="Voditelj prijave"><select value={f.leadUserId} onChange={s('leadUserId')}><option value="">–</option>{users.data?.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}</select></Field>}
       </ActionForm>
     </div>
   );
@@ -230,6 +252,12 @@ function BudgetGrid({ d, editable, set }: { d: Proposal; editable: boolean; set:
   const fromLines = () => Object.fromEntries(b.lines.map((l) => [key(l.memberId, l.categoryCode), centsToInput(l.amount)]));
   const [cells, setCells] = useState<Record<string, string>>(fromLines);
   useEffect(() => setCells(fromLines()), [d]);
+  const [conflict, setConflict] = useState<Conflict<Record<string, string>> | null>(null);
+  const amount = (v: string | undefined) => { const c = parseEur(v ?? ''); return c ? eur(c) : ''; };
+  const memberName = (id: string) => b.partners.find((x) => x.partnerId === id)?.name ?? 'član';
+  const edited = conflict ? editedKeys(conflict.mine, conflict.base, (x, y) => amount(x) === amount(y)) : [];
+  const diff = edited.filter((k) => amount(conflict!.mine[k]) !== amount(cells[k]))
+    .map((k) => { const [mid, code] = k.split('|') as [string, string]; return { label: `${memberName(mid)} · ${code}`, mine: amount(conflict!.mine[k]), now: amount(cells[k]) }; });
   const canEdit = editable && !b.locked;
   const invalid = Object.entries(cells).filter(([, v]) => parseEur(v) === null).map(([k]) => k);
   return (
@@ -248,12 +276,16 @@ function BudgetGrid({ d, editable, set }: { d: Proposal; editable: boolean; set:
         <tfoot><tr><td>Ukupno</td>{cats.map((c) => <td key={c.code} />)}<td className="num">{eur(b.totals.indirect)}</td><td className="num">{eur(b.totals.total)}</td><td /><td className="num">{eur(b.totals.requested)}</td></tr></tfoot>
       </table>
       {b.warnings.map((w) => <div className="warnbox" key={w}>{w}</div>)}
+      {conflict && <ConflictNotice conflict={conflict} what="Proračun prijave" diff={diff}
+        onReload={async () => { set(await api<Proposal>('GET', `/proposals/${d.id}`)); setConflict({ ...conflict, reloaded: true }); }}
+        onRestore={() => { setCells({ ...cells, ...Object.fromEntries(edited.map((k) => [k, conflict.mine[k] ?? ''])) }); setConflict(null); }} onDismiss={() => setConflict(null)} />}
       {editable && <div className="actions">
         {canEdit && invalid.length > 0 && <span className="chip bad">neispravan iznos u {invalid.length} polja</span>}
         {canEdit && <ActionButton kind="primary" onClick={async () => {
           if (invalid.length) throw new Error('Ispravi označene iznose');
           const lines = Object.entries(cells).map(([k, v]) => { const [memberId, categoryCode] = k.split('|') as [string, string]; return { memberId, categoryCode, amount: parseEur(v) ?? 0 }; }).filter((l) => l.amount > 0);
-          set(await api<Proposal>('PUT', `/proposals/${d.id}/budget/lines`, { lines }));
+          try { set(await api<Proposal>('PUT', `/proposals/${d.id}/budget/lines`, { revision: d.revision, lines })); setConflict(null); }
+          catch (e) { if (!isConflict(e)) throw e; setConflict(conflictOf(e, { ...cells }, fromLines())); }
         }}>Spremi proračun</ActionButton>}
         {canEdit ? <ActionButton onClick={async () => set(await api<Proposal>('POST', `/proposals/${d.id}/budget/lock`))}>Zaključaj proračun</ActionButton>
           : <ActionButton onClick={async () => set(await api<Proposal>('POST', `/proposals/${d.id}/budget/unlock`))}>Otključaj (nova verzija)</ActionButton>}

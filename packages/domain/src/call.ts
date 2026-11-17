@@ -1,4 +1,5 @@
 /** M3 Radar poziva: status poziva iz rokova i ocjena prikladnosti (domenski model, odj. 2–3). Čiste funkcije. */
+import { DEFAULT_TIME_ZONE, dateIn } from './time.js';
 
 export type CallStatus = 'announced' | 'open' | 'closed' | 'cancelled';
 export type DeadlineKind = 'submission' | 'stage1' | 'stage2' | 'info_day' | 'other';
@@ -7,12 +8,13 @@ export interface CallDeadline { kind: DeadlineKind; at: string; label?: string }
 const SUBMISSION: readonly DeadlineKind[] = ['submission', 'stage1', 'stage2'];
 
 /** Status iz datuma otvaranja i rokova predaje: prije otvaranja „najavljen”, nakon zadnjeg roka predaje „zatvoren”. */
-export function callStatus(call: { opensAt?: string | null; deadlines: CallDeadline[]; cancelled?: boolean }, now: Date = new Date()): CallStatus {
+export function callStatus(call: { opensAt?: string | null; deadlines: CallDeadline[]; cancelled?: boolean }, now: Date = new Date(), timeZone: string = DEFAULT_TIME_ZONE): CallStatus {
   if (call.cancelled) return 'cancelled';
   const t = now.getTime();
   const subs = call.deadlines.filter((d) => SUBMISSION.includes(d.kind)).map((d) => Date.parse(d.at)).filter((x) => !Number.isNaN(x));
   if (subs.length && t > Math.max(...subs)) return 'closed';
-  if (call.opensAt && t < Date.parse(`${call.opensAt}T00:00:00Z`)) return 'announced';
+  // Datum otvaranja je kalendarski dan u zoni institucije (otvara se u ponoć po lokalnom vremenu, ne po UTC-u).
+  if (call.opensAt && dateIn(timeZone, now) < call.opensAt.slice(0, 10)) return 'announced';
   return subs.length || call.opensAt ? 'open' : 'announced';
 }
 
@@ -21,10 +23,10 @@ export function nextDeadline(deadlines: CallDeadline[], now: Date = new Date()):
   return [...deadlines].filter((d) => Date.parse(d.at) > now.getTime()).sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0] ?? null;
 }
 
-/** Broj kalendarskih dana do roka (od početka današnjeg dana, UTC): rok danas = 0, sutra = 1. */
-export const daysUntil = (iso: string, now: Date = new Date()): number => {
-  const startOfDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return Math.floor((Date.parse(iso) - startOfDay) / 86_400_000);
+/** Broj kalendarskih dana do roka u zoni institucije: rok danas = 0, sutra = 1 (WP1.14b: ne po UTC-u). */
+export const daysUntil = (iso: string, now: Date = new Date(), timeZone: string = DEFAULT_TIME_ZONE): number => {
+  const day = (s: string) => Math.floor(Date.parse(`${s}T00:00:00Z`) / 86_400_000);
+  return day(dateIn(timeZone, iso)) - day(dateIn(timeZone, now));
 };
 
 export const FIT_CRITERIA = [

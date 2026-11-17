@@ -4,11 +4,11 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { checkUpload, DOCUMENT_KINDS, sanitizeFileName, type DocumentEntity } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
-import { deliverables, documents, documentVersions, expenses, proposals, reimbursementClaims, users, type DocumentRow } from '../db/schema';
+import { deliverables, documents, documentVersions, expenses, projects, proposals, reimbursementClaims, users, type DocumentRow } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { loadProject } from '../common/project-access';
 import { TenantContext, type RequestContext } from '../common/tenant-context';
-import { assertProjectPermission, canInTenant, canOnProject } from '../common/access';
+import { assertProjectPermission, canInTenant, canOnProject, canOnProposal, canSeeProposal } from '../common/access';
 
 export const ENTITIES = ['project', 'expense', 'deliverable', 'claim', 'proposal'] as const;
 export const uploadMeta = z.object({
@@ -19,6 +19,10 @@ export const uploadMeta = z.object({
 export const versionMeta = z.object({ note: z.string().max(500).optional() });
 export const listQuery = z.object({ entityType: z.enum(ENTITIES).optional(), entityId: z.string().uuid().optional(), projectId: z.string().uuid().optional(), proposalId: z.string().uuid().optional() });
 export const docPatch = z.object({ title: z.string().trim().min(1).max(300).optional(), kind: z.enum(Object.keys(DOCUMENT_KINDS) as [string, ...string[]]).optional(), confidentiality: z.enum(['public', 'internal', 'confidential']).optional(), aiGenerated: z.boolean().optional() }).strict();
+
+const FROZEN_EXPENSE: readonly string[] = ['claimed', 'accepted', 'partially_accepted', 'rejected'];
+const CLOSED_PROJECT: readonly string[] = ['closed', 'terminated', 'archived'];
+const CLOSED_PROPOSAL: readonly string[] = ['contracted', 'withdrawn', 'rejected'];
 
 export interface UploadedFile { originalname: string; size: number; buffer: Buffer }
 interface Owner { projectId: string | null; proposalId: string | null; frozen: string | null }
@@ -35,11 +39,15 @@ type Scope = { projectId: string | null; proposalId: string | null };
 export class DocumentsService {
   constructor(private readonly audit: AuditService, private readonly ctx: TenantContext) {}
 
-  /** Projekt: dozvola na projektu. Prijava (radnja institucije): documents:* i proposals:* na razini institucije. */
+  /**
+   * Projekt: dozvola na projektu. Prijava: documents:* i proposals:* na razini institucije ili voditelj te prijave
+   * (WP1.14b – voditelj čita i prilaže dokumente vlastite prijave; povjerljive samo uz dozvolu institucije).
+   */
   private authorize(c: RequestContext, scope: Scope, op: Op, notFound: string): void {
     if (scope.projectId) return assertProjectPermission(c, scope.projectId, op === 'read' ? 'documents:read' : 'documents:write', notFound);
-    if (!canInTenant(c, 'proposals:read')) throw new NotFoundException(notFound);
-    const ok = op === 'read' ? canInTenant(c, 'documents:read') : canInTenant(c, 'documents:write') && canInTenant(c, 'proposals:write');
+    const proposalId = scope.proposalId ?? '';
+    if (!canSeeProposal(c, proposalId)) throw new NotFoundException(notFound);
+    const ok = op === 'read' ? canOnProposal(c, 'documents:read', proposalId) : canOnProposal(c, 'documents:write', proposalId) && canOnProposal(c, 'proposals:write', proposalId);
     if (!ok) throw new ForbiddenException(`Nedostaje dozvola za ${op === 'read' ? 'čitanje' : 'izmjenu'} dokumenata prijave`);
   }
 
@@ -57,7 +65,7 @@ export class DocumentsService {
    */
   private async owner(tx: Tx, type: DocumentEntity, id: string, op: Op): Promise<Owner> {
     const c = this.ctx.require();
-    const closed = async (projectId: string) => { const p = await loadProject(tx, projectId); return ['closed', 'terminated', 'archived'].includes(p.status) ? `projekt je u statusu "${p.status}"` : null; };
+    const closed = async (projectId: string) => { const p = await loadProject(tx, projectId); return CLOSED_PROJECT.includes(p.status) ? `projekt je u statusu "${p.status}"` : null; };
     const ofProject = async (projectId: string, notFound: string, frozen?: string | null): Promise<Owner> => {
       this.authorize(c, { projectId, proposalId: null }, op, notFound);
       return { projectId, proposalId: null, frozen: frozen ?? (await closed(projectId)) };
@@ -67,7 +75,7 @@ export class DocumentsService {
       case 'expense': {
         const e = (await tx.select({ projectId: expenses.projectId, status: expenses.status }).from(expenses).where(eq(expenses.id, id)))[0];
         if (!e) throw new NotFoundException('Trošak ne postoji');
-        return ofProject(e.projectId, 'Trošak ne postoji', ['claimed', 'accepted', 'partially_accepted', 'rejected'].includes(e.status) ? 'trošak je u zahtjevu za nadoknadu – dokazi su zamrznuti' : null);
+        return ofProject(e.projectId, 'Trošak ne postoji', FROZEN_EXPENSE.includes(e.status) ? 'trošak je u zahtjevu za nadoknadu – dokazi su zamrznuti' : null);
       }
       case 'deliverable': {
         const d = (await tx.select({ projectId: deliverables.projectId }).from(deliverables).where(eq(deliverables.id, id)))[0];
@@ -83,7 +91,7 @@ export class DocumentsService {
         const p = (await tx.select({ id: proposals.id, status: proposals.status }).from(proposals).where(and(eq(proposals.id, id), isNull(proposals.deletedAt))))[0];
         if (!p) throw new NotFoundException('Prijava ne postoji');
         this.authorize(c, { projectId: null, proposalId: p.id }, op, 'Prijava ne postoji');
-        return { projectId: null, proposalId: p.id, frozen: ['contracted', 'withdrawn', 'rejected'].includes(p.status) ? 'prijava je zaključena' : null };
+        return { projectId: null, proposalId: p.id, frozen: CLOSED_PROPOSAL.includes(p.status) ? 'prijava je zaključena' : null };
       }
     }
   }
@@ -128,10 +136,33 @@ export class DocumentsService {
       .filter((d) => d.confidentiality !== 'confidential' || this.canConfidential(c, d));
     if (!docs.length) return [];
     const vers = await tx.select().from(documentVersions).where(inArray(documentVersions.documentId, docs.map((d) => d.id)));
+    const frozen = await this.frozenReasons(tx, docs);
     return docs.map((d) => {
       const v = vers.find((x) => x.documentId === d.id && x.version === d.currentVersion)!;
-      return { ...this.view(d), current: { version: v.version, fileName: v.fileName, mimeType: v.mimeType, size: v.sizeBytes, sha256: v.sha256, createdAt: v.createdAt } };
+      return { ...this.view(d), frozen: frozen.get(d.id) ?? null, current: { version: v.version, fileName: v.fileName, mimeType: v.mimeType, size: v.sizeBytes, sha256: v.sha256, createdAt: v.createdAt } };
     });
+  }
+
+  /**
+   * WP1.14b: razlog zbog kojeg se dokument više ne mijenja (ista pravila kao `owner().frozen`), da sučelje ne nudi radnje koje
+   * bi poslužitelj odbio (uklanjanje dokaza troška u predanom ZNS-u, izmjene na zatvorenom projektu ili zaključenoj prijavi).
+   */
+  private async frozenReasons(tx: Tx, docs: DocumentRow[]): Promise<Map<string, string | null>> {
+    const expenseIds = docs.filter((d) => d.entityType === 'expense').map((d) => d.entityId);
+    const projectIds = [...new Set(docs.map((d) => d.projectId).filter((x): x is string => !!x))];
+    const proposalIds = [...new Set(docs.map((d) => d.proposalId).filter((x): x is string => !!x))];
+    const ex = expenseIds.length ? new Map((await tx.select({ id: expenses.id, status: expenses.status }).from(expenses).where(inArray(expenses.id, expenseIds))).map((r) => [r.id, r.status])) : new Map<string, string>();
+    const pr = projectIds.length ? new Map((await tx.select({ id: projects.id, status: projects.status }).from(projects).where(inArray(projects.id, projectIds))).map((r) => [r.id, r.status])) : new Map<string, string>();
+    const po = proposalIds.length ? new Map((await tx.select({ id: proposals.id, status: proposals.status }).from(proposals).where(inArray(proposals.id, proposalIds))).map((r) => [r.id, r.status])) : new Map<string, string>();
+    return new Map(docs.map((d) => {
+      const e = d.entityType === 'expense' ? ex.get(d.entityId) : undefined;
+      const p = d.projectId ? pr.get(d.projectId) : undefined;
+      const q = d.proposalId ? po.get(d.proposalId) : undefined;
+      const reason = e && FROZEN_EXPENSE.includes(e) ? 'trošak je u zahtjevu za nadoknadu – dokazi su zamrznuti'
+        : p && CLOSED_PROJECT.includes(p) ? `projekt je u statusu "${p}"`
+        : q && CLOSED_PROPOSAL.includes(q) ? 'prijava je zaključena' : null;
+      return [d.id, reason];
+    }));
   }
 
   private view(d: DocumentRow) {
@@ -142,7 +173,8 @@ export class DocumentsService {
     const d = await this.row(tx, id, 'read');
     const vers = await tx.select({ v: documentVersions, by: users.displayName }).from(documentVersions).leftJoin(users, eq(users.id, documentVersions.createdBy))
       .where(eq(documentVersions.documentId, id)).orderBy(desc(documentVersions.version));
-    return { ...this.view(d), versions: vers.map(({ v, by }) => ({ version: v.version, fileName: v.fileName, mimeType: v.mimeType, size: v.sizeBytes, sha256: v.sha256, note: v.note, createdAt: v.createdAt, createdBy: by })) };
+    const frozen = (await this.frozenReasons(tx, [d])).get(d.id) ?? null;
+    return { ...this.view(d), frozen, versions: vers.map(({ v, by }) => ({ version: v.version, fileName: v.fileName, mimeType: v.mimeType, size: v.sizeBytes, sha256: v.sha256, note: v.note, createdAt: v.createdAt, createdBy: by })) };
   }
 
   async create(tx: Tx, tenantId: string, meta: z.infer<typeof uploadMeta>, file: { fileName: string; mime: string; sha256: string; size: number; storageKey: string }, actorId?: string) {
