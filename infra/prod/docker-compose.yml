@@ -1,5 +1,6 @@
 # Pilot-instalacija na jednom poslužitelju u EU (bilo koji pružatelj s Dockerom). Upute: docs/PILOT-INSTALACIJA.md
 # Pokretanje: cp .env.example .env (popuniti) && docker compose up -d --build
+# Kopije izvan poslužitelja (S3, šifrirano): servis `offsite` u profilu "offsite" – uključuje se s COMPOSE_PROFILES=offsite u .env (ADR-0012).
 name: arqus-pilot
 services:
   db:
@@ -13,6 +14,7 @@ services:
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U arqus"], interval: 5s, timeout: 3s, retries: 20 }
   app:
     build: { context: ../.., dockerfile: Dockerfile }
+    image: arqus-projekti:pilot
     init: true
     restart: unless-stopped
     depends_on: { db: { condition: service_healthy } }
@@ -25,8 +27,26 @@ services:
       AUTH_TOKEN_TTL: ${AUTH_TOKEN_TTL:-8h}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?postavi MFA_ENCRYPTION_KEY}
       TRUST_PROXY: "uniquelocal"
-      DOCUMENTS_DIR: /data/documents
       FT_IMPORT_INTERVAL_HOURS: ${FT_IMPORT_INTERVAL_HOURS:-24}
+      # Pohrana dokumenata (ADR-0010, WP1.20): local = volumen `documents` (zadano); s3 = bucket iz DOCUMENTS_S3_*.
+      DOCUMENTS_STORAGE: ${DOCUMENTS_STORAGE:-local}
+      DOCUMENTS_DIR: /data/documents
+      DOCUMENTS_S3_ENDPOINT: ${DOCUMENTS_S3_ENDPOINT:-}
+      DOCUMENTS_S3_REGION: ${DOCUMENTS_S3_REGION:-}
+      DOCUMENTS_S3_BUCKET: ${DOCUMENTS_S3_BUCKET:-}
+      DOCUMENTS_S3_ACCESS_KEY_ID: ${DOCUMENTS_S3_ACCESS_KEY_ID:-}
+      DOCUMENTS_S3_SECRET_ACCESS_KEY: ${DOCUMENTS_S3_SECRET_ACCESS_KEY:-}
+      DOCUMENTS_S3_FORCE_PATH_STYLE: ${DOCUMENTS_S3_FORCE_PATH_STYLE:-true}
+      DOCUMENTS_S3_PREFIX: ${DOCUMENTS_S3_PREFIX:-}
+      DOCUMENTS_S3_SSE: ${DOCUMENTS_S3_SSE:-}
+      # samo za `documents migrate --to mirror` (kopija dokumenata u drugi bucket); aplikacija ih ne koristi
+      DOCUMENTS_MIRROR_S3_ENDPOINT: ${DOCUMENTS_MIRROR_S3_ENDPOINT:-}
+      DOCUMENTS_MIRROR_S3_REGION: ${DOCUMENTS_MIRROR_S3_REGION:-}
+      DOCUMENTS_MIRROR_S3_BUCKET: ${DOCUMENTS_MIRROR_S3_BUCKET:-}
+      DOCUMENTS_MIRROR_S3_ACCESS_KEY_ID: ${DOCUMENTS_MIRROR_S3_ACCESS_KEY_ID:-}
+      DOCUMENTS_MIRROR_S3_SECRET_ACCESS_KEY: ${DOCUMENTS_MIRROR_S3_SECRET_ACCESS_KEY:-}
+      DOCUMENTS_MIRROR_S3_FORCE_PATH_STYLE: ${DOCUMENTS_MIRROR_S3_FORCE_PATH_STYLE:-true}
+      DOCUMENTS_MIRROR_S3_PREFIX: ${DOCUMENTS_MIRROR_S3_PREFIX:-}
     volumes: ["documents:/data/documents"]
     expose: ["3000"]
   caddy:
@@ -44,6 +64,43 @@ services:
       PGPASSWORD: ${DB_OWNER_PASSWORD}
       RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-3600}
+      DOCUMENTS_STORAGE: ${DOCUMENTS_STORAGE:-local}
     volumes: ["./backup.sh:/backup.sh:ro", "backups:/backups", "documents:/documents:ro"]
     entrypoint: ["sh", "/backup.sh"]
-volumes: { pgdata: {}, caddydata: {}, caddyconfig: {}, backups: {}, documents: {} }
+  # Kopije izvan poslužitelja (WP1.20, ADR-0012): svaku novu datoteku iz volumena `backups` šifrira NA OVOM poslužitelju
+  # (BACKUP_ENCRYPTION_KEY ne napušta instalaciju), šalje u S3 bucket (po mogućnosti kod drugog pružatelja ili u drugoj zoni)
+  # i briše udaljene kopije starije od BACKUP_OFFSITE_RETENTION_DAYS. Neuspjeh: [GREŠKA] u zapisu, servis postaje "unhealthy"
+  # (docker compose ps), stanje: docker compose exec offsite node dist/db/cli.js backup status
+  offsite:
+    profiles: ["offsite"]
+    build: { context: ../.., dockerfile: Dockerfile }
+    image: arqus-projekti:pilot
+    init: true
+    restart: unless-stopped
+    depends_on: [backup]
+    environment:
+      NODE_ENV: production
+      BACKUP_DIR: /backups
+      OFFSITE_STATE_DIR: /data/offsite
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+      BACKUP_S3_FORCE_PATH_STYLE: ${BACKUP_S3_FORCE_PATH_STYLE:-true}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-}
+      BACKUP_S3_SSE: ${BACKUP_S3_SSE:-}
+      BACKUP_OFFSITE_RETENTION_DAYS: ${BACKUP_OFFSITE_RETENTION_DAYS:-30}
+      BACKUP_OFFSITE_INTERVAL_SECONDS: ${BACKUP_OFFSITE_INTERVAL_SECONDS:-900}
+      BACKUP_OFFSITE_MAX_AGE_HOURS: ${BACKUP_OFFSITE_MAX_AGE_HOURS:-3}
+    volumes: ["backups:/backups:ro", "offsite:/data/offsite"]
+    # Svako izvođenje je zaseban proces s vlastitim izlaznim kodom (neuspjeh je vidljiv u zapisu: docker compose logs offsite).
+    entrypoint: ["sh", "-c", "while true; do node dist/db/cli.js backup offsite || echo \"[GREŠKA] sinkronizacija izvan poslužitelja završila s kodom $$?\" >&2; sleep \"$$BACKUP_OFFSITE_INTERVAL_SECONDS\"; done"]
+    healthcheck:
+      test: ["CMD", "node", "dist/db/cli.js", "backup", "status"]
+      interval: 5m
+      timeout: 30s
+      start_period: 15m
+      retries: 1
+volumes: { pgdata: {}, caddydata: {}, caddyconfig: {}, backups: {}, documents: {}, offsite: {} }
