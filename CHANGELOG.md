@@ -3,8 +3,12 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+
+## [0.26.0] - 2026-11-17
 ### Dodano
 - Usporedba EU pružatelja poslužitelja s preporukom (`docs/infrastruktura/usporedba-eu-pruzatelja.md`) – podloga za odluku o pilot-instalaciji i javnoj adresi.
+- Demo instanca na Synology NAS-u preko Tailscalea: `infra/nas/docker-compose.yml` (slika iz registra, ključevi instalacije stvaraju se pri prvom pokretanju i ostaju u volumenu) i upute `docs/NAS-INSTALACIJA.md`.
+- GitHub Actions „Slika”: objava Docker slike za amd64 i arm64 u GitHub Container Registry (`ghcr.io/icvitic/arqus-project-mgmt`, oznake `latest` i broj verzije) pri svakom spajanju u `main`.
 
 ## [0.25.0] - 2026-11-17
 ### Dodano

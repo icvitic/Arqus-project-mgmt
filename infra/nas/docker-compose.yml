@@ -1,0 +1,49 @@
+# ArQus Projekti na Synology NAS-u (Container Manager → Project) – DEMO instanca s izmišljenim podacima.
+# Upute: docs/NAS-INSTALACIJA.md. NIJE za stvarne podatke institucije (za pilot: docs/PILOT-INSTALACIJA.md).
+# Pristup: preko Tailscalea na http://<ime-nas-a>:8080 – port se ne prosljeđuje na ruteru.
+name: arqus-demo
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: arqus
+      # Baza nije dostupna izvan ove compose mreže (nema objavljenih portova), pa lozinke ovdje nisu tajna prema van.
+      POSTGRES_PASSWORD: nas-demo-interno-vlasnik
+      POSTGRES_DB: arqus
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U arqus"], interval: 5s, timeout: 3s, retries: 30 }
+  app:
+    image: ghcr.io/icvitic/arqus-project-mgmt:latest
+    init: true
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      NODE_ENV: production
+      DATABASE_MIGRATE_URL: postgres://arqus:nas-demo-interno-vlasnik@db:5432/arqus
+      DATABASE_URL: postgres://arqus_app:nas-demo-interno-aplikacija@db:5432/arqus
+      DB_APP_PASSWORD: nas-demo-interno-aplikacija
+      AUTH_TOKEN_TTL: 12h
+      DOCUMENTS_DIR: /data/documents
+      FT_IMPORT_INTERVAL_HOURS: "24"   # stvarni pozivi s portala EU Funding & Tenders; "0" ako NAS nema izlaz na internet
+      ARQUS_DEMO: "1"                  # dopušta demo podatke u produkcijskom načinu slike
+      TRUST_PROXY: "loopback, linklocal, uniquelocal"
+    # Prvo pokretanje stvara ključeve (JWT, MFA) i sprema ih u volumen `secrets` – jedinstveni za ovu instalaciju,
+    # ne nalaze se u ovoj datoteci. Zatim: migracije + paketi, demo podaci (postojeći se ne diraju), poslužitelj.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if [ ! -s /data/secrets/env ]; then
+          umask 077
+          printf 'AUTH_JWT_SECRET=%s\nMFA_ENCRYPTION_KEY=%s\n' "$(head -c 48 /dev/urandom | base64 | tr -d '\n')" "$(head -c 48 /dev/urandom | base64 | tr -d '\n')" > /data/secrets/env
+          echo "Generirani ključevi instalacije (/data/secrets/env)."
+        fi
+        set -a; . /data/secrets/env; set +a
+        node dist/db/cli.js init
+        node dist/db/cli.js demo
+        exec node dist/main.js
+    volumes: ["documents:/data/documents", "secrets:/data/secrets"]
+    ports: ["8080:3000"]   # ako je 8080 na NAS-u zauzet, promijeni lijevi broj (npr. "8088:3000")
+volumes: { pgdata: {}, documents: {}, secrets: {} }
