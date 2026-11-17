@@ -15,6 +15,10 @@ jobs:
     env:
       TEST_DATABASE_MIGRATE_URL: postgres://arqus:arqus@127.0.0.1:5433/arqus_test
       TEST_DATABASE_URL: postgres://arqus_app:arqus@127.0.0.1:5433/arqus_test
+      # WP1.20: S3 pohrana i kopije izvan poslužitelja nad MinIO-m (scripts/minio-test.sh; testne vjerodajnice)
+      TEST_S3_ENDPOINT: http://127.0.0.1:9100
+      TEST_S3_ACCESS_KEY_ID: arqus-test
+      TEST_S3_SECRET_ACCESS_KEY: arqus-test-secret-123
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -26,6 +30,8 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
+      - name: MinIO za testove S3 (ista naredba kao lokalno)
+        run: sh scripts/minio-test.sh up
       - run: pnpm test
       - name: Validacija paketa programa (shema + semantika)
         run: node packages/domain/dist/cli.js docs/domena/paketi

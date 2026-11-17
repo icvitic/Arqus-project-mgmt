@@ -1,6 +1,6 @@
 # Pilot-instalacija (WP1.9)
 
-Jedan poslužitelj u EU s Dockerom: aplikacija (API + web u jednoj slici), PostgreSQL 16, Caddy (automatski HTTPS) i sigurnosne kopije svakih sat vremena. Neovisno o pružatelju (ADR-0009).
+Jedan poslužitelj u EU s Dockerom: aplikacija (API + web u jednoj slici), PostgreSQL 16, Caddy (automatski HTTPS), sigurnosne kopije svakih sat vremena i njihova šifrirana kopija u S3 bucketu izvan poslužitelja. Dokumenti u volumenu ili u S3 bucketu. Neovisno o pružatelju (ADR-0009, ADR-0010, ADR-0012).
 
 ## 1. Poslužitelj
 - Pružatelj s podatkovnim centrom u EU i ugovorom o obradi podataka (DPA, GDPR čl. 28). Kandidati: Hetzner (DE/FI), Scaleway (FR), OVHcloud (FR), ili hrvatski pružatelj. Cijene i uvjete provjeriti u trenutku narudžbe.
@@ -39,14 +39,71 @@ Korisnik kojem je MFA obvezan, a nema ga, pri prvom sljedećem zahtjevu (i sa st
 
 Globalni pozivi s portala EU Funding & Tenders uvoze se automatski minutu nakon pokretanja, zatim svakih `FT_IMPORT_INTERVAL_HOURS` (zadano 24 h; ADR-0011). Ručno: `docker compose exec app node dist/db/cli.js import-calls`. Poslužitelj treba izlazni HTTPS prema `api.tech.ec.europa.eu`.
 
-## 4. Sigurnosne kopije i obnova
-- Servis `backup` radi `pg_dump` svakih `BACKUP_INTERVAL_SECONDS` (zadano 3600 s → RPO 1 h) i briše kopije starije od `BACKUP_RETENTION_DAYS` (14). Kopije su u Docker volumenu `backups`. Dokumenti (volumen `documents`, ADR-0010) arhiviraju se jednom dnevno u isti volumen (`documents-YYYYMMDD.tar.gz`).
-- Izvan poslužitelja: dnevno sinkronizirati volumen u S3-kompatibilnu pohranu u EU drugog pružatelja (npr. `rclone sync`), šifrirano.
-- Obnova (provjereno lokalno, v0.13.0):
+## 4. Pohrana dokumenata, sigurnosne kopije i obnova
+
+### 4.1 Što radi bez ičega dodatnog
+- Servis `backup` radi `pg_dump` svakih `BACKUP_INTERVAL_SECONDS` (zadano 3600 s → RPO 1 h) i briše kopije starije od `BACKUP_RETENTION_DAYS` (14) u Docker volumenu `backups`. Uz lokalnu pohranu dokumenata (volumen `documents`, ADR-0010) jednom dnevno radi i arhivu `documents-YYYYMMDD.tar.gz`.
+- To **nije dovoljno**: kopije su na istom poslužitelju. Prije puštanja pilotu uključiti kopije izvan poslužitelja (4.3).
+
+### 4.2 Bucketi kod pružatelja (S3)
+Dva bucketa, svaki sa **zasebnim ključem koji ima prava samo na taj bucket** (čitanje, pisanje, popis, brisanje):
+
+| Bucket | Za što | Gdje | Postavke kod pružatelja |
+| --- | --- | --- | --- |
+| `…-dokumenti` (neobavezno) | sadržaj dokumenata (`DOCUMENTS_STORAGE=s3`) | ista zona kao poslužitelj | privatan, **verzioniranje uključeno**, šifriranje na strani poslužitelja (ako ga pružatelj ne radi sam: `DOCUMENTS_S3_SSE=AES256`) |
+| `…-kopije` | šifrirane kopije baze (i arhive dokumenata) | **druga zona ili drugi pružatelj** (npr. poslužitelj u Zagrebu, kopije u Beču) | privatan; preporuka: zaključavanje objekata (object lock) ili verzioniranje, da ni ukraden ključ ne može obrisati kopije |
+
+Adresa (`…_S3_ENDPOINT`, npr. `https://sos-hr-zag-1.exo.io`) i regija su u dokumentaciji pružatelja. Većina pružatelja radi s `…_S3_FORCE_PATH_STYLE=true`; ako pružatelj traži adresu `https://<bucket>.<endpoint>`, postaviti `false`.
+
+**Dokumenti u S3 (neobavezno).** Lokalni volumen je za pilot dovoljan. Prelazak na bucket (na živom sustavu, bez gubitka):
 ```bash
-docker compose exec backup sh -c 'createdb -h db -U arqus arqus_obnova && pg_restore -h db -U arqus -d arqus_obnova /backups/<datoteka>.dump'
+# 1. u .env upisati DOCUMENTS_S3_* (DOCUMENTS_STORAGE ostaje local), pa: docker compose up -d app
+docker compose exec app node dist/db/cli.js documents migrate --to s3      # kopira sve, s provjerom hasha; može dok sustav radi
+docker compose stop app
+docker compose run --rm app node dist/db/cli.js documents migrate --to s3  # dokopira ono što je stiglo u međuvremenu
+# 2. u .env DOCUMENTS_STORAGE=s3, zatim:
+docker compose up -d app backup
+docker compose exec app node dist/db/cli.js documents verify               # izlazni kod 0 = sve verzije su u bucketu
 ```
-Zatim u `.env` usmjeriti aplikaciju na obnovljenu bazu ili je preimenovati. Dokumenti: `docker compose run --rm -v arqus-pilot_documents:/d -v arqus-pilot_backups:/b app sh -c 'tar -xzf /b/documents-<datum>.tar.gz -C /d'`. Obnovu probati barem jednom mjesečno.
+Izvor (volumen `documents`) se ne briše – obrisati ga ručno tek nakon nekoliko dana rada i uspješnog `documents verify`. Povratak: isto s `--to local`. `https://<domena>/api/health/ready` pokazuje `"storage":"ok"` kad je pohrana dostupna.
+
+Što tada štiti dokumente: verzioniranje bucketa (vraćanje obrisane ili prepisane verzije kod pružatelja), `documents verify` (preporuka: tjedno, npr. cron na poslužitelju: `docker compose -f /…/infra/prod/docker-compose.yml exec -T app node dist/db/cli.js documents verify`) i po želji kopija u drugi bucket: `DOCUMENTS_MIRROR_S3_*` u `.env` i `documents migrate --to mirror` (idempotentno – svaki put kopira samo nove verzije). Dnevna arhiva volumena se tada ne radi.
+
+### 4.3 Kopije izvan poslužitelja (obavezno prije pilota)
+1. **Ključ za šifriranje kopija** (jednom, na poslužitelju):
+   ```bash
+   openssl rand -base64 32
+   ```
+   Upisati u `.env` kao `BACKUP_ENCRYPTION_KEY`. **Odmah** spremiti cijelu `.env` datoteku izvan poslužitelja – u upravitelj lozinki tvrtke (npr. Bitwarden, 1Password) i po mogućnosti ispis u zatvorenoj omotnici u sefu. **Izgubljen ključ = izgubljene kopije** (nitko ih, ni Arqus ni pružatelj, ne može dešifrirati). Ključ se nikad ne šalje e-poštom ni u razgovoru i ne mijenja se bez razloga (stare kopije ostaju čitljive samo starim ključem). Otisak ključa (za usporedbu sa spremljenom kopijom, nije tajna): `docker compose run --rm --no-deps --entrypoint node offsite dist/db/cli.js backup key-fingerprint`.
+2. U `.env` upisati `BACKUP_S3_*` (bucket `…-kopije`) i `COMPOSE_PROFILES=offsite`, zatim `docker compose up -d`.
+3. Provjera nakon 15–20 minuta:
+   ```bash
+   docker compose exec offsite node dist/db/cli.js backup status    # izlazni kod 0 = u redu
+   docker compose ps                                               # offsite: healthy
+   ```
+Servis šalje svaku novu kopiju šifriranu (na poslužitelju, prije slanja) svakih 15 min i u bucketu čuva 30 dana (`BACKUP_OFFSITE_RETENTION_DAYS`; najnovija kopija uvijek ostaje). Neuspjeh: `[GREŠKA]` u `docker compose logs offsite`, `backup status` s izlaznim kodom 1 i `offsite` **unhealthy** u `docker compose ps` kad je zadnja uspješna kopija starija od 3 h (`BACKUP_OFFSITE_MAX_AGE_HOURS`). Preporuka: vanjski nadzor koji svakih sat vremena izvodi `backup status` i šalje obavijest. Shema i format: ADR-0012.
+
+### 4.4 Obnova (novi poslužitelj, izgubljen poslužitelj)
+Treba: poslužitelj s Dockerom, ovaj repozitorij, **`.env` iz sigurne kopije** (s `BACKUP_ENCRYPTION_KEY`, `BACKUP_S3_*`; zadržati i `MFA_ENCRYPTION_KEY`, inače korisnici moraju ponovno postaviti MFA) i pristup bucketu kopija.
+```bash
+git clone https://github.com/icvitic/arqus-project-mgmt && cd arqus-project-mgmt/infra/prod
+# vratiti .env iz upravitelja lozinki
+sh restore.sh                               # najnovija kopija
+sh restore.sh 2026-11-17T09:30:00Z          # ili najnovija kopija do tog trenutka (npr. prije greške)
+```
+Skripta: digne bazu (odbija ako nije prazna), preuzme i dešifrira kopiju baze i arhivu dokumenata (provjera cjelovitosti; kriv ključ ili izmijenjena datoteka zaustavljaju obnovu), vrati bazu u jednoj transakciji, vrati dokumente (uz `DOCUMENTS_STORAGE=s3` su već u bucketu), pokrene sve servise, čeka spremnost i izvede `documents verify`. Na kraju ispiše ukupno vrijeme. Uz lokalnu pohranu `documents verify` nabroji dokumente učitane nakon zadnje dnevne arhive – njih treba zatražiti od korisnika ponovno. Zatim DNS na novi poslužitelj (ako se promijenio) i prijava.
+
+Ručno, bez skripte: `docker compose run --rm --no-deps --user "$(id -u):$(id -g)" -v "$PWD/obnova:/obnova" --entrypoint node offsite dist/db/cli.js backup fetch --dir /obnova` preuzme i dešifrira najnoviju kopiju u `./obnova`. Pojedinačnu datoteku preuzetu iz bucketa dešifrira bilo koje računalo s Dockerom i slikom aplikacije, samo s ključem: `docker run --rm -e BACKUP_ENCRYPTION_KEY -v "$PWD:/w" --entrypoint node ghcr.io/icvitic/arqus-project-mgmt:latest dist/db/cli.js backup decrypt /w/<datoteka>.enc /w/<datoteka>` (uz `export BACKUP_ENCRYPTION_KEY=…`).
+
+**Izmjereno** (lokalna proba 2026-11-17, ADR-0012): 17 s s demo podacima, 49 s s 1,2 GB baze i 1 GB dokumenata, 26 s kad su dokumenti u S3. Bez najma i postavljanja poslužitelja, Dockera, slike i DNS-a (realno 30–60 min ručnog rada) i uz lokalnu mrežu prema bucketu – cilj RTO 4 h ima veliku rezervu, ali broj treba potvrditi na pilot-poslužitelju.
+
+### 4.5 Mjesečna proba obnove (obavezno)
+Jednom mjesečno, na **zasebnom** poslužitelju ili računalu s Dockerom (nikad na produkcijskom – skripta traži praznu bazu):
+1. klonirati repozitorij, vratiti `.env` iz upravitelja lozinki (provjerava i da je spremljena kopija ključa ispravna), u njoj `DOMAIN` na probnu vrijednost;
+2. `sh restore.sh` i zapisati ukupno vrijeme;
+3. prijaviti se, otvoriti projekt i preuzeti jedan dokument; `documents verify` bez nalaza;
+4. zapisati u dnevnik rada: datum, kopija (naziv iz ispisa), vrijeme obnove, nalazi; zatim `docker compose --profile offsite down -v` i ugasiti probni poslužitelj.
+Proba bez uspjeha = kopije se smatraju neispravnima dok se uzrok ne otkloni.
 
 ## 5. Nadogradnja
 ```bash
@@ -59,4 +116,5 @@ Migracije se primjenjuju automatski. Prije nadogradnje napraviti ručnu kopiju (
 - [ ] Penetracijski test vanjskog izvođača (uvjet faze 2) – opseg, testni računi i prihvaćena ograničenja: `docs/sigurnost/PENTEST-OPSEG.md`.
 - [ ] Obvezni MFA najmanje „za povlaštene uloge” (Korisnici → Obvezna dvofaktorska prijava).
 - [ ] DPA s pružateljem i ugovor o obradi s pilot-institucijom.
-- [ ] Probna obnova iz kopije.
+- [ ] Kopije izvan poslužitelja uključene (`COMPOSE_PROFILES=offsite`), `backup status` u redu, `.env` s `BACKUP_ENCRYPTION_KEY` spremljena izvan poslužitelja.
+- [ ] Probna obnova iz kopije izvan poslužitelja na zasebnom poslužitelju (4.5), izmjereno vrijeme zapisano.

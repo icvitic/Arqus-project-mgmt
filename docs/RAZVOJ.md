@@ -40,6 +40,14 @@ API: http://localhost:3000/api/health · Web: http://localhost:5173 (proxy `/api
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
+**Testovi nad S3 (WP1.20).** Pohrana dokumenata u S3, `documents verify/migrate` i kopije izvan poslužitelja testiraju se i nad stvarnim S3-kompatibilnim poslužiteljem (MinIO u Dockeru) – ista naredba kao u CI-ju:
+```bash
+sh scripts/minio-test.sh up
+TEST_S3_ENDPOINT=http://127.0.0.1:9100 TEST_S3_ACCESS_KEY_ID=arqus-test TEST_S3_SECRET_ACCESS_KEY=arqus-test-secret-123 pnpm test
+sh scripts/minio-test.sh down
+```
+Bez `TEST_S3_ENDPOINT` ti se testovi preskaču uz poruku `[WP1.20] … PRESKAČU` (ostali rade bez Dockera); ako je postavljen, a MinIO ne radi, padaju. Aplikacija lokalno s S3: `DOCUMENTS_STORAGE=s3` i `DOCUMENTS_S3_*` (vidi `infra/prod/.env.example`).
+
 ## Web sučelje
 `pnpm dev` diže API (3000) i web (5173, proxy `/api`). Prijava: oznaka institucije `razvoj`, `admin@razvoj.local` / `Zeleni-Kamen-2026` (nakon `db:seed`).
 Pakete po pozivu ured za projekte stvara u izborniku **Paketi programa → Novi paket po pozivu** (nasljeđuje programski paket, provjera prije spremanja, objava).

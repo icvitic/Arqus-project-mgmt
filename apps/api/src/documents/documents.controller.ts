@@ -1,10 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, InternalServerErrorException, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { createHash } from 'node:crypto';
 import type { Response } from 'express';
 import { MAX_DOCUMENT_BYTES } from '@arqus/domain';
 import { DocumentsService, docPatch, listQuery, uploadMeta, versionMeta, type UploadedFile as File } from './documents.service';
-import { DocumentStorage } from './document-storage';
+import { DocumentIntegrityError, DocumentStorage } from './document-storage';
 import { ResolvesProject } from '../identity/auth.guard';
 import { DbService, type Tx } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
@@ -50,11 +49,18 @@ export class DocumentsController {
   @Get(':id/versions/:n/download') @ResolvesProject('documents:read')
   downloadVersion(@Param('id', uuid) id: string, @Param('n', ParseIntPipe) n: number, @Res({ passthrough: true }) res: Response) { return this.send(id, n, res); }
 
-  /** Uvijek kao privitak (nikad prikaz u pregledniku); provjera hasha otkriva oštećenje ili izmjenu u pohrani. */
+  /**
+   * Uvijek kao privitak (nikad prikaz u pregledniku); provjera veličine i hasha (prije prvog poslanog bajta) otkriva
+   * oštećenje ili izmjenu u pohrani – lokalnoj i S3. Nedostupna pohrana → 503 (DocumentStorage).
+   */
   private async send(id: string, n: number | undefined, res: Response) {
     const v = await this.run((tx) => this.docs.version(tx, id, n));
-    const content = await this.storage.get(v.storageKey);
-    if (createHash('sha256').update(content).digest('hex') !== v.sha256) throw new BadRequestException('Provjera cjelovitosti datoteke nije uspjela – obavijesti administratora');
+    let content: Buffer;
+    try { content = await this.storage.readVerified(v.storageKey, v.sha256, v.sizeBytes); } catch (e) {
+      if (!(e instanceof DocumentIntegrityError)) throw e;
+      if (e.reason === 'missing') throw new InternalServerErrorException('Sadržaj datoteke nedostaje u pohrani – obavijesti administratora (vraća se iz sigurnosne kopije)');
+      throw new BadRequestException('Provjera cjelovitosti datoteke nije uspjela – obavijesti administratora');
+    }
     res.setHeader('X-Document-Sha256', v.sha256);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");

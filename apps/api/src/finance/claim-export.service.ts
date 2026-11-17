@@ -61,12 +61,12 @@ export class ClaimExportService {
     generated.push({ path: 'kontrolna-lista.html', data: Buffer.from(checklistHtml(data), 'utf8') });
     for (const r of records) generated.push({ path: r.path, data: Buffer.from(renderTimesheetRecord(r.record, { draftClaim: data.draft }), 'utf8') });
 
-    // Provjera cjelovitosti svih dokaza PRIJE slanja (jasna greška umjesto prekinutog preuzimanja).
+    // Provjera cjelovitosti svih dokaza PRIJE slanja (jasna greška umjesto prekinutog preuzimanja). Strujanjem – bez sadržaja
+    // u memoriji; nedostupna pohrana nije „datoteka nedostaje” nego 503 (DocumentStorage), bez zapisa o neuspjehu provjere.
     for (const e of evidence) {
-      let content: Buffer | null = null;
-      try { content = await this.storage.get(e.storageKey); } catch { content = null; }
-      if (!content || sha256(content) !== e.sha256) {
-        const reason = content ? 'sadržaj se ne slaže s pohranjenim SHA-256' : 'datoteka nedostaje u pohrani';
+      const state = await this.storage.verify(e.storageKey, e.sha256, e.size);
+      if (state !== 'ok') {
+        const reason = state === 'mismatch' ? 'sadržaj se ne slaže s pohranjenim SHA-256' : 'datoteka nedostaje u pohrani';
         await this.db.tx((tx) => this.audit.record(tx, { entity: 'claim', entityId: claimId, action: 'export.failed', diff: { meta: { documentId: e.documentId, path: e.path, reason } } }));
         throw new ConflictException(`Izvoz je prekinut: provjera cjelovitosti dokaza „${e.path}” nije uspjela (${reason}). Obavijesti administratora – datoteku treba vratiti iz sigurnosne kopije.`);
       }
@@ -96,9 +96,12 @@ export class ClaimExportService {
         let content = byPath.get(f.path);
         if (!content) {
           const e = evidence.find((x) => x.path === f.path)!;
-          content = await storage.get(e.storageKey);
           // Datoteka se mogla promijeniti nakon provjere: prekid (nepotpun ZIP) umjesto paketa s pogrešnim sadržajem.
-          if (sha256(content) !== e.sha256) { log.error(`Izvoz ZNS-a ${claimId} (korisnik ${userId}): dokaz ${e.path} promijenjen tijekom slanja`); throw new Error('Provjera cjelovitosti dokaza nije uspjela tijekom slanja'); }
+          // U memoriji je samo trenutni dokaz (najviše 25 MB), kao i prije – ZIP zapis treba CRC i duljinu prije sadržaja.
+          try { content = await storage.readVerified(e.storageKey, e.sha256, e.size); } catch (err) {
+            log.error(`Izvoz ZNS-a ${claimId} (korisnik ${userId}): dokaz ${e.path} nije prošao provjeru tijekom slanja (${(err as Error).message})`);
+            throw new Error('Provjera cjelovitosti dokaza nije uspjela tijekom slanja');
+          }
         }
         for (const part of await zip.entry(f.path, content)) yield part;
         content = undefined;

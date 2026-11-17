@@ -13,7 +13,8 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { backendFromEnv, LocalBackend } from '../documents/storage-backends';
 import { passwordIssues } from '@arqus/domain';
 import * as schema from '../db/schema';
 import { importGlobalPackages } from '../db/seed';
@@ -68,9 +69,10 @@ async function deleteTenant(db: Db, tenantId: string): Promise<void> {
     for (const { table_name } of tables.rows) await tx.execute(sql`delete from ${sql.identifier(table_name)} where tenant_id = ${tenantId}`);
     await tx.execute(sql`delete from tenants where id = ${tenantId}`);
   });
-  // Sadržaj dokumenata: <DOCUMENTS_DIR>/<tenantId>/ (isti korijen kao DocumentStorage).
-  const root = resolve(process.env.DOCUMENTS_DIR ?? join(process.cwd(), 'data', 'documents'));
-  await rm(join(root, tenantId), { recursive: true, force: true });
+  // Sadržaj dokumenata: svi objekti `<tenantId>/` u pohrani koju koristi aplikacija (lokalno ili S3, WP1.20).
+  const backend = backendFromEnv(process.env);
+  if (backend instanceof LocalBackend) await rm(join(backend.root, tenantId), { recursive: true, force: true });
+  else { for await (const o of backend.list(`${tenantId}/`)) await backend.delete(o.key); }
 }
 
 /** Stanar s oznakom demo i prvi administrator (kao `seedDemo`, ali s upitima ograničenima na ovog stanara). */

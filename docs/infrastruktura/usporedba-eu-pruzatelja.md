@@ -58,9 +58,11 @@ Ivan:
 2. Odabrati domenu (npr. poddomenu postojeće) i dati pristup DNS zapisima.
 3. Javiti odluku; pristupni podaci se ne šalju u razgovoru – instalaciju pokreće Ivan prema uputama ili daje privremeni pristup na dogovoren način.
 
-Razvoj (jedan manji paket nakon odluke):
+Razvoj – **već napravljeno bez odluke** (v0.28.0, WP1.20): S3 izvedba pohrane dokumenata (ADR-0010) i šifrirane kopije izvan poslužitelja (ADR-0012) rade sa svakim S3-kompatibilnim pružateljem (provjereno na MinIO-u), obnova je skriptirana (`infra/prod/restore.sh`) i izmjerena lokalno. Nakon odluke ostaje samo konfiguracija:
 - instalacija prema `docs/PILOT-INSTALACIJA.md` (oko sat vremena) i javna demo adresa;
-- S3 izvedba pohrane dokumenata (ADR-0010) i kopije baze izvan poslužitelja, s mjerenjem vremena obnove;
+- dva bucketa (dokumenti u zoni poslužitelja s verzioniranjem; kopije u drugoj zoni, npr. Beč, ili kod drugog pružatelja) i ključevi s pravima samo na svoj bucket – upisati u `.env`;
+- prva proba obnove na pilot-poslužitelju (stvarna mreža i disk) i upis izmjerenog vremena;
+- provjera S3 klijenta na stvarnoj usluzi pružatelja (adresni stil, regija, šifriranje na strani poslužitelja) – `documents verify` i `backup status` nakon prvog sata rada;
 - ADR s odlukom o pružatelju.
 
 ## 5. Ograničenja ovog pregleda
