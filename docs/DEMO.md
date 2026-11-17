@@ -12,7 +12,7 @@ Scenarij demonstracije od 20 minuta: [DEMO-SCENARIJ.md](DEMO-SCENARIJ.md).
 
 **macOS / Linux:** `scripts/demo.sh` (treba Docker s `docker compose`).
 
-Prvo pokretanje gradi Docker sliku i traje nekoliko minuta; svako sljedeće desetak sekundi. Skripta čeka da aplikacija proradi, ispiše račune i (na Windowsu) otvori preglednik na **http://localhost:8080**.
+Prvo pokretanje gradi Docker sliku i traje nekoliko minuta; svako sljedeće desetak sekundi. Skripta čeka da aplikacija proradi, ispiše račune i (na Windowsu) otvori preglednik na **http://localhost:8080** (ako port 8080 nije dostupan, skripta sama uzme sljedeći slobodni i ispiše adresu).
 
 | Naredba (Windows / macOS, Linux) | Što radi |
 | --- | --- |
@@ -74,7 +74,7 @@ Ako si prije pokrenuo `db:seed`, stanar `demo` već postoji bez demo oznake i na
 | Problem | Rješenje |
 | --- | --- |
 | „Docker Desktop nije pokrenut” | pokreni Docker Desktop, pričekaj zelenu oznaku „Engine running”, ponovi |
-| Port 8080 je zauzet | zatvori program koji ga koristi ili u `infra/demo/docker-compose.yml` promijeni `127.0.0.1:8080:3000` u npr. `127.0.0.1:8090:3000` (i adresu u pregledniku) |
+| Port 8080 nije dostupan (zauzet ili ga je Windows rezervirao: „bind: … forbidden by its access permissions”) | skripta sama proba 8080, 8081, 8088, 18080 i 28080 i ispiše adresu koju je odabrala; vlastiti port: `set ARQUS_DEMO_PORT=9000` pa `demo.cmd` (Linux/macOS: `ARQUS_DEMO_PORT=9000 scripts/demo.sh`) |
 | Aplikacija se ne pokrene u 4 minute | `demo.cmd log`; najčešće je prva izgradnja slike spora ili nema mjesta na disku |
 | Prijava ne uspijeva | oznaka institucije je `demo` (mala slova); nakon `reset` prijavi se ponovno (stare sesije su obrisane) |
 | Datumi izgledaju stari | `demo.cmd reset` |

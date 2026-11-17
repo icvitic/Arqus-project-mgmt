@@ -4,6 +4,10 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-11-17
+### Ispravljeno
+- Demo okruženje: `demo.cmd` i `scripts/demo.sh` više ne ovise o portu 8080. Ako port nije dostupan (zauzet ili ga je Windows rezervirao – „bind: … forbidden by its access permissions”), skripta redom proba 8081, 8088, 18080 i 28080, zapamti odabrani (`infra/demo/.port`) i ispiše adresu; vlastiti port kroz `ARQUS_DEMO_PORT`. Izgradnja slike odvojena je od pokretanja, pa se greška izgradnje ne miješa s greškom porta.
+
 ## [0.24.0] - 2026-11-17
 ### Dodano
 - WP1.16b **ZNS paket za predaju** (`docs/domena/zns-pravila.md`): `GET /api/projects/:id/claims/:cid/export` – jedan ZIP za svaki status (nacrt označen kao NACRT u svakoj generiranoj datoteci): `troskovi.xlsx` (Sažetak po kategorijama paketa s traženim / priznatim / nepriznatim, svi troškovi, troškovi osoblja po osobi i mjesecu s podjelom po radnom paketu), `evidencije-rada/` (mjesečna evidencija za potpis po osobi i mjesecu, jedna stranica A4), `dokazi/` (trenutna verzija, SHA-256 provjeren pri izvozu – neslaganje prekida izvoz), `kontrolna-lista.html` (stanje pri predaji), `sadrzaj.csv` (manifest s veličinama i SHA-256). Strujanje bez otvorene transakcije, granica 500 MiB dokaza, povjerljivi dokazi samo uz `documents:confidential`, svaki izvoz u reviziji.

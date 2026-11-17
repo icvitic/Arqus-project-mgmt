@@ -1,6 +1,6 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.24.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.24.1 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
 - WP1.16b (v0.24.0): ZNS paket za predaju – jedan ZIP s radnom knjigom troškova (XLSX po kategorijama paketa, svi troškovi, troškovi osoblja po osobi i mjesecu), mjesečnim evidencijama rada za potpis (jedna stranica A4; isti dokument i kao ispis timesheeta), dokazima s provjerom SHA-256, kontrolnom listom i manifestom; nacrt označen kao NACRT, povjerljivi dokazi samo uz dozvolu, svaki izvoz u reviziji. Troškovi evidentirani nakon predaje svog razdoblja nude se u sljedećem nacrtu i ulaze samo izričitim odabirom (signal u portfelju). Mjerenje pripreme: automatske mjere na zahtjevu, prijavljeni sati pri predaji, polazna mjera institucije i izvještaj „Ušteda na ZNS-u” na portfelju. Financijski ured sada predaje paket iz sustava, a uprava vidi uštedu.
