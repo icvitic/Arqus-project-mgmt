@@ -9,7 +9,12 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 set "COMPOSE=docker compose -f infra\demo\docker-compose.yml"
-set "URL=http://localhost:8080"
+rem Port: zadnji uspjesno koristen (infra\demo\.port) ili ARQUS_DEMO_PORT; inace ga bira "start".
+set "SAVEDPORT="
+if exist "infra\demo\.port" set /p SAVEDPORT=<"infra\demo\.port"
+if defined ARQUS_DEMO_PORT set "SAVEDPORT=%ARQUS_DEMO_PORT%"
+if not defined SAVEDPORT (set "ARQUS_DEMO_PORT=8080") else (set "ARQUS_DEMO_PORT=%SAVEDPORT%")
+set "URL=http://localhost:%ARQUS_DEMO_PORT%"
 where docker >nul 2>&1 || (echo Docker Desktop nije instaliran. Preuzmi: https://www.docker.com/products/docker-desktop/ & pause & exit /b 1)
 docker info >nul 2>&1 || (echo Docker Desktop nije pokrenut. Pokreni ga, pricekaj da se upali pa pokusaj ponovno. & pause & exit /b 1)
 set "CMD=%~1"
@@ -24,8 +29,37 @@ exit /b 2
 
 :start
 echo === ArQus Projekti - demo (prvo pokretanje traje nekoliko minuta) ===
-%COMPOSE% up -d --build || goto fail
-echo Cekam aplikaciju...
+%COMPOSE% build || goto fail
+rem Port: Windows zna rezervirati 8080 (Hyper-V/WSL) ili ga drzi drugi program - probaj redom, prvi slobodan.
+set "PORTS=8080 8081 8088 18080 28080"
+if defined SAVEDPORT set "PORTS=%SAVEDPORT% %PORTS%"
+set "FATAL="
+for %%P in (%PORTS%) do (
+  call :tryport %%P
+  if not errorlevel 1 goto started
+  if defined FATAL goto fail
+)
+echo Nijedan od portova %PORTS% nije slobodan. Postavi drugi: set ARQUS_DEMO_PORT=9000 ^& demo.cmd
+pause
+exit /b 1
+
+:tryport
+set "ARQUS_DEMO_PORT=%1"
+%COMPOSE% up -d >"%TEMP%\arqus-demo-up.txt" 2>&1
+if not errorlevel 1 exit /b 0
+findstr /i /c:"ports are not available" /c:"port is already allocated" /c:"address already in use" /c:"bind:" "%TEMP%\arqus-demo-up.txt" >nul
+if errorlevel 1 (
+  set "FATAL=1"
+  type "%TEMP%\arqus-demo-up.txt"
+  exit /b 1
+)
+echo Port %1 nije dostupan, probavam sljedeci...
+exit /b 1
+
+:started
+set "URL=http://localhost:%ARQUS_DEMO_PORT%"
+(echo %ARQUS_DEMO_PORT%)>"infra\demo\.port"
+echo Cekam aplikaciju na %URL% ...
 set /a N=0
 :wait
 curl -sf %URL%/api/health >nul 2>&1 && goto ready
