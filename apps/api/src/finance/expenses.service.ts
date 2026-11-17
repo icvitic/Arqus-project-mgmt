@@ -9,7 +9,7 @@ import { ProgrammePackagesService } from '../programmes/programme-packages.servi
 import { loadProject } from '../common/project-access';
 import { currentContext } from '../common/tenant-context';
 import { canOnProject } from '../common/access';
-import { assertSpendable, projectEnd, selfPartner } from './finance-common';
+import { assertSpendable, notSelectedInDraft, projectEnd, selfPartner, strandedExpense } from './finance-common';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const expenseInput = z.object({
@@ -126,8 +126,12 @@ export class ExpensesService {
     });
     const claims = await tx.select({ c: reimbursementClaims, number: reportingPeriods.number }).from(reimbursementClaims)
       .innerJoin(reportingPeriods, eq(reportingPeriods.id, reimbursementClaims.reportingPeriodId)).where(eq(reimbursementClaims.projectId, projectId)).orderBy(asc(reportingPeriods.number));
+    // WP1.16b: nepredani troškovi iz ranijih razdoblja (datirani u već predanom razdoblju, nisu odabrani ni u jednom nacrtu).
+    const stranded = (await tx.select({ n: sql<number>`count(*)::int`, amount: sql<string>`coalesce(sum(${expenses.amountCents}), 0)` }).from(expenses)
+      .where(and(eq(expenses.projectId, projectId), strandedExpense(), notSelectedInDraft())))[0];
     return {
       projectId, budgetVersion: budget?.version ?? null, budgetStatus: budget?.status ?? 'none',
+      strandedExpenses: { count: stranded?.n ?? 0, amount: Number(stranded?.amount ?? 0) },
       planned: planned.totals, actual: actual.totals, unrecognised: diffTotals(claimedBasis.totals, actual.totals), byCategory,
       byPartner: partners.map((x, i) => ({ partnerId: x.id, name: x.name, planned: planned.partners[i]!.total, actual: actual.partners[i]!.total, unrecognised: claimedBasis.partners[i]!.total - actual.partners[i]!.total })),
       claims: claims.map(({ c, number }) => ({ id: c.id, period: number, partnerId: c.partnerId, status: c.status, requested: c.requestedCents, approved: c.approvedCents, paid: c.paidCents })),

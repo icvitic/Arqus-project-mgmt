@@ -1,5 +1,5 @@
 import { api } from '../lib/api';
-import { eur } from '../lib/format';
+import { eur, plural } from '../lib/format';
 import { useLoad } from '../lib/hooks';
 import type { FinanceOverview } from '../lib/types';
 import { Chip, ErrorBox, Loading } from '../ui';
@@ -19,6 +19,11 @@ export function FinanceTab({ project: p }: TabProps) {
         <div className="tile"><div className="v">{pct} %</div><div className="l">iskorištenost proračuna</div></div>
         <div className="tile"><div className="v">{eur(d.planned.total - d.actual.total)}</div><div className="l">preostalo</div></div>
       </div>
+      {d.strandedExpenses.count > 0 && (
+        <div className="warnbox">
+          {d.strandedExpenses.count} {plural(d.strandedExpenses.count, 'trošak nije predan', 'troška nisu predana', 'troškova nije predano')} ({eur(d.strandedExpenses.amount)}): {plural(d.strandedExpenses.count, 'datiran je', 'datirani su', 'datirani su')} u razdoblju čiji je ZNS već predan. <a href={`#/projekti/${p.id}/zns`}>Uključi ih u nacrt sljedećeg zahtjeva</a> (troškovi iz ranijih razdoblja).
+        </div>
+      )}
       <p className="muted">Ostvareno: trošak prije odluke o ZNS-u s traženim iznosom, nakon odluke s priznatim (odbijen = 0).{d.unrecognised.total > 0 && <> Nepriznato u odlukama: <b>{eur(d.unrecognised.total)}</b> (izravno {eur(d.unrecognised.direct)}, neizravno {eur(d.unrecognised.indirect)}).</>}</p>
       <div className="card scroll" style={{ marginTop: 16 }}>
         <h2>Po kategoriji (izravni troškovi)</h2>

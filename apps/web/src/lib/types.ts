@@ -42,7 +42,13 @@ export interface ChecklistItem { key: string; ok: boolean; severity: 'blocking' 
 export interface ClaimExpense {
   id: string; date: string; categoryCode: string; description: string; supplier: string | null; amount: number; recognised: number | null; decisionReason: string | null;
   status: string; source: string; documents: number; timesheetId: string | null; person: string | null; month: string | null; workPackage: string | null;
+  /** WP1.16b: trošak iz ranijeg razdoblja (izričito uključen). */
+  earlier: boolean;
 }
+/** WP1.16b: nepredan trošak iz ranijeg razdoblja koji nacrt može izričito uključiti. */
+export interface EarlierCandidate { id: string; date: string; categoryCode: string; description: string; supplier: string | null; amount: number; source: string; documents: number; period: number | null; selected: boolean; selectedElsewhere: number | null }
+/** WP1.16b: automatske mjere pripreme predanog zahtjeva. */
+export interface PreparationMeasures { daysAfterPeriodEnd: number; daysInPreparation: number; returns: number; expenses: number; evidenceFiles: number; timesheets: number; earlierExpenses: number }
 export interface Claim {
   id: string; period: Period; status: string; expenses: ClaimExpense[]; missingEvidence: number;
   totals: Money & { ratePercent: number }; recognised: Money | null; unrecognised: Money | null;
@@ -50,10 +56,14 @@ export interface Claim {
   earlyReason: string | null; submission: { early: boolean; earlyReason: string | null; acknowledgedWithoutEvidence: { id: string; date: string; description: string; amount: number }[]; warnings: { key: string; title: string; details: string[] }[] } | null;
   decision: { date: string | null; computed: number; funderTotal: number | null; difference: number; backfilled: boolean } | null;
   requested: number | null; approved: number | null; paid: number | null; submittedAt: string | null; decisionDate: string | null; paidAt: string | null; paymentNote: string | null; note: string | null;
+  earlierCandidates: EarlierCandidate[] | null;
+  preparation: { hours: number | null; measures: PreparationMeasures | null };
 }
 export interface DecisionPreview { outcome: string; claimed: Money; recognised: Money; unrecognised: Money; computed: number; funderTotal: number | null; approved: number; difference: number; errors: string[] }
 export interface FinanceOverview {
   budgetStatus: string; planned: Money; actual: Money; unrecognised: Money;
+  /** WP1.16b: nepredani troškovi iz ranijih razdoblja (razdoblje već predano, trošak nije odabran ni u jednom nacrtu). */
+  strandedExpenses: { count: number; amount: number };
   byCategory: { code: string; name: string; planned: number; actual: number; unrecognised: number; remaining: number; percent: number | null }[]; byPartner: { partnerId: string; name: string; planned: number; actual: number; unrecognised: number }[];
 }
 export interface ProjectRole { assignmentId: string; code: string; projectId: string; acronym: string | null }
@@ -96,7 +106,14 @@ export interface DocumentSummary { id: string; title: string; kind: string; conf
 export interface DocumentDetail extends Omit<DocumentSummary, 'current'> { versions: DocVersion[] }
 
 /* ---------- Portfelj (WP1.15) ---------- */
-export interface PortfolioAttention { lateDeliverables: number; highRisks: number; timesheetsToApprove: number | null; expensesWithoutEvidence: number | null; unclaimedPeriods: number | null }
+export interface PortfolioAttention { lateDeliverables: number; highRisks: number; timesheetsToApprove: number | null; expensesWithoutEvidence: number | null; unclaimedPeriods: number | null; strandedExpenses: number | null }
+/** WP1.16b: „Ušteda na ZNS-u” – prijavljeni sati pripreme prema polaznoj mjeri institucije. */
+export interface ClaimSavings {
+  status: 'ok' | 'no_baseline' | 'no_reports'; missing: ('baseline' | 'hours')[]; baselineHours: number | null; submittedClaims: number; reportedClaims: number;
+  averageHours: number | null; savingHours: number | null; savingPercent: number | null; targetPercent: number; meetsTarget: boolean | null; canEditBaseline: boolean;
+  automatic: { claims: number; averageDaysAfterPeriodEnd: number; averageDaysInPreparation: number; returns: number; claimsReturned: number; averageExpenses: number; averageEvidenceFiles: number; averageTimesheets: number } | null;
+  claims: { id: string; projectId: string; acronym: string; period: number; status: string; submittedAt: string; reportedHours: number | null; measures: PreparationMeasures }[];
+}
 export interface PortfolioProject {
   id: string; acronym: string; title: string; programme: string; packageId: string; actionType: string; role: string; status: string;
   startDate: string | null; durationMonths: number | null; endDate: string | null;

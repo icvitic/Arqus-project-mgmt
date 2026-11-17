@@ -1,6 +1,6 @@
 /* E2E provjera web sučelja na pravom API-ju (Playwright). Pokretanje: apps/web/e2e/run-local.sh
  * Tok: prijava → paket → radar (go) → organizacija → prijava na poziv (konzorcij, RP, proračun, predaja, ishod) → ugovaranje u projekt → aktivacija → tim i timesheet (predaja, odobrenje)
- *      → trošak (dokaz) → ZNS (provjera, rana predaja, odluka po trošku, isplata) → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → portfelj → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve. */
+ *      → trošak (dokaz) → ZNS (provjera, rana predaja, odluka po trošku, isplata, paket za predaju) → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → portfelj → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve. */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -164,6 +164,10 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Predaj na odobrenje' }).click();
     await page.getByRole('button', { name: /Odobri/ }).click();
     await page.locator('h3 .chip', { hasText: 'odobren' }).waitFor();
+    // WP1.16b: mjesečna evidencija za ispis i potpis (isti dokument kao u paketu ZNS-a).
+    await page.getByRole('button', { name: 'Evidencija za ispis i potpis' }).click();
+    await page.frameLocator('iframe[title="Evidencija rada za ispis"]').getByText('Ivana Horvat').first().waitFor();
+    await page.getByRole('button', { name: 'Zatvori evidenciju za ispis' }).click();
   });
   await step('trošak', async () => {
     await page.getByRole('tab', { name: 'Troškovi' }).click();
@@ -196,6 +200,7 @@ const tag = Date.now().toString(36);
     const submit = page.getByRole('button', { name: 'Predaj zahtjev' });
     if (await submit.isEnabled()) throw new Error('predaja bez razloga rane predaje ne smije biti moguća');
     await page.getByLabel(/Razlog rane predaje/).fill('E2E: provjera rane predaje');
+    await page.getByLabel('Sati utrošeni na pripremu').fill('3,5');
     await submit.click();
     await page.locator('h2 .chip', { hasText: 'predan' }).waitFor();
     await page.getByText('Predan prije kraja razdoblja. Razlog: E2E: provjera rane predaje').waitFor();
@@ -213,6 +218,13 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Zabilježi isplatu' }).click();
     await page.getByText(/isplaćeno 2\.356,50/).waitFor();
     await shot('zns-odluka');
+  });
+  await step('ZNS RP1: paket za predaju (ZIP) i mjerenje pripreme', async () => {
+    await page.getByText(/3,5 h pripreme/).waitFor();
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Preuzmi paket za predaju (ZIP)' }).first().click()]);
+    if (!/^ZNS_E2E[0-9a-z]+_RP1_\d{4}-\d{2}-\d{2}\.zip$/i.test(dl.suggestedFilename())) throw new Error(`preuzeto: ${dl.suggestedFilename()}`);
+    const head = require('node:fs').readFileSync(await dl.path()).subarray(0, 2).toString();
+    if (head !== 'PK') throw new Error('preuzeta datoteka nije ZIP');
   });
   await step('dokumenti projekta: ugovor, verzije, preuzimanje', async () => {
     await page.getByRole('tab', { name: 'Dokumenti' }).click();

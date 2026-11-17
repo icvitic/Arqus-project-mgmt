@@ -134,6 +134,16 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(c2.checklist.blocking.map((b) => b.key)).toEqual(['timesheets_approved', 'evidence']);
     expect(c2.checklist.blocking[0]!.details).toEqual([expect.stringMatching(/^Josip Barić, \d{4}-\d{2} \(čeka odobrenje/)]);
     expect((await http().get(`/api/documents?projectId=${npoo.id}`).set(as('office')).expect(200)).body.length).toBeGreaterThanOrEqual(6);
+    // WP1.16b: kasno evidentiran račun za RP1 – nacrt ZNS-a 2 ga nudi (nije uključen dok ga priprematelj ne odabere); sati pripreme ZNS-a 1.
+    const c2b = claims[1] as unknown as { earlierCandidates: { description: string; period: number; selected: boolean }[]; expenses: { description: string }[] };
+    expect(c2b.earlierCandidates).toEqual([expect.objectContaining({ description: 'Najam termovizijske kamere za pilot-mjerenje', period: 1, selected: false })]);
+    expect(c2b.expenses.some((e) => e.description.startsWith('Najam termovizijske'))).toBe(false);
+    expect((claims[0] as unknown as { preparation: { hours: number; measures: { returns: number; expenses: number } } }).preparation).toMatchObject({ hours: 18, measures: { returns: 0 } });
+    // Paket za predaju ZNS-a 1: ZIP s radnom knjigom, evidencijama rada i dokazima.
+    const pkgRes = await http().get(`/api/projects/${npoo.id}/claims/${claims[0]!.id}/export`).set(as('finance')).buffer(true)
+      .parse((res, cb) => { const parts: Buffer[] = []; res.on('data', (c: Buffer) => parts.push(c)); res.on('end', () => cb(null, Buffer.concat(parts))); }).expect(200);
+    expect(String(pkgRes.headers['content-disposition'])).toMatch(/ZNS_ZELENI-LAB_RP1_\d{4}-\d{2}-\d{2}\.zip/);
+    expect((pkgRes.body as Buffer).subarray(0, 2).toString()).toBe('PK');
 
     // WP1.14: voditelj vidi samo svoj projekt; tuđi projekt je 404; član tima ne vidi plaće ni povjerljive dokumente.
     expect(((await http().get('/api/projects').set(as('pm')).expect(200)).body as Row[]).map((p) => p.acronym)).toEqual(['BLUESENSE']);
@@ -155,7 +165,11 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(row('BLUESENSE').budget.signal).toBe('ok');
     expect(row('BLUESENSE').attention).toMatchObject({ timesheetsToApprove: 1, expensesWithoutEvidence: 1 });
     expect(row('BLUESENSE').attention.lateDeliverables).toBeGreaterThanOrEqual(1);
-    expect(row('ZELENI-LAB').attention).toMatchObject({ lateDeliverables: 1, unclaimedPeriods: 1, expensesWithoutEvidence: 1 });
+    expect(row('ZELENI-LAB').attention).toMatchObject({ lateDeliverables: 1, unclaimedPeriods: 1, expensesWithoutEvidence: 1, strandedExpenses: 1 });
+    expect(row('BLUESENSE').attention.strandedExpenses).toBe(0);
+    // WP1.16b: „Ušteda na ZNS-u” – polazna mjera 30 h, ZNS 1 pripremljen za 18 h → 40 %.
+    const savings = (await http().get('/api/portfolio/claim-savings').set(as('board')).expect(200)).body;
+    expect(savings).toMatchObject({ status: 'ok', baselineHours: 30, reportedClaims: 1, submittedClaims: 1, averageHours: 18, savingPercent: 40, meetsTarget: true, canEditBaseline: false });
     expect(row('ZELENI-LAB').attention.highRisks + row('BLUESENSE').attention.highRisks).toBeGreaterThanOrEqual(2);
     const marina = pf.people.persons.find((x: Row) => x.name === 'Marina Šimić');
     expect(marina.projects).toHaveLength(2);

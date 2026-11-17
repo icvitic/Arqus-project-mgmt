@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/api';
+import { api, downloadFile } from '../lib/api';
 import { centsToInput, date, eur, label, monthLabel, parseEur, plural } from '../lib/format';
 import { useLoad } from '../lib/hooks';
 import { defaultPeriod, groupExpenses, localToday, type ExpenseGroup } from '../lib/claims';
-import type { Claim, ClaimExpense, ChecklistItem, DecisionPreview } from '../lib/types';
+import type { Claim, ClaimExpense, ChecklistItem, DecisionPreview, PreparationMeasures } from '../lib/types';
 import { ActionButton, ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
 import { can, type TabProps } from '../pages/ProjectDetail';
 
@@ -47,6 +47,10 @@ function ClaimCard({ claim: c, projectId, write, reload }: { claim: Claim; proje
         <span className="muted">{date(c.period.startDate)} – {date(c.period.endDate)} · rok {date(c.period.dueDate)}</span>
       </div>
       <Figures c={c} />
+      <div className="actions">
+        <ActionButton onClick={() => downloadFile(`${base}/export`, `ZNS_RP${c.period.number}.zip`)}>Preuzmi paket za predaju (ZIP)</ActionButton>
+        <span className="muted">troškovi (Excel), evidencije rada za potpis, dokazi, kontrolna lista i popis sadržaja{c.status === 'draft' ? ' · nacrt je u svakoj datoteci označen kao NACRT' : ''}</span>
+      </div>
       {c.status === 'draft' && c.note && <div className="warnbox">Vraćen na dopunu: {c.note}</div>}
       {c.earlyReason && <div className="warnbox">Predan prije kraja razdoblja. Razlog: {c.earlyReason}</div>}
       {decided && c.note && <div className="warnbox">Napomena uz odluku: {c.note}</div>}
@@ -54,7 +58,9 @@ function ClaimCard({ claim: c, projectId, write, reload }: { claim: Claim; proje
         <div className="warnbox">Iznos iz odluke ({eur(c.decision.funderTotal)}) razlikuje se od izračunatog priznatog iznosa ({eur(c.decision.computed)}) za {eur(c.decision.difference)}.</div>
       )}
       {c.paid !== null && c.approved !== null && c.paid !== c.approved && <div className="warnbox">Isplaćeno {eur(c.paid)} uz odobreno {eur(c.approved)}{c.paymentNote ? ` – ${c.paymentNote}` : ''}.</div>}
+      {c.status === 'draft' && c.earlierCandidates && c.earlierCandidates.length > 0 && <EarlierPanel c={c} base={base} write={write} reload={reload} />}
       {c.status === 'draft' && c.checklist && <SubmitPanel c={c} base={base} write={write} reload={reload} />}
+      {c.status !== 'draft' && <PreparationPanel c={c} base={base} write={write} reload={reload} />}
       {c.status !== 'draft' && c.submission && (c.submission.warnings.length > 0) && (
         <details className="sub-panel"><summary>Upozorenja zabilježena pri predaji ({c.submission.warnings.length})</summary>
           <ul className="checklist">{c.submission.warnings.map((w) => <li key={w.key}><b>! {w.title}</b>{w.details.length > 0 && <ul>{w.details.map((d) => <li key={d}>{d}</li>)}</ul>}</li>)}</ul>
@@ -99,6 +105,8 @@ function Figures({ c }: { c: Claim }) {
 function SubmitPanel({ c, base, write, reload }: { c: Claim; base: string; write: boolean; reload: () => Promise<void> }) {
   const [reason, setReason] = useState('');
   const [ack, setAck] = useState(false);
+  const [prep, setPrep] = useState(c.preparation.hours === null ? '' : String(c.preparation.hours).replace('.', ','));
+  const prepHours = parseHoursInput(prep);
   const items = c.checklist!.items;
   const resolved = (i: ChecklistItem) => i.ok || (i.resolution === 'early_reason' && reason.trim().length >= MIN_REASON) || (i.resolution === 'acknowledge' && ack);
   const open = items.filter((i) => i.severity === 'blocking' && !resolved(i));
@@ -132,15 +140,93 @@ function SubmitPanel({ c, base, write, reload }: { c: Claim; base: string; write
         </label>
       )}
       {write && (
+        <Field label="Sati utrošeni na pripremu ovog zahtjeva (neobavezno)" hint="Ukupno vrijeme svih koji su radili na zahtjevu (prikupljanje računa, tablice, evidencije, provjera). Ulazi u izvještaj „Ušteda na ZNS-u” na portfelju.">
+          <input aria-label="Sati utrošeni na pripremu" inputMode="decimal" value={prep} onChange={(e) => setPrep(e.target.value)} placeholder="npr. 12,5" style={prepHours === undefined ? { borderColor: 'var(--bad)' } : undefined} />
+        </Field>
+      )}
+      {write && (
         <div className="actions">
-          <ActionButton kind="primary" disabled={open.length > 0} confirm="Predati zahtjev? Troškovi, timesheetovi i dokazi se zaključavaju."
-            onClick={async () => { await api('POST', `${base}/submit`, { ...(early ? { earlyReason: reason.trim() } : {}), ...(evidence && ack ? { acknowledgeWithoutEvidence: evidence.expenseIds ?? [] } : {}) }); await reload(); }}>
+          <ActionButton kind="primary" disabled={open.length > 0 || prepHours === undefined} confirm="Predati zahtjev? Troškovi, timesheetovi i dokazi se zaključavaju."
+            onClick={async () => { await api('POST', `${base}/submit`, { ...(early ? { earlyReason: reason.trim() } : {}), ...(evidence && ack ? { acknowledgeWithoutEvidence: evidence.expenseIds ?? [] } : {}), ...(prepHours !== null && prepHours !== undefined ? { preparationHours: prepHours } : {}) }); await reload(); }}>
             Predaj zahtjev
           </ActionButton>
           {open.length > 0 && <span className="muted">Predaja nije moguća: {open.length} {plural(open.length, 'otvorena stavka', 'otvorene stavke', 'otvorenih stavki')}.</span>}
         </div>
       )}
     </div>
+  );
+}
+
+/** Sati u obliku "12,5": prazno → null (nije upisano), neispravno → undefined. */
+function parseHoursInput(v: string): number | null | undefined {
+  const t = v.trim().replace(',', '.');
+  if (!t) return null;
+  if (!/^\d{1,4}(\.\d{1,2})?$/.test(t)) return undefined;
+  return Number(t);
+}
+
+/**
+ * WP1.16b: nepredani troškovi iz ranijih razdoblja (datirani u razdoblju čiji je ZNS već predan). Ne ulaze sami –
+ * priprematelj ih izričito odabire; tada su u zahtjevu i paketu označeni kao „ranije razdoblje”.
+ */
+function EarlierPanel({ c, base, write, reload }: { c: Claim; base: string; write: boolean; reload: () => Promise<void> }) {
+  const list = c.earlierCandidates!;
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set(list.filter((x) => x.selected).map((x) => x.id)));
+  const saved = new Set(list.filter((x) => x.selected).map((x) => x.id));
+  const dirty = chosen.size !== saved.size || [...chosen].some((id) => !saved.has(id));
+  const toggle = (id: string) => setChosen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  return (
+    <div className="sub-panel" aria-label="Troškovi iz ranijih razdoblja">
+      <h3 style={{ marginTop: 0 }}>Troškovi iz ranijih razdoblja ({list.length})</h3>
+      <p className="muted" style={{ marginTop: 0 }}>Evidentirani nakon što je ZNS za njihovo razdoblje već predan, pa nisu ni u jednom zahtjevu. Ulaze u ovaj zahtjev samo ako ih izričito odabereš; u zahtjevu i paketu za predaju označeni su kao „ranije razdoblje”.</p>
+      <table className="claim-table">
+        <thead><tr><th /><th>Datum</th><th>Trošak</th><th className="num">Iznos</th><th>Dokaz</th></tr></thead>
+        <tbody>{list.map((x) => (
+          <tr key={x.id}>
+            <td><input type="checkbox" aria-label={`Uključi: ${x.description}`} checked={chosen.has(x.id)} disabled={!write || x.selectedElsewhere !== null} onChange={() => toggle(x.id)} /></td>
+            <td>{date(x.date)}<small className="muted">RP{x.period ?? '?'}</small></td>
+            <td>{x.categoryCode} · {x.description}{x.supplier ? <span className="muted"> · {x.supplier}</span> : null}{x.selectedElsewhere !== null && <small className="muted">već odabran u nacrtu ZNS-a za RP{x.selectedElsewhere}</small>}</td>
+            <td className="num">{eur(x.amount)}</td>
+            <td>{x.source !== 'manual' ? <span className="muted">timesheet</span> : x.documents ? `dokaz (${x.documents})` : <span className="chip warn">bez dokaza</span>}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+      {write && (
+        <div className="actions">
+          <ActionButton kind={dirty ? 'primary' : undefined} disabled={!dirty} onClick={async () => { await api('PUT', `${base}/earlier-expenses`, { expenseIds: [...chosen] }); await reload(); }}>Spremi odabir</ActionButton>
+          <span className="muted">Odabrano: {chosen.size} od {list.length}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const MEASURE_ROWS: [keyof PreparationMeasures, string][] = [
+  ['daysAfterPeriodEnd', 'dana od kraja razdoblja do predaje'], ['daysInPreparation', 'dana od otvaranja nacrta do predaje'], ['returns', 'povrata na dopunu'],
+  ['expenses', 'troškova'], ['evidenceFiles', 'dokaza'], ['timesheets', 'timesheetova'],
+];
+
+/** WP1.16b: mjerenje pripreme nakon predaje – automatske mjere i prijavljeni sati (naknadni upis ili ispravak). */
+function PreparationPanel({ c, base, write, reload }: { c: Claim; base: string; write: boolean; reload: () => Promise<void> }) {
+  const m = c.preparation.measures;
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(c.preparation.hours === null ? '' : String(c.preparation.hours).replace('.', ','));
+  const parsed = parseHoursInput(value);
+  if (!m) return null;
+  return (
+    <details className="sub-panel" aria-label="Mjerenje pripreme">
+      <summary>Mjerenje pripreme · {c.preparation.hours === null ? 'sati pripreme nisu upisani' : `${String(c.preparation.hours).replace('.', ',')} h pripreme`} · predan {m.daysAfterPeriodEnd >= 0 ? `${m.daysAfterPeriodEnd} d nakon kraja razdoblja` : `${-m.daysAfterPeriodEnd} d prije kraja razdoblja`}</summary>
+      <div className="chips" style={{ marginTop: 8 }}>{MEASURE_ROWS.map(([k, l]) => <span key={k} className="chip"><b>{m[k]}</b> {l}</span>)}{m.earlierExpenses > 0 && <span className="chip acc"><b>{m.earlierExpenses}</b> iz ranijih razdoblja</span>}</div>
+      <p className="muted">Mjeri se automatski iz vremena otvaranja i predaje i revizijskog zapisa. Sustav ne zna koliko ste sati radili – to upisuje priprematelj (ulazi u izvještaj „Ušteda na ZNS-u” na portfelju).</p>
+      {write && !editing && <button onClick={() => setEditing(true)}>{c.preparation.hours === null ? 'Upiši sate pripreme' : 'Ispravi sate pripreme'}</button>}
+      {write && editing && (
+        <div className="actions">
+          <Field label="Sati utrošeni na pripremu"><input aria-label="Sati pripreme" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} /></Field>
+          <ActionButton kind="primary" disabled={parsed === undefined} onClick={async () => { await api('PUT', `${base}/preparation-hours`, { hours: parsed }); setEditing(false); await reload(); }}>Spremi</ActionButton>
+          <button onClick={() => setEditing(false)}>Odustani</button>
+        </div>
+      )}
+    </details>
   );
 }
 
@@ -160,7 +246,7 @@ function ExpenseTable({ c }: { c: Claim }) {
           {groups.map((g) => g.kind === 'personnel' ? (
             <Fragment key={g.key}>
               <tr>
-                <td>{date(g.date)}</td>
+                <td>{date(g.date)}{g.rows.some((e) => e.earlier) && <><br /><span className="chip acc">ranije razdoblje</span></>}</td>
                 <td><button className="link" aria-expanded={open.has(g.key)} onClick={() => toggle(g.key)}>{open.has(g.key) ? '▾' : '▸'} Rad: {g.person}, {g.month ? monthLabel(g.month) : ''}</button> <span className="muted">· {g.rows.length} {plural(g.rows.length, 'radni paket', 'radna paketa', 'radnih paketa')}</span></td>
                 <td className="num">{eur(g.amount)}</td>{decided && <td className="num">{eur(g.recognised)}</td>}
                 <td>{statusOf(g.rows) ? <Chip s={statusOf(g.rows)!} /> : <span className="chip warn">djelomično</span>}</td>
@@ -177,7 +263,7 @@ function ExpenseTable({ c }: { c: Claim }) {
             </Fragment>
           ) : g.rows.map((e) => (
             <tr key={e.id}>
-              <td>{date(e.date)}</td>
+              <td>{date(e.date)}{e.earlier && <><br /><span className="chip acc" title="trošak iz ranijeg razdoblja, izričito uključen">ranije razdoblje</span></>}</td>
               <td>{e.categoryCode} · {e.description}{e.supplier ? <span className="muted"> · {e.supplier}</span> : null}{e.decisionReason && <small className="muted">Razlog: {e.decisionReason}</small>}</td>
               <td className="num">{eur(e.amount)}</td>{decided && <td className="num">{eur(e.recognised)}</td>}
               <td><Chip s={e.status} /></td>
