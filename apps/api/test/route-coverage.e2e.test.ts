@@ -84,8 +84,13 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
       .toEqual(['POST /api/proposals', 'POST /api/proposals/:id/contract', 'POST /api/proposals/:id/outcome', 'POST /api/proposals/:id/submit'].sort());
     // Rute s projektnim entitetom izvan /projects (dokumenti) razrješavaju projekt u servisu.
     expect(routes.filter((r) => r.path.startsWith('/api/documents')).every((r) => r.access.kind === 'resolves-project')).toBe(true);
-    // Javne rute: samo health i prijava.
-    expect(routes.filter((r) => r.access.kind === 'public').map((r) => `${r.method} ${r.path}`).sort()).toEqual(['GET /api/health', 'GET /api/health/ready', 'POST /api/auth/login']);
+    // Javne rute: health, prijava i (WP1.18) osobni kalendar rokova po tajnom tokenu – izričit popis, nova javna ruta ruši test.
+    expect(routes.filter((r) => r.access.kind === 'public').map((r) => `${r.method} ${r.path}`).sort()).toEqual(['GET /api/calendar/:token', 'GET /api/health', 'GET /api/health/ready', 'POST /api/auth/login']);
+    // WP1.18: rute „o meni” traže samo prijavu (korisnik o sebi) i nisu dostupne u ograničenom stanju MFA (provjera ispod).
+    expect(routes.filter((r) => r.path.startsWith('/api/me/') && ['work', 'notifications', 'calendar'].some((x) => r.path.startsWith(`/api/me/${x}`))).map((r) => `${r.method} ${r.path} (${r.access.kind})`).sort()).toEqual([
+      'DELETE /api/me/calendar (authenticated)', 'GET /api/me/calendar (authenticated)', 'GET /api/me/notifications (authenticated)', 'GET /api/me/work (authenticated)',
+      'POST /api/me/calendar (authenticated)', 'POST /api/me/notifications/:nid/read (authenticated)', 'POST /api/me/notifications/read-all (authenticated)',
+    ]);
     // WP1.19: u ograničenom stanju (obvezni MFA nije postavljen) dostupne su samo ove rute – vlastiti račun i odjava.
     expect(routes.filter((r) => r.mfaSetup).map((r) => `${r.method} ${r.path} (${r.access.kind})`).sort()).toEqual([
       'GET /api/me (authenticated)', 'POST /api/auth/logout (authenticated)', 'POST /api/me/mfa/enable (authenticated)', 'POST /api/me/mfa/setup (authenticated)', 'POST /api/me/password (authenticated)',
@@ -97,7 +102,7 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
   /** Id-jevi projekta B za parametre putanje; nepoznati parametar ruši test (treba ga dodati ovdje). */
   const paramsB = (): Record<string, string> => ({
     id: f.B.id, wpId: f.B.wp, taskId: f.B.task, did: f.B.deliverable, mid: f.B.member, rid: f.B.risk, eid: f.B.expense, cid: f.B.claim,
-    partnerId: f.B.self, assignmentId: randomUUID(), month: f.month, n: '1', importId: randomUUID(),
+    partnerId: f.B.self, assignmentId: randomUUID(), month: f.month, n: '1', importId: randomUUID(), nid: '1',
   });
   const fill = (path: string, values: Record<string, string>) => path.replace(/:(\w+)/g, (_, k: string) => {
     if (!(k in values)) throw new Error(`Nepoznat parametar :${k} u ${path} – dodaj ga u paramsB`);

@@ -132,7 +132,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     code: 'IP-2027-02', title: 'Istraživački projekti', programme: 'Hrvatska zaklada za znanost', funder: 'Hrvatska zaklada za znanost',
     summary: 'Pokazni poziv (izmišljeni podaci).', actionTypes: [], opensAt: inDays(-14),
     deadlines: [{ kind: 'submission', at: deadline(inDays(56)), label: 'Rok za predaju' }], tags: ['temeljna istraživanja'],
-  }, undefined, { decision: 'watch', internalDeadline: inDays(42), ownerUserId: userIds.office });
+  }, undefined, { decision: 'watch', internalDeadline: inDays(21), ownerUserId: userIds.office }); // WP1.18: bez odluke go/no-go, interni rok za 3 tjedna („Moj rad” ureda)
   await addCall('erasmus', {
     code: 'ERASMUS-EDU-2026-PI-ALL-INNO', title: 'Partnerstva za izvrsnost i inovacije u visokom obrazovanju', programme: 'Erasmus+', funder: 'Europska komisija',
     summary: 'Pokazni poziv (izmišljeni podaci). Rok je prošao.', actionTypes: [], opensAt: inDays(-120),
@@ -204,7 +204,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   await office.post(`/projects/${npoo}/transition`, { to: 'active' });
 
   // Timesheetovi NPOO: mj. 1–12 (RP1 i RP2). Josipov timesheet za 12. mjesec čeka odobrenje ureda (otvorena stavka ZNS-a 2).
-  // Marina u 12. mjesecu radi i na BLUESENSE (portfelj: dan iznad 8 h kroz dva projekta).
+  // Marina u 12. mjesecu radi i na BLUESENSE (portfelj: dan iznad 8 h kroz dva projekta). WP1.18: Marinine sate za 12. mjesec
+  // unio je i predao ured za projekte – odobrava ih voditelj Josip (četiri oka), pa mu čekaju u „Moj rad”.
   const timesheet = async (writer: Api, approver: Api, projectId: string, memberId: string, month: string, entries: unknown[], approve = true) => {
     const url = `/projects/${projectId}/team/${memberId}/timesheets/${month}`;
     await writer.put(url, { revision: await revisionOf(writer, url), entries });
@@ -218,7 +219,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     const mEntries = timesheetEntries(month, m, [360, 420, 300, 480, 240, 360], nWp, 3);
     await timesheet(pm2, office, npoo, josip, month, timesheetEntries(month, m, [120, 180, 90, 240, 120], nWp, 1), m < 12);
     // WP1.14b – četiri oka: voditelj unosi i predaje sate člana bez korisničkog računa, ured za projekte ih odobrava.
-    await timesheet(pm2, office, npoo, marina, month, mEntries);
+    if (m < 12) await timesheet(pm2, office, npoo, marina, month, mEntries);
+    else await timesheet(office, pm2, npoo, marina, month, mEntries, false);
     if (m === 12) marinaLast = mEntries;
   }
   // Ručni troškovi RP1 s dokazima (trošak i dokaz unose financije).
@@ -242,7 +244,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   // WP1.16b: financije pri predaji upisuju sate utrošene na pripremu (osnova izvještaja „Ušteda na ZNS-u” na portfelju).
   await finance.post(`/projects/${npoo}/claims/${claim1.id}/submit`, { preparationHours: DEMO_PREPARATION_HOURS });
   const reducedTo = 1_050_000;
-  const decided = await finance.post<{ approved: number; requested: number }>(`/projects/${npoo}/claims/${claim1.id}/decision`, {
+  // WP1.18: odluku posredničkog tijela i isplatu upisuje ured za projekte – financije (predale su ZNS) dobivaju obavijesti.
+  const decided = await office.post<{ approved: number; requested: number }>(`/projects/${npoo}/claims/${claim1.id}/decision`, {
     decision: 'decided', decisionDate: todayIso,
     expenses: [
       { id: rp1Ids[1], recognised: reducedTo, reason: 'Priznato do iznosa iz ugovora s izvršiteljem (10.500,00 EUR); razlika je dodatni posao izvan plana nabave.' },
@@ -250,7 +253,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     ],
     note: 'Odluka posredničkog tijela: djelomično odobren – jedan trošak umanjen, jedan nije priznat.',
   });
-  await finance.post(`/projects/${npoo}/claims/${claim1.id}/payment`, { paidAmount: decided.approved, paidAt: todayIso });
+  await office.post(`/projects/${npoo}/claims/${claim1.id}/payment`, { paidAmount: decided.approved, paidAt: todayIso });
   await upload(pm2, 'claim', claim1.id, 'ZNS-1-odluka.pdf', 'Odluka posredničkog tijela o ZNS-u 1', 'correspondence', [`Zatraženo: ${eur(decided.requested)}`, `Odobreno: ${eur(decided.approved)}`, `Elaborat energetskog pregleda umanjen na ${eur(reducedTo)}`, 'Nepriznat trošak: studijsko putovanje (865,00 EUR)']);
   // WP1.16b: račun za RP1 stigao i evidentiran nakon predaje ZNS-a 1 – nepredan trošak iz ranijeg razdoblja (portfelj ga broji,
   // nacrt ZNS-a 2 ga nudi kao „trošak iz ranijih razdoblja” koji priprematelj izričito uključuje).
@@ -321,7 +324,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   for (const r of [
     { description: 'Kašnjenje isporuke elektroničkih komponenti senzora', likelihood: 3, impact: 2, mitigation: 'Dva dobavljača, narudžba ključnih komponenti unaprijed.', ownerUserId: userIds.pm },
     { description: 'Odlazak ključnog istraživača iz konzorcija', likelihood: 2, impact: 3, mitigation: 'Dokumentiranje znanja, zamjene po partneru.', ownerUserId: userIds.office },
-    { description: 'Nepovoljni vremenski uvjeti odgađaju terenska mjerenja', likelihood: 2, impact: 2, mitigation: 'Terenski rad planiran u dva sezonska prozora.', ownerUserId: userIds.pm },
+    // WP1.18: član tima Luka nositelj je rizika terenskih mjerenja (rizik je jedina odgovornost osobe u modelu strukture).
+    { description: 'Nepovoljni vremenski uvjeti odgađaju terenska mjerenja', likelihood: 2, impact: 2, mitigation: 'Terenski rad planiran u dva sezonska prozora.', ownerUserId: userIds.member },
     { description: 'Nedovoljna kvaliteta podataka za treniranje modela', likelihood: 1, impact: 3, mitigation: 'Povijesni podaci partnera i sintetički skupovi.', status: 'mitigated' },
   ]) {
     const { status, ...body } = r as typeof r & { status?: string };
@@ -419,6 +423,14 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   await office.post(`/proposals/${rj.id}/submit`, { portal: 'eNPOO (fondovieu.gov.hr)', reference: 'ZDP-2025-0093', submittedAt: `${addMonths(npooStart, -4)}T12:00:00Z` });
   await office.post(`/proposals/${rj.id}/outcome`, { result: 'rejected', score: '61/100', note: 'Ispod praga za financiranje (65 bodova).' });
   sum.proposals.push('PAMETNI-KAMPUS (odbijena)');
+
+  // WP1.18: obavijesti nastale gornjim tokovima (odobreni timesheetovi, imenovanja, pristup, odluka i isplata ZNS-a). Starije su
+  // „već pročitane” (kao kod korisnika koji sustav koristi mjesecima) – nepročitane ostaju najnovije tri.
+  for (const api of [pm, pm2, member, finance]) {
+    const list = await api.get<{ items: { id: number }[] }>('/me/notifications?limit=100');
+    for (const n of list.items.slice(3)) await api.post(`/me/notifications/${n.id}/read`);
+  }
+  log('obavijesti: starije označene pročitanima, najnovije tri nepročitane');
 
   for (const api of [admin, office, pm, pm2, member, finance]) await api.post('/auth/logout').catch(() => undefined);
   return sum;

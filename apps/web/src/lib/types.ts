@@ -167,3 +167,11 @@ export interface AuditEntry {
   redacted: boolean;
 }
 export interface AuditFacets { entities: string[]; actions: string[]; actors: { id: string; displayName: string }[] }
+/** WP1.18 – „Moj rad”: stavka koja čeka korisnika (bez iznosa). */
+export type WorkUrgency = 'overdue' | 'due_soon' | 'waiting' | 'info';
+export interface WorkItem { key: string; kind: string; role: string; urgency: WorkUrgency; due: string | null; days: number | null; title: string; detail?: string; link: string; projectId?: string; acronym?: string; proposalId?: string; callId?: string; count?: number }
+export interface WorkSummary { overdue: number; dueSoon: number; waiting: number; info: number; attention: number }
+export interface MyWork { today: string; items: WorkItem[]; summary: WorkSummary }
+export interface AppNotification { id: number; kind: string; title: string; detail: string | null; link: string | null; projectId: string | null; proposalId: string | null; actor: string | null; createdAt: string; read: boolean }
+export interface NotificationPage { items: AppNotification[]; unread: number; next: number | null }
+export interface CalendarStatus { active: boolean; createdAt: string | null; lastUsedAt: string | null; token?: string; path?: string }

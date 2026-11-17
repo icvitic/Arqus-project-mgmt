@@ -5,7 +5,9 @@
  *      četiri oka na timesheetu (predavatelj ne vidi „Odobri”, odobrava ured), stranica Revizija (filtri, prije/poslije, CSV).
  * WP1.19: obvezni MFA (administrator postroži postavku, ured u otvorenoj sesiji ide na postavljanje MFA), iznosi troškova osoblja
  *      skriveni upravi bez prava na plaće (sati vidljivi).
- * WP1.17: uvoz iz Excela (predložak, greške po retku, pregled s upozorenjem, potvrda, podaci na karticama, povijest). */
+ * WP1.17: uvoz iz Excela (predložak, greške po retku, pregled s upozorenjem, potvrda, podaci na karticama, povijest).
+ * WP1.18: član tima nakon prijave stiže na „Moj rad”, iz stavke otvara timesheet tekućeg mjeseca i predaje ga; voditelj ga vidi
+ *      u svojem „Moj rad”, odobrava i stavka nestaje; član tima dobiva obavijest „odobren” u zvoncu. */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -423,9 +425,10 @@ const tag = Date.now().toString(36);
     await relogin(newEmail, newPw);
     await page.getByLabel('Kod iz aplikacije za autentikaciju').fill(totp(secret, 1));
     await page.getByRole('button', { name: 'Potvrdi kod' }).click();
-    await page.getByRole('heading', { name: 'Projekti' }).waitFor();
+    await page.getByRole('heading', { name: 'Moj rad' }).waitFor(); // WP1.18: početna stranica člana tima
   });
   await step('član tima vidi samo svoj projekt i samo dopuštene radnje', async () => {
+    await page.getByRole('link', { name: 'Projekti', exact: true }).click();
     await page.getByRole('cell', { name: new RegExp(acronym) }).first().waitFor();
     const rows = await page.locator('tbody tr.row').count();
     if (rows !== 1) throw new Error(`očekivan 1 projekt, vidljivo ${rows}`);
@@ -437,6 +440,63 @@ const tag = Date.now().toString(36);
     if (await page.getByRole('tab', { name: 'Pristup' }).count()) throw new Error('kartica Pristup ne smije biti vidljiva članu tima');
     if (await page.getByRole('button', { name: 'Dodaj člana tima' }).count()) throw new Error('član tima ne dodaje članove');
     await shot('clan-tima');
+  });
+  // WP1.18: „Moj rad”. Projekt u tijeku (počeo prije dva mjeseca) s voditeljicom ureda kao imenovanom voditeljicom i Anom kao
+  // članicom tima s računom. Ana nakon prijave vidi timesheet tekućeg mjeseca, otvara ga iz stavke i predaje; voditeljica ga
+  // vidi u svojem „Moj rad”, odobrava i stavka nestaje; Ana u zvoncu dobiva obavijest da je timesheet odobren.
+  await step('Moj rad: član tima predaje timesheet iz stavke, voditeljica ga odobrava iz svog popisa, obavijest „odobren”', async () => {
+    const zg = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zagreb', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const [y, mo] = zg.split('-').map(Number); const start = new Date(Date.UTC(y, mo - 3, 1)).toISOString().slice(0, 10);
+    const o = await openOffice();
+    const live = `MR${tag}`.slice(0, 20);
+    const res = await o.evaluate(async ([email, live, start]) => {
+      const h = { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` };
+      const me = await (await fetch('/api/me', { headers: h })).json();
+      const ana = (await (await fetch('/api/users', { headers: h })).json()).find((u) => u.email === email);
+      const p = await (await fetch('/api/projects', { method: 'POST', headers: h, body: JSON.stringify({ acronym: live, title: 'Projekt u tijeku (Moj rad)', packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', contractNo: `UG-${live}`, startDate: start, durationMonths: 12, managerUserId: me.user.id }) })).json();
+      const a = (await fetch(`/api/projects/${p.id}/transition`, { method: 'POST', headers: h, body: JSON.stringify({ to: 'active' }) })).status;
+      const t = (await fetch(`/api/projects/${p.id}/team`, { method: 'POST', headers: h, body: JSON.stringify({ fullName: 'Ana Novak', userId: ana.id, annualCost: 3_000_000 }) })).status;
+      return `${a} ${t}`;
+    }, [newEmail, live, start]);
+    if (res !== '201 201') throw new Error(`projekt za Moj rad: ${res}`);
+    // Ana (prijavljena) – nova uloga na projektu vrijedi odmah; „Moj rad” je početna stranica.
+    const t0 = Date.now();
+    await page.goto(WEB);
+    await page.getByRole('heading', { name: 'Moj rad' }).waitFor();
+    const item = page.locator('a.work-item[data-kind="timesheet_current"]', { hasText: live });
+    await item.getByText('nije započet').waitFor();
+    // Ana je u tim upisana danas – raniji mjeseci projekta od nje se ne traže (pravilo „od kasnijeg od početka i ulaska u tim”).
+    if (await page.locator('a.work-item[data-kind="timesheet_missing"]', { hasText: live }).count()) throw new Error('mjeseci prije ulaska u tim ne smiju se tražiti');
+    await shot('moj-rad-clan');
+    await item.click();
+    await page.getByLabel('Bez radnog paketa dan 1', { exact: true }).fill('6');
+    await page.getByRole('button', { name: 'Spremi', exact: true }).click();
+    await page.getByText('ukupno 6 h').waitFor();
+    await page.getByRole('button', { name: 'Predaj na odobrenje' }).click();
+    await page.locator('h3 .chip', { hasText: 'predan' }).waitFor();
+    process.stdout.write(`(predano za ${Math.round((Date.now() - t0) / 1000)} s) `);
+    await page.getByRole('link', { name: /^Moj rad/ }).click();
+    await page.locator('a.work-item[data-kind="timesheet_submitted"]', { hasText: live }).waitFor();
+    // Voditeljica: stavka odobrenja u „Moj rad”, odobrenje, stavka nestaje.
+    await o.goto(`${WEB}/#/moj-rad`);
+    const approve = o.locator('a.work-item[data-kind="timesheet_to_approve"]', { hasText: 'Ana Novak' });
+    await approve.waitFor();
+    if (SHOTS) await o.screenshot({ path: `${SHOTS}/moj-rad-voditelj.png`, fullPage: true });
+    await approve.click();
+    await o.getByRole('button', { name: /Odobri/ }).click();
+    await o.locator('h3 .chip', { hasText: 'odobren' }).waitFor();
+    await o.getByRole('link', { name: /^Moj rad/ }).click();
+    await o.getByRole('heading', { name: 'Moj rad' }).waitFor();
+    await o.locator('.work-group, .work-empty').first().waitFor();
+    if (await o.locator('a.work-item[data-kind="timesheet_to_approve"]', { hasText: 'Ana Novak' }).count()) throw new Error('odobren timesheet mora nestati s popisa voditeljice');
+    // Ana: obavijest u zvoncu.
+    await page.reload();
+    await page.getByRole('heading', { name: 'Moj rad' }).waitFor();
+    await page.getByRole('button', { name: /^Obavijesti – \d+ nepročitan/ }).click();
+    await page.locator('.dropdown .note', { hasText: /je odobren/ }).filter({ hasText: live }).waitFor();
+    await shot('obavijesti');
+    await page.locator('.dropdown .note', { hasText: /je odobren/ }).filter({ hasText: live }).click();
+    await page.locator('h3 .chip', { hasText: 'odobren' }).waitFor();
   });
   // WP1.19: obvezni MFA. Administrator uključi vlastiti MFA i postroži postavku institucije; voditeljica ureda (povlaštena uloga,
   // bez MFA) u otvorenoj sesiji odmah dobiva samo postavljanje MFA s objašnjenjem, nakon postavljanja radi normalno.

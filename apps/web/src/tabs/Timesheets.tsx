@@ -15,15 +15,18 @@ const thisMonth = () => localToday().slice(0, 7);
 const dim = (m: string) => { const [y, mo] = m.split('-').map(Number) as [number, number]; return new Date(Date.UTC(y, mo, 0)).getUTCDate(); };
 const weekend = (m: string, d: number) => { const w = new Date(`${m}-${String(d).padStart(2, '0')}T00:00:00Z`).getUTCDay(); return w === 0 || w === 6; };
 
-export function TimesheetsTab({ project: p, me }: TabProps) {
+export function TimesheetsTab({ project: p, me, sub }: TabProps) {
   const team = useLoad(() => api<TeamMember[]>('GET', `/projects/${p.id}/team`), [p.id]);
   // Korisnički računi za povezivanje s članom tima: popis korisnika (users:read) ili popis iz upravljanja pristupom projektu.
   const users = useLoad<Person[]>(() => (canTenant(me, 'users:read') ? api<UserRow[]>('GET', '/users')
     : canManageAccess(me, p.id) ? api<ProjectAccess>('GET', `/projects/${p.id}/access`).then((a) => a.users) : Promise.resolve([])), [p.id]);
   const seeCost = can(me, 'personnel:read', p.id); // plaće: čitanje i unos samo uz pristup podacima o osoblju
   const writeTeam = can(me, 'finance:write', p.id);
-  const [memberId, setMemberId] = useState('');
-  const [month, setMonth] = useState(() => (p.startDate && p.startDate.slice(0, 7) > thisMonth() ? p.startDate.slice(0, 7) : thisMonth()));
+  // WP1.18: poveznica iz „Moj rad” ili obavijesti (`tim/<član>/<mjesec>`) otvara točno taj timesheet.
+  const [subMember, subMonth] = [sub?.[0] ?? '', /^\d{4}-(0[1-9]|1[0-2])$/.test(sub?.[1] ?? '') ? sub![1]! : ''];
+  const [memberId, setMemberId] = useState(subMember);
+  const [month, setMonth] = useState(() => subMonth || (p.startDate && p.startDate.slice(0, 7) > thisMonth() ? p.startDate.slice(0, 7) : thisMonth()));
+  useEffect(() => { if (subMember) setMemberId(subMember); if (subMonth) setMonth(subMonth); }, [subMember, subMonth]);
   const [m, setM] = useState({ fullName: '', userId: '', role: '', annualCost: '' });
   const own = team.data?.find((t) => t.userId === me.user.id);
   useEffect(() => { if (!memberId && team.data?.length) setMemberId((own ?? team.data[0]!).id); }, [team.data, memberId, own]);

@@ -46,7 +46,7 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [x] **WP1.19** (v0.27.0) Sigurnosne dorade prije penetracijskog testa: iznosi troškova osoblja samo uz pravo na plaće, obvezni MFA za povlaštene uloge, obvezna revizija u API-ju, zapis neuspjele prijave bez upisanog teksta, opseg testa za izvođača
 - [x] **WP1.20** (v0.28.0) S3 pohrana dokumenata i kopije izvan poslužitelja, mjerenje vremena obnove: S3 izvedba pohrane bez novih ovisnosti (vlastiti SigV4), `documents verify` i `documents migrate`, šifrirane kopije izvan poslužitelja (servis `offsite`), skriptirana i izmjerena obnova (ADR-0012)
 - [x] **WP1.17** (v0.29.0) Uvoz postojećeg projekta iz Excela: predložak za projekt, vlastiti čitač XLSX/CSV, pregled s greškama po listu, retku i stupcu, potvrda istih bajtova, sve ili ništa, troškovi potraživani prije ArQusa, povijest i poništavanje (`docs/UVOZ-PROJEKTA.md`)
-- [ ] **WP1.18** Rokovi i „Moj rad”: stranica člana tima i obavijesti u aplikaciji – sljedeće (odluka vlasnika 2026-11-17, strategija odj. 9)
+- [x] **WP1.18** (v0.30.0) Rokovi i „Moj rad”: početna stranica s onim što čeka korisnika (timesheetovi, odobrenja, ZNS, isporuke, prijave, pozivi), obavijesti u aplikaciji (zvonce), osobni kalendar rokova (iCalendar po tajnoj poveznici); e-pošta opisana i čeka SMTP (`docs/domena/moj-rad-i-obavijesti.md`). **Faza 1b (WP1.13–WP1.20) je gotova.**
 
 ## Faza 2 – Komercijalna v1 (mj. 10–15)
 Uvjet za fazu 3: 10 kupaca koji plaćaju, 60.000 € ARR.

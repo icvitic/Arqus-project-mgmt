@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
-import type { Me } from '../lib/types';
-import { ActionButton, ActionForm, Field } from '../ui';
+import { dateTime } from '../lib/format';
+import { useLoad } from '../lib/hooks';
+import type { CalendarStatus, Me } from '../lib/types';
+import { ActionButton, ActionForm, ErrorBox, Field, Loading } from '../ui';
 
 export function Account({ me, reloadMe }: { me: Me; reloadMe: () => Promise<void> }) {
   const [pw, setPw] = useState({ current: '', next: '', repeat: '' });
@@ -26,7 +28,49 @@ export function Account({ me, reloadMe }: { me: Me; reloadMe: () => Promise<void
         </div>
         <MfaCard me={me} reloadMe={reloadMe} onDone={setDone} />
       </div>
+      <CalendarCard />
     </>
+  );
+}
+
+/**
+ * WP1.18 – osobni kalendar rokova (iCalendar) za Outlook, Google Kalendar ili Apple Kalendar. Poveznica sadrži tajni token
+ * i prikazuje se samo jednom, odmah nakon stvaranja; nova poveznica poništava staru, „Ukloni” je gasi.
+ */
+function CalendarCard() {
+  const st = useLoad(() => api<CalendarStatus>('GET', '/me/calendar'), []);
+  const [fresh, setFresh] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const generate = async () => {
+    const r = await api<CalendarStatus>('POST', '/me/calendar');
+    setFresh(`${window.location.origin}${r.path}`); setCopied(false); st.setData(r);
+  };
+  const copy = async () => { if (!fresh) return; try { await navigator.clipboard.writeText(fresh); setCopied(true); } catch { setCopied(false); } };
+  return (
+    <div className="card calendar-card"><h2>Rokovi u mom kalendaru</h2>
+      <p className="muted">Poveznica pretplate prikazuje rokove koje i inače vidiš (izvještajna razdoblja i rokovi ZNS-a, isporuke i prekretnice tvojih projekata, interni rokovi i rokovi poziva i prijava) – samo naslove i datume, bez iznosa. Tko ima poveznicu, vidi te rokove bez prijave: ne dijeli je i ukloni je ako je netko drugi dobije.</p>
+      <ErrorBox error={st.error} />
+      {!st.data ? <Loading /> : (
+        <>
+          {fresh ? (
+            <div className="calendar-link">
+              <p><b>Kopiraj poveznicu sada</b> – iz sigurnosnih razloga više se neće prikazati (u sustavu je spremljen samo njezin otisak).</p>
+              <div className="copy-row">
+                <input readOnly value={fresh} onFocus={(e) => e.currentTarget.select()} aria-label="Poveznica kalendara" data-testid="calendar-url" />
+                <button className="primary" onClick={() => void copy()}>{copied ? 'Kopirano' : 'Kopiraj'}</button>
+              </div>
+              <p className="muted">Outlook: „Dodaj kalendar” → „Pretplati se s weba”. Google Kalendar: „Ostali kalendari” → „+” → „Iz URL-a”. Kalendar se osvježava sam (obično svakih nekoliko sati).</p>
+            </div>
+          ) : st.data.active ? (
+            <p><span className="chip ok">aktivna</span> Poveznica je stvorena {dateTime(st.data.createdAt)}{st.data.lastUsedAt ? `, zadnji dohvat ${dateTime(st.data.lastUsedAt)}` : ', još nije dohvaćena'}.</p>
+          ) : <p className="muted">Poveznica još ne postoji.</p>}
+          <div className="actions">
+            <ActionButton kind={st.data.active ? undefined : 'primary'} confirm={st.data.active ? 'Nova poveznica odmah poništava staru – kalendari koji koriste staru prestat će se osvježavati. Nastaviti?' : undefined} onClick={generate}>{st.data.active ? 'Stvori novu poveznicu' : 'Stvori poveznicu'}</ActionButton>
+            {st.data.active && <ActionButton kind="danger" confirm="Ukloniti poveznicu? Kalendari koji je koriste prestat će se osvježavati." onClick={async () => { st.setData(await api<CalendarStatus>('DELETE', '/me/calendar')); setFresh(null); }}>Ukloni poveznicu</ActionButton>}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

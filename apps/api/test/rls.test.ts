@@ -123,3 +123,49 @@ describe('RLS: svaka tablica i kompozitni strani ključevi', () => {
     } finally { c.release(); }
   });
 });
+
+describe('RLS: obavijesti po korisniku i tokeni kalendara (WP1.18)', () => {
+  const admin = new Pool({ connectionString: ADMIN_URL, max: 1 });
+  const app = new Pool({ connectionString: APP_URL, max: 1 });
+  const A = randomUUID(), B = randomUUID(), tag = randomUUID().slice(0, 8);
+  let u1 = '', u2 = '', ub = '';
+  beforeAll(async () => {
+    await admin.query(`insert into tenants (id, slug, name) values ($1, $2, 'A'), ($3, $4, 'B')`, [A, `nt-a-${tag}`, B, `nt-b-${tag}`]);
+    u1 = (await admin.query(`insert into users (tenant_id, email, display_name) values ($1, 'u1@a', 'U1') returning id`, [A])).rows[0].id;
+    u2 = (await admin.query(`insert into users (tenant_id, email, display_name) values ($1, 'u2@a', 'U2') returning id`, [A])).rows[0].id;
+    ub = (await admin.query(`insert into users (tenant_id, email, display_name) values ($1, 'ub@b', 'UB') returning id`, [B])).rows[0].id;
+    await admin.query(`insert into notifications (tenant_id, user_id, kind) values ($1, $2, 'access_granted'), ($3, $4, 'access_granted')`, [A, u1, B, ub]);
+    await admin.query(`insert into calendar_tokens (tenant_id, user_id, token_hash) values ($1, $2, $3), ($4, $5, $6)`, [A, u1, `hash-a-${tag}`, B, ub, `hash-b-${tag}`]);
+  });
+  afterAll(async () => { await app.end(); await admin.end(); });
+  const run = async <T>(fn: (q: (sql: string, p?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>, settings: Record<string, string>): Promise<T> => {
+    const c = await app.connect();
+    try {
+      await c.query('begin');
+      for (const [k, v] of Object.entries(settings)) await c.query(`select set_config($1, $2, true)`, [k, v]);
+      return await fn((sql, p) => c.query(sql, p));
+    } finally { await c.query('rollback'); c.release(); }
+  };
+
+  it('obavijest čita samo vlasnik: bez app.user_id ništa, drugi korisnik ništa, drugi stanar ništa; upis za drugog korisnika istog stanara smije', async () => {
+    const count = (s: Record<string, string>) => run(async (q) => (await q(`select count(*)::int as n from notifications where user_id in ($1, $2, $3)`, [u1, u2, ub])).rows[0]!.n, s);
+    expect(await count({ 'app.tenant_id': A })).toBe(0);
+    expect(await count({ 'app.tenant_id': A, 'app.user_id': u2 })).toBe(0);
+    expect(await count({ 'app.tenant_id': A, 'app.user_id': u1 })).toBe(1);
+    expect(await count({ 'app.tenant_id': B, 'app.user_id': u1 })).toBe(0);
+    expect(await run(async (q) => (await q(`update notifications set read_at = now() where user_id = $1 returning id`, [u1])).rows.length, { 'app.tenant_id': A, 'app.user_id': u2 })).toBe(0);
+    expect(await run(async (q) => (await q(`delete from notifications where user_id = $1 returning id`, [u1])).rows.length, { 'app.tenant_id': A, 'app.user_id': u2 })).toBe(0);
+    await run((q) => q(`insert into notifications (tenant_id, user_id, kind) values ($1, $2, 'x')`, [A, u2]), { 'app.tenant_id': A, 'app.user_id': u1 });
+    await expect(run((q) => q(`insert into notifications (tenant_id, user_id, kind) values ($1, $2, 'x')`, [B, ub]), { 'app.tenant_id': A })).rejects.toThrow(/row-level security/);
+    // Sadržaj je nepromjenjiv: aplikacija smije mijenjati samo read_at.
+    await expect(run((q) => q(`update notifications set kind = 'hak' where user_id = $1`, [u1]), { 'app.tenant_id': A, 'app.user_id': u1 })).rejects.toThrow(/permission denied/);
+  });
+
+  it('token kalendara: bez stanara vidljiv samo redak čiji je hash postavljen u transakciji (nema nabrajanja)', async () => {
+    const rows = (s: Record<string, string>) => run(async (q) => (await q(`select token_hash from calendar_tokens where token_hash like $1 order by 1`, [`hash-%-${tag}`])).rows.map((r) => r.token_hash), s);
+    expect(await rows({})).toEqual([]);
+    expect(await rows({ 'app.calendar_token_hash': `hash-b-${tag}` })).toEqual([`hash-b-${tag}`]);
+    expect(await rows({ 'app.tenant_id': A })).toEqual([`hash-a-${tag}`]);
+    expect(await run(async (q) => (await q(`delete from calendar_tokens where token_hash = $1 returning user_id`, [`hash-b-${tag}`])).rows.length, { 'app.calendar_token_hash': `hash-b-${tag}` })).toBe(0);
+  });
+});

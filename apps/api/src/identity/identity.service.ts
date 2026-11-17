@@ -3,7 +3,7 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { createHmac, randomUUID } from 'node:crypto';
 import { passwordIssues, timeZoneOr } from '@arqus/domain';
 import { DbService, type Tx } from '../db/db.service';
-import { projects, proposals, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
+import { calendarTokens, projects, proposals, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
 import { hashPassword, verifyPassword, verifyPasswordOrBurn } from './password';
 import { TokenService } from './token.service';
 import { AuditService } from '../audit/audit.service';
@@ -11,7 +11,8 @@ import { hasPermission, SYSTEM_ROLES } from './permissions';
 import { TenantContext, type RequestContext } from '../common/tenant-context';
 import { canInTenant, canOnProject, projectGrants } from '../common/access';
 import { loadProject } from '../common/project-access';
-import { findRole, grantProjectRole } from './project-grants';
+import { acronymOf, findRole, grantProjectRole } from './project-grants';
+import { notify } from '../notifications/notify';
 import { LoginThrottle } from './login-throttle';
 import { generateTotpSecret, otpauthUri, verifyTotp } from './totp';
 import { open, seal } from '../common/crypto-box';
@@ -316,7 +317,8 @@ export class IdentityService {
       if (tenantRoleIds.length) await tx.delete(roleAssignments).where(inArray(roleAssignments.id, tenantRoleIds));
       if (input.roleCodes.length) await this.assignRoles(tx, tenantId, id, input.roleCodes, actorId);
     }
-    if (input.status === 'disabled') await this.revokeSessions(tx, id);
+    // WP1.18: deaktivacija gasi i tajnu poveznicu osobnog kalendara (ponovna aktivacija je ne vraća – korisnik stvara novu).
+    if (input.status === 'disabled') { await this.revokeSessions(tx, id); await tx.delete(calendarTokens).where(eq(calendarTokens.userId, id)); }
     await this.audit.record(tx, { entity: 'user', entityId: id, action: 'update', diff: { before: { displayName: before.displayName, status: before.status, roles: current }, after: input } });
     return (await this.listUsers(tx)).find((u) => u.id === id)!;
   }
@@ -404,6 +406,7 @@ export class IdentityService {
     this.assertWithinOwnRights(c, projectId, row.permissions);
     await tx.delete(roleAssignments).where(eq(roleAssignments.id, row.id));
     await this.audit.record(tx, { entity: 'role_assignment', entityId: row.id, action: 'revoke', diff: { before: { userId: row.userId, role: row.code, projectId } } });
+    await notify(tx, { userId: row.userId, kind: 'access_revoked', projectId, data: { acronym: await acronymOf(tx, projectId), role: row.code } });
     return this.projectAccess(tx, projectId);
   }
 
