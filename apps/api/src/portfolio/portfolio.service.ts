@@ -67,14 +67,18 @@ export class PortfolioService {
     const finIds = ids.filter(seesFinance);
     const partners = ids.length ? await tx.select({ id: projectPartners.id, projectId: projectPartners.projectId, beneficiaryType: projectPartners.beneficiaryType, isSelf: organisations.isSelf })
       .from(projectPartners).innerJoin(organisations, eq(organisations.id, projectPartners.organisationId)).where(inArray(projectPartners.projectId, ids)).orderBy(asc(projectPartners.orderNo)) : [];
-    // Ugovoreno: zadnja verzija proračuna (kao „Ugovoreno / ostvareno” na projektu); ostvareno: svi troškovi osim odbijenih.
+    // Ugovoreno: zadnja verzija proračuna (kao „Ugovoreno / ostvareno” na projektu). Ostvareno: prije odluke traženi iznos troška,
+    // nakon odluke priznati (odbijen = 0); nepriznato = isti izračun s traženim iznosima − ostvareno (`docs/domena/zns-pravila.md`).
     const planned = finIds.length ? await tx.select({ projectId: projectBudgets.projectId, partnerId: budgetLines.partnerId, categoryCode: budgetLines.categoryCode, amount: sql<string>`sum(${budgetLines.amountCents})` })
       .from(budgetLines).innerJoin(projectBudgets, eq(projectBudgets.id, budgetLines.budgetId))
       .where(and(inArray(projectBudgets.projectId, finIds), sql`${projectBudgets.version} = (select max(b2.version) from project_budgets b2 where b2.project_id = ${projectBudgets.projectId})`))
       .groupBy(projectBudgets.projectId, budgetLines.partnerId, budgetLines.categoryCode) : [];
-    const actual = finIds.length ? await tx.select({ projectId: expenses.projectId, partnerId: expenses.partnerId, categoryCode: expenses.categoryCode, amount: sql<string>`sum(${expenses.amountCents})` })
-      .from(expenses).where(and(inArray(expenses.projectId, finIds), ne(expenses.status, 'rejected')))
+    const expenseSums = finIds.length ? await tx.select({ projectId: expenses.projectId, partnerId: expenses.partnerId, categoryCode: expenses.categoryCode,
+      amount: sql<string>`sum(coalesce(${expenses.recognisedCents}, ${expenses.amountCents}))`, claimed: sql<string>`sum(${expenses.amountCents})` })
+      .from(expenses).where(inArray(expenses.projectId, finIds))
       .groupBy(expenses.projectId, expenses.partnerId, expenses.categoryCode) : [];
+    const actual = expenseSums.map((r) => ({ projectId: r.projectId, partnerId: r.partnerId, categoryCode: r.categoryCode, amount: r.amount }));
+    const claimedBasis = expenseSums.map((r) => ({ projectId: r.projectId, partnerId: r.partnerId, categoryCode: r.categoryCode, amount: r.claimed }));
     const periods = ids.length ? await tx.select({
       projectId: reportingPeriods.projectId, number: reportingPeriods.number, endDate: reportingPeriods.endDate, dueDate: reportingPeriods.dueDate,
       // Predan ZNS vlastite organizacije za razdoblje (sve osim nacrta).
@@ -98,7 +102,7 @@ export class PortfolioService {
     }).from(projects).where(inArray(projects.id, ids)) : [];
 
     const deadlines: Deadline[] = [];
-    let plannedTotal = 0, plannedOwn = 0, requestedTotal = 0, requestedOwn = 0, spentOwn = 0, spentTotal = 0, financeProjects = 0;
+    let plannedTotal = 0, plannedOwn = 0, requestedTotal = 0, requestedOwn = 0, spentOwn = 0, spentTotal = 0, unrecognisedOwn = 0, unrecognisedTotal = 0, financeProjects = 0;
     const projectViews = projRows.map(({ p, programme }) => {
       const pk = pkgCache.get(`${p.packageId}@${p.packageVersion}`)!;
       const open = OPEN.includes(p.status);
@@ -111,18 +115,20 @@ export class PortfolioService {
         const lines = (rows: typeof planned): Lines => rows.filter((r) => r.projectId === p.id).map((r) => ({ partnerId: r.partnerId, categoryCode: r.categoryCode, amount: Number(r.amount) }));
         const pl = computeProjectBudget(pk, p.actionType, parts, lines(planned));
         const ac = computeProjectBudget(pk, p.actionType, parts, lines(actual));
+        const cl = computeProjectBudget(pk, p.actionType, parts, lines(claimedBasis));
         const selfIdx = parts.findIndex((x) => x.isSelf);
         const own = (r: typeof pl) => (selfIdx >= 0 ? r.partners[selfIdx]! : { total: 0, requested: 0 });
         const percent = budgetPercent(own(pl).total, own(ac).total);
         budget = {
-          planned: own(pl).total, actual: own(ac).total, requested: own(pl).requested, percent,
+          planned: own(pl).total, actual: own(ac).total, unrecognised: own(cl).total - own(ac).total, requested: own(pl).requested, percent,
           ...progressSignal(time.percent, percent),
-          projectPlanned: pl.totals.total, projectActual: ac.totals.total, projectRequested: pl.totals.requested,
+          projectPlanned: pl.totals.total, projectActual: ac.totals.total, projectUnrecognised: cl.totals.total - ac.totals.total, projectRequested: pl.totals.requested,
         };
         if (RUNNING.includes(p.status)) {
           financeProjects++;
           plannedTotal += pl.totals.total; requestedTotal += pl.totals.requested; spentTotal += ac.totals.total;
           plannedOwn += own(pl).total; requestedOwn += own(pl).requested; spentOwn += own(ac).total;
+          unrecognisedTotal += cl.totals.total - ac.totals.total; unrecognisedOwn += own(cl).total - own(ac).total;
         }
       }
 
@@ -240,8 +246,8 @@ export class PortfolioService {
         projects: projectViews.length,
         activeProjects: running.length,
         money: financeProjects ? {
-          projects: financeProjects, planned: plannedOwn, requested: requestedOwn, spent: spentOwn, spentPercent: budgetPercent(plannedOwn, spentOwn),
-          projectPlanned: plannedTotal, projectRequested: requestedTotal, projectSpent: spentTotal,
+          projects: financeProjects, planned: plannedOwn, requested: requestedOwn, spent: spentOwn, spentPercent: budgetPercent(plannedOwn, spentOwn), unrecognised: unrecognisedOwn,
+          projectPlanned: plannedTotal, projectRequested: requestedTotal, projectSpent: spentTotal, projectUnrecognised: unrecognisedTotal,
         } : null,
         deadlinesSoon: counts.soon, overdue: counts.overdue,
         attention: {

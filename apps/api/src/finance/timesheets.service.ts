@@ -159,7 +159,7 @@ export class TimesheetsService {
       const amount = personnelCostCents(pkg, annualCostCents, minutes);
       created.push({ workPackageId: wp, minutes, amount });
       await tx.insert(expenses).values({ tenantId, projectId, partnerId: m.partnerId, categoryCode: category, workPackageId: wp, date: expenseDate,
-        description: `Rad: ${m.fullName}, ${month} (${(minutes / 60).toFixed(2)} h)`, amountCents: amount, source: 'timesheet', timesheetId: ts.id, createdBy: actorId, updatedBy: actorId });
+        description: `Rad: ${m.fullName}, ${month} (${(minutes / 60).toFixed(2).replace('.', ',')} h)`, amountCents: amount, source: 'timesheet', timesheetId: ts.id, createdBy: actorId, updatedBy: actorId });
     }
     await tx.update(timesheets).set({ status: 'approved', approvedAt: new Date(), approvedBy: actorId ?? null, updatedAt: new Date(), updatedBy: actorId }).where(eq(timesheets.id, ts.id));
     await this.audit.record(tx, { entity: 'timesheet', entityId: ts.id, action: 'approve', diff: { meta: { month, memberId, expenses: created } } });

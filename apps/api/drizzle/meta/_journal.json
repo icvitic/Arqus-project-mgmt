@@ -141,6 +141,20 @@
       "when": 1794905801801,
       "tag": "0019_project_access",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794922170177,
+      "tag": "0020_claim_correctness",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794922179535,
+      "tag": "0021_claim_immutability",
+      "breakpoints": true
     }
   ]
 }

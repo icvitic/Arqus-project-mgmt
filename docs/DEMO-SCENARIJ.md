@@ -19,7 +19,7 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 
 - **Brojke na vrhu**: 2 projekta u provedbi, ugovoreni proračun *našeg dijela* (~1,01 mil. EUR, a cijeli projekti s partnerima ~2,79 mil. EUR), potrošeno ~21 %, rokovi u idućih 30 dana i **3 prošla roka**, prijava u tijeku, uspješnost prijava 50 %.
   *„Ovo je odgovor na pitanje koje uprava inače postavi uredu i čeka dva dana.”*
-- **Projekti – vrijeme i potrošnja**: dvije tanke trake po projektu. **ZELENI-LAB**: 52 % vremena, 26 % potrošnje → oznaka *potrošnja kasni −26 p. b.* *„Novac koji ne trošimo na vrijeme često se na kraju vraća. Ovdje se vidi u 13. mjesecu, ne u 24.”* (Razlog je u projektu: oprema od 120.000 EUR čeka ishod žalbe u javnoj nabavi – visok rizik i isporuka D2.1 koja kasni.) **BLUESENSE**: 29 % / 19 % – u granicama.
+- **Projekti – vrijeme i potrošnja**: dvije tanke trake po projektu. **ZELENI-LAB**: 52 % vremena, 24 % potrošnje → oznaka *potrošnja kasni −28 p. b.* *„Novac koji ne trošimo na vrijeme često se na kraju vraća. Ovdje se vidi u 13. mjesecu, ne u 24.”* (Razlog je u projektu: oprema od 120.000 EUR čeka ishod žalbe u javnoj nabavi – visok rizik i isporuka D2.1 koja kasni.) **BLUESENSE**: 29 % / 19 % – u granicama.
 - **Traži pažnju** – oznake vode ravno na mjesto gdje se popravlja: *1 isporuka kasni* → Struktura rada, *1 timesheet čeka odobrenje* → Tim, *1 trošak bez dokaza* → Troškovi, *1 razdoblje bez predanog ZNS-a* → Zahtjevi za nadoknadu.
 - **Rokovi**: jedan popis za sve – prošli rokovi isporuka i prekretnica na vrhu (crveno), zatim rok ZNS-a za RP2 (za ~2 tjedna), interni rok prijave AQUAREST, rokovi praćenih poziva.
 - **Opterećenje ljudi**: sati po osobi kroz sve projekte i godišnji fond iz pravila programa (1720 h). **Marina Šimić** radi na ZELENI-LAB i BLUESENSE i ima dan s **10 h** ukupno.
@@ -85,15 +85,15 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 
 **Klik:** **Portfelj** → uz ZELENI-LAB oznaka *1 razdoblje bez predanog ZNS-a* → **Zahtjevi za nadoknadu**.
 
-- **ZNS za RP1**: izravni, neizravni (paušal iz paketa), traženo, odobreno, isplaćeno; status *djelomično odobren* s napomenom posredničkog tijela (nepriznato putovanje); svi troškovi razdoblja u zahtjevu – timesheetovi i računi.
-  *„ZNS se slaže sam iz evidentiranih troškova razdoblja. Predajom su troškovi, timesheetovi i dokazi zaključani – točno ono što je predano ostaje kako je predano.”*
-- **ZNS za RP2** (nacrt; razdoblje je završilo prošli mjesec, rok predaje za ~2 tjedna): upozorenje **„1 ručno unesen trošak nema priložen dokaz”** i oznaka *bez dokaza* uz brošure.
-  *„Ovo je trenutak koji danas otkrije kontrolor posredničkog tijela – ovdje ga otkrijete vi, prije predaje.”*
+- **ZNS za RP1** (*djelomično odobren*, isplaćen): pločice **traženo – priznato – nepriznato – odobreno/isplaćeno**. U tablici je odluka po trošku: elaborat energetskog pregleda **umanjen** s 11.800 na 10.500 EUR, studijsko putovanje **odbijeno** (0 EUR) – uz svaki razlog posredničkog tijela. Troškovi osoblja su sažeti po osobi i mjesecu (klik otvara retke po radnom paketu) – 42 pohranjena retka čitaju se kao 16.
+  *„Priznato se računa istim pravilima kao zahtjev – neizravni troškovi i stopa financiranja padaju zajedno s umanjenjem. Nepriznato vidite i ovdje i na kartici Ugovoreno / ostvareno, pa proračun ne izgleda potrošenije nego što jest.”*
+- **ZNS za RP2** (nacrt; razdoblje je završilo prošli mjesec, rok predaje za ~2 tjedna): **Provjera prije predaje** – zeleno što je u redu, crveno što blokira: **Josipov timesheet za zadnji mjesec čeka odobrenje** (trošak osoblja nedostaje) i **brošure nemaju dokaz**. Gumb *Predaj zahtjev* je onemogućen dok se to ne riješi (ili dok se trošak bez dokaza izričito ne potvrdi – potvrda ide u revizijski zapis).
+  *„Ovo je trenutak koji danas otkrije kontrolor posredničkog tijela – ovdje ga otkrijete vi, prije predaje. Predaja prije kraja razdoblja moguća je samo s upisanim razlogom.”*
 - Spomeni: ovaj NPOO poziv ima izvještavanje svakih 6 mjeseci – ured je to postavio sam kroz **paket po pozivu** (izbornik **Paketi programa**), bez programera.
 
 ## 8. Ugovoreno / ostvareno i dokumenti (1 min)
 
-- **Ugovoreno / ostvareno**: potrošnja po kategoriji i partneru prema proračunu, pregled ZNS-ova.
+- **Ugovoreno / ostvareno**: potrošnja po kategoriji i partneru prema proračunu; ostvareno nakon odluke = priznato, a nepriznato (2.165 EUR) zasebno.
   *„Ovo je odgovor na pitanje uprave ‘koliko smo potrošili i koliko još možemo’.”*
 - **Dokumenti**: ugovor (povjerljivo), dokazi, odluka o ZNS-u – svaka verzija s SHA-256 i tragom tko je što učitao i preuzeo.
 

@@ -4,6 +4,27 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-17
+### Dodano
+- WP1.16a **ZNS – ispravnost** (`docs/domena/zns-pravila.md`). Domena (`packages/domain/src/claims.ts`): popis za provjeru prije predaje, odluka po trošku s izračunom priznatog iznosa (isti izračun kao zahtjev), provjera isplate, definicije ostvareno / priznato / nepriznato – s testovima rubnih slučajeva (17).
+- Predaja ZNS-a tek nakon kraja razdoblja; ranija predaja samo uz razlog (spremljen uz zahtjev, prikazan na njemu, u reviziji `submit.early`). `POST …/claims/:cid/submit` prima `earlyReason` i `acknowledgeWithoutEvidence`.
+- Popis za provjeru (prikazan na nacrtu, provodi se pri predaji): razdoblje završilo, svi timesheetovi članova tima u mjesecima razdoblja odobreni (neodobreni se navode), dokaz uz svaki ručni trošak ili izričita potvrda (u reviziji), datumi u razdoblju; kumulativno prekoračenje kategorije proračuna kao upozorenje. Upozorenja i potvrde spremaju se uz predaju.
+- Odluka po trošku (`decision: 'decided'`): priznati iznos (zadano cijeli) i razlog kod umanjenja/odbijanja; trošak prihvaćen, djelomično priznat ili odbijen; datum odluke; iznos financijera s obaveznom napomenom kad se razlikuje od izračunatog; ishod zahtjeva iz odluke. `POST …/decision/preview` (izračun bez spremanja) i `POST …/decision/correction` (namjerni, revidirani ispravak prije isplate).
+- Isplata: datum ne prije odluke i ne u budućnosti; razlika prema odobrenom traži napomenu; bilježi se jednom.
+- „Nepriznato” u pregledu financija (ukupno, po kategoriji, po partneru), u zahtjevu i u portfelju.
+- Web: provjera prije predaje s blokirajućim stavkama i upozorenjima, razlog rane predaje, potvrda troškova bez dokaza; troškovi osoblja grupirani po osobi i mjesecu (zahtjev, odluka, troškovi); obrazac odluke s umanjenjem/odbijanjem po trošku, razlozima i izračunom priznatog uz iznos financijera; ispravak odluke; isplata s provjerom datuma i iznosa; traženo / priznato / nepriznato nakon odluke.
+- Migracije 0020 (priznati iznos i razlog po trošku, status `partially_accepted`, razlog rane predaje, snimka predaje, datum i izračun odluke, napomena uz isplatu; dopuna postojećih zapisa) i 0021 (okidač nepromjenjivosti s jedinim, najavljenim i revidiranim putem ispravka).
+
+### Promijenjeno
+- Ostvareno (pregled financija, portfelj, zahtjev): prije odluke traženi iznos troška, nakon odluke priznati, odbijen 0 (do sada su se brojili svi neodbijeni troškovi u punom iznosu, i nepriznati dio djelomično odobrenog ZNS-a).
+- Djelomično odobren ZNS više ne označava sve troškove prihvaćenima; stari oblik odluke (`approved`/`partially_approved`/`rejected` + `approvedAmount`) uklonjen. Povrat na dopunu traži razlog.
+- Novi zahtjev zadano nudi najranije završeno razdoblje bez zahtjeva.
+- Dokazi su zamrznuti i uz djelomično priznate i odbijene troškove (do sada samo uz troškove u zahtjevu i prihvaćene).
+- Demo: ZNS 1 ZELENI-LAB-a odlučen po trošku (elaborat umanjen, putovanje odbijeno, s razlozima); ZNS 2 u nacrtu s otvorenim stavkama (Josipov timesheet za 12. mjesec čeka odobrenje, brošure bez dokaza). Scenarij i `docs/DEMO.md` ažurirani.
+
+### Ispravljeno
+- Popis ZNS-ova više ne izvršava upite istodobno na istoj transakciji (`Promise.all`).
+
 ## [0.22.0] - 2026-11-17
 ### Dodano
 - Revizija strategije nakon WP1.15 (`docs/strategija-razvoja-faza-1b.md`, odj. 7): WP1.16 proširen ispravnošću ZNS-a, WP1.14b proširen i pomaknut iza njega, WP1.17 i WP1.18 uvjetni; točka zaustavljanja do povratne informacije s demonstracija.

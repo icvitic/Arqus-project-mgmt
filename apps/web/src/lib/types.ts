@@ -32,14 +32,29 @@ export interface Budget {
 /** `annualCost` je null bez dozvole personnel:read; `costSet` kaže je li trošak upisan. */
 export interface TeamMember { id: string; fullName: string; userId: string | null; partnerId: string; role: string | null; annualCost: number | null; costSet: boolean; active: boolean }
 export interface Timesheet { status: string; entries: { day: number; minutes: number; workPackageId: string | null }[]; totalMinutes: number; warnings: string[] }
-export interface Expense { id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number; evidenceRef: string | null; source: string; status: string; documents: number }
-export interface Claim {
-  id: string; period: Period; status: string; expenses: { id: string; date: string; categoryCode: string; description: string; amount: number; status: string; source?: string; documents?: number }[]; missingEvidence?: number;
-  totals: { direct: number; indirect: number; total: number; ratePercent: number; requested: number }; requested: number | null; approved: number | null; paid: number | null; note: string | null;
+/** Trošak; `person`/`month`/`workPackage` za troškove osoblja (grupiranje po osobi i mjesecu). `recognised` – priznati iznos nakon odluke o ZNS-u. */
+export interface Expense {
+  id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number; recognised: number | null; decisionReason: string | null;
+  evidenceRef: string | null; source: string; status: string; documents: number; timesheetId: string | null; person: string | null; month: string | null; workPackage: string | null;
 }
+export interface Money { direct: number; indirect: number; total: number; requested: number }
+export interface ChecklistItem { key: string; ok: boolean; severity: 'blocking' | 'warning'; title: string; details: string[]; resolution?: 'early_reason' | 'acknowledge'; expenseIds?: string[] }
+export interface ClaimExpense {
+  id: string; date: string; categoryCode: string; description: string; supplier: string | null; amount: number; recognised: number | null; decisionReason: string | null;
+  status: string; source: string; documents: number; timesheetId: string | null; person: string | null; month: string | null; workPackage: string | null;
+}
+export interface Claim {
+  id: string; period: Period; status: string; expenses: ClaimExpense[]; missingEvidence: number;
+  totals: Money & { ratePercent: number }; recognised: Money | null; unrecognised: Money | null;
+  checklist: { items: ChecklistItem[]; canSubmit: boolean; early: boolean } | null;
+  earlyReason: string | null; submission: { early: boolean; earlyReason: string | null; acknowledgedWithoutEvidence: { id: string; date: string; description: string; amount: number }[]; warnings: { key: string; title: string; details: string[] }[] } | null;
+  decision: { date: string | null; computed: number; funderTotal: number | null; difference: number; backfilled: boolean } | null;
+  requested: number | null; approved: number | null; paid: number | null; submittedAt: string | null; decisionDate: string | null; paidAt: string | null; paymentNote: string | null; note: string | null;
+}
+export interface DecisionPreview { outcome: string; claimed: Money; recognised: Money; unrecognised: Money; computed: number; funderTotal: number | null; approved: number; difference: number; errors: string[] }
 export interface FinanceOverview {
-  budgetStatus: string; planned: { direct: number; indirect: number; total: number; requested: number }; actual: { direct: number; indirect: number; total: number; requested: number };
-  byCategory: { code: string; name: string; planned: number; actual: number; remaining: number; percent: number | null }[]; byPartner: { partnerId: string; name: string; planned: number; actual: number }[];
+  budgetStatus: string; planned: Money; actual: Money; unrecognised: Money;
+  byCategory: { code: string; name: string; planned: number; actual: number; unrecognised: number; remaining: number; percent: number | null }[]; byPartner: { partnerId: string; name: string; planned: number; actual: number; unrecognised: number }[];
 }
 export interface ProjectRole { assignmentId: string; code: string; projectId: string; acronym: string | null }
 /** `roles` – uloge na razini institucije; `projectRoles` – uloge na pojedinom projektu. */
@@ -100,7 +115,7 @@ export interface Portfolio {
   access: { full: boolean; people: boolean; pipeline: boolean; calls: boolean; finance: 'all' | 'partial' | 'none' };
   summary: {
     projects: number; activeProjects: number; deadlinesSoon: number; overdue: number; attention: { lagging: number; ahead: number };
-    money: { projects: number; planned: number; requested: number; spent: number; spentPercent: number | null; projectPlanned: number; projectRequested: number; projectSpent: number } | null;
+    money: { projects: number; planned: number; requested: number; spent: number; spentPercent: number | null; unrecognised: number; projectPlanned: number; projectRequested: number; projectSpent: number; projectUnrecognised: number } | null;
     pipeline: { open: number; requested: number; requestedOwn: number; byStatus: PortfolioStatusRow[] } | null;
     successRate: { funded: number; rejected: number; percent: number | null } | null;
   };

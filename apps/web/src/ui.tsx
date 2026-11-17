@@ -15,7 +15,7 @@ export function ErrorBox({ error }: { error: unknown }) {
 }
 
 export const Chip = ({ s, tone }: { s: string; tone?: string }) => (
-  <span className={`chip ${tone ?? ({ active: 'ok', approved: 'ok', accepted: 'ok', achieved: 'ok', done: 'ok', submitted: 'acc', claimed: 'acc', locked: 'acc', rejected: 'bad', terminated: 'bad', missed: 'bad', high: 'bad', medium: 'warn', partially_approved: 'warn', draft: 'warn', contracting: 'warn' } as Record<string, string>)[s] ?? ''}`}>{label(s)}</span>
+  <span className={`chip ${tone ?? ({ active: 'ok', approved: 'ok', accepted: 'ok', achieved: 'ok', done: 'ok', submitted: 'acc', claimed: 'acc', locked: 'acc', rejected: 'bad', terminated: 'bad', missed: 'bad', high: 'bad', medium: 'warn', partially_approved: 'warn', partially_accepted: 'warn', draft: 'warn', contracting: 'warn' } as Record<string, string>)[s] ?? ''}`}>{label(s)}</span>
 );
 
 export function Loading({ what }: { what?: string }) { return <p className="muted">Učitavam{what ? ` ${what}` : ''}…</p>; }
@@ -38,12 +38,12 @@ export function ActionForm({ onSubmit, children, submit, className }: { onSubmit
 }
 
 /** Gumb za jednokratnu radnju s prikazom greške. */
-export function ActionButton({ onClick, children, kind, confirm: ask }: { onClick: () => Promise<unknown>; children: ReactNode; kind?: 'primary' | 'danger'; confirm?: string }) {
+export function ActionButton({ onClick, children, kind, confirm: ask, disabled }: { onClick: () => Promise<unknown>; children: ReactNode; kind?: 'primary' | 'danger'; confirm?: string; disabled?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   return (
     <span className="action-button">
-      <button className={kind} disabled={busy} onClick={async () => {
+      <button className={kind} disabled={busy || disabled} onClick={async () => {
         if (ask && !window.confirm(ask)) return;
         setBusy(true); setError(null);
         try { await onClick(); } catch (err) { setError(err); } finally { setBusy(false); }

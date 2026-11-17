@@ -37,10 +37,13 @@ describe('Portfelj (WP1.15, e2e)', () => {
     app = m.createNestApplication(); app.setGlobalPrefix('api'); await app.init();
     f = await buildAccessFixture(app, `pf-${tag}`);
     const admin = auth(f.tokens.admin);
-    // A: ručni trošak bez dokaza, visok otvoren rizik, ZNS za RP1 predan (troškovi iz veljače i ožujka).
-    await http().post(`/api/projects/${f.A.id}/expenses`).set(admin).send({ categoryCode: 'PUT', date: '2027-03-03', description: 'Putni trošak', amount: 20_000 }).expect(201);
+    // A: ručni trošak bez dokaza, visok otvoren rizik, ZNS za RP2 predan (svibanjski trošak; trošak bez dokaza potvrđen pri predaji).
+    // RP1 ostaje nepredan: timesheetovi iz veljače čekaju odobrenje, a ZNS se bez njih ne može predati (WP1.16a).
+    const put = (await http().post(`/api/projects/${f.A.id}/expenses`).set(admin).send({ categoryCode: 'PUT', date: '2027-05-03', description: 'Putni trošak', amount: 20_000 }).expect(201)).body.id as string;
     await http().post(`/api/projects/${f.A.id}/risks`).set(admin).send({ description: 'Visok rizik', likelihood: 3, impact: 2 }).expect(201);
-    await http().post(`/api/projects/${f.A.id}/claims/${f.A.claim}/submit`).set(admin).expect(201);
+    await http().post(`/api/projects/${f.A.id}/claims/${f.A.claim}/submit`).set(admin).send({ acknowledgeWithoutEvidence: [] }).expect(409);
+    const rp2 = (await http().post(`/api/projects/${f.A.id}/claims`).set(admin).send({ period: 2 }).expect(201)).body.id as string;
+    await http().post(`/api/projects/${f.A.id}/claims/${rp2}/submit`).set(admin).send({ acknowledgeWithoutEvidence: [put] }).expect(201);
     // B: veći trošak s (internim) dokazom; isti član tima kao na A, upisan samo imenom, radi 1. 2. i na B (8 h + 4 h = 12 h).
     const big = (await http().post(`/api/projects/${f.B.id}/expenses`).set(admin).send({ categoryCode: 'VU', date: '2027-05-05', description: 'Studija', amount: 1_500_000 }).expect(201)).body.id as string;
     await http().post('/api/documents').set(admin).field({ entityType: 'expense', entityId: big, title: 'Račun', kind: 'evidence' }).attach('file', PDF, 'racun.pdf').expect(201);
@@ -73,7 +76,7 @@ describe('Portfelj (WP1.15, e2e)', () => {
     expect(b.today).toBe('2027-07-15');
     expect(b.access).toEqual({ full: true, people: true, pipeline: true, calls: true, finance: 'all' });
     expect(b.summary).toMatchObject({
-      projects: 2, activeProjects: 2, deadlinesSoon: 5, overdue: 5, attention: { lagging: 1, ahead: 0 },
+      projects: 2, activeProjects: 2, deadlinesSoon: 4, overdue: 6, attention: { lagging: 1, ahead: 0 },
       money: { projects: 2, planned: 6_600_000, requested: 6_600_000, spent: 1_620_000, spentPercent: 25, projectPlanned: 6_600_000, projectRequested: 6_600_000, projectSpent: 1_620_000 },
       successRate: { funded: 0, rejected: 1, percent: 0 },
       pipeline: { open: 1, requested: 1_150_000, requestedOwn: 1_150_000 },
@@ -82,7 +85,7 @@ describe('Portfelj (WP1.15, e2e)', () => {
     expect(A).toMatchObject({
       status: 'active', role: 'coordinator', programme: 'Nacionalni plan oporavka i otpornosti 2021.–2026.', endDate: '2027-12-31', time: { state: 'running', month: 7, percent: 54 },
       budget: { planned: 3_300_000, actual: 70_000, requested: 3_300_000, percent: 2, signal: 'lagging', gap: -52 },
-      nextReport: { period: 2, dueDate: '2027-07-30', days: 15, overdue: false },
+      nextReport: { period: 1, dueDate: '2027-04-30', days: -76, overdue: true }, // RP2 predan, RP1 čeka timesheetove (WP1.16a)
       attention: { lateDeliverables: 1, highRisks: 1, timesheetsToApprove: 2, expensesWithoutEvidence: 1, unclaimedPeriods: 1 },
     });
     expect(B).toMatchObject({
@@ -99,19 +102,19 @@ describe('Portfelj (WP1.15, e2e)', () => {
     const b = await get(f.tokens.admin);
     const acr = (id?: string) => (id === f.A.id ? 'A' : id === f.B.id ? 'B' : '');
     expect((b.deadlines as Body[]).map((d) => `${d.kind}|${d.days}|${d.overdue}|${acr(d.projectId)}`)).toEqual([
-      'claim_due|-76|true|B',
+      'claim_due|-76|true|A', 'claim_due|-76|true|B',
       'deliverable|-15|true|A', 'deliverable|-15|true|B', 'milestone|-15|true|A', 'milestone|-15|true|B',
       'proposal_internal|3|false|', 'call_internal|5|false|', 'call_submission|10|false|',
-      'claim_due|15|false|A', 'claim_due|15|false|B',
+      'claim_due|15|false|B',
     ]);
     const d0 = (b.deadlines as Body[])[0]!;
-    expect(d0).toMatchObject({ date: '2027-04-30', title: 'RP1 – rok za zahtjev za nadoknadu i izvještaj', link: `projekti/${f.B.id}/zns` });
+    expect(d0).toMatchObject({ date: '2027-04-30', title: 'RP1 – rok za zahtjev za nadoknadu i izvještaj', link: `projekti/${f.A.id}/zns` });
     expect((b.deadlines as Body[]).find((d) => d.kind === 'call_submission')).toMatchObject({ callId, link: `radar/${callId}`, at: '2027-07-25T15:00:00Z', date: '2027-07-25' });
     expect((b.deadlines as Body[]).find((d) => d.kind === 'proposal_internal')).toMatchObject({ proposalId: goProposal, link: `prijave/${goProposal}` });
     const short = await get(f.tokens.admin, '?days=10');
     expect(short.days).toBe(10);
-    expect((short.deadlines as Body[]).map((d) => d.kind)).toEqual(['claim_due', 'deliverable', 'deliverable', 'milestone', 'milestone', 'proposal_internal', 'call_internal', 'call_submission']);
-    expect(short.summary).toMatchObject({ deadlinesSoon: 5, overdue: 5 }); // brojke ne ovise o prozoru popisa
+    expect((short.deadlines as Body[]).map((d) => d.kind)).toEqual(['claim_due', 'claim_due', 'deliverable', 'deliverable', 'milestone', 'milestone', 'proposal_internal', 'call_internal', 'call_submission']);
+    expect(short.summary).toMatchObject({ deadlinesSoon: 4, overdue: 6 }); // brojke ne ovise o prozoru popisa
     expect((await get(f.tokens.admin, '?days=abc')).days).toBe(60);
   });
 
@@ -136,7 +139,7 @@ describe('Portfelj (WP1.15, e2e)', () => {
     expect(b.access).toEqual({ full: false, people: false, pipeline: false, calls: false, finance: 'all' });
     expect((b.projects as Body[]).map((p) => p.id)).toEqual([f.A.id]);
     expect(b.projects[0]).toMatchObject({ budget: { planned: 3_300_000, actual: 70_000 }, attention: { timesheetsToApprove: 2, expensesWithoutEvidence: 1, unclaimedPeriods: 1 } });
-    expect(b.summary).toMatchObject({ projects: 1, activeProjects: 1, money: { projects: 1, planned: 3_300_000, spent: 70_000 }, pipeline: null, successRate: null, deadlinesSoon: 1, overdue: 2 });
+    expect(b.summary).toMatchObject({ projects: 1, activeProjects: 1, money: { projects: 1, planned: 3_300_000, spent: 70_000 }, pipeline: null, successRate: null, deadlinesSoon: 0, overdue: 3 });
     expect(b.people).toBeNull(); expect(b.pipeline).toBeNull();
     expect((b.deadlines as Body[]).every((d) => d.projectId === f.A.id)).toBe(true);
     expect(JSON.stringify(b)).not.toContain(f.B.id);
@@ -148,7 +151,7 @@ describe('Portfelj (WP1.15, e2e)', () => {
     expect((b.projects as Body[]).map((p) => p.id)).toEqual([f.A.id]);
     expect(b.projects[0]).toMatchObject({ budget: null, time: { month: 7, percent: 54 }, attention: { lateDeliverables: 1, highRisks: 1, timesheetsToApprove: 2, expensesWithoutEvidence: null, unclaimedPeriods: null } });
     expect(b.summary.money).toBeNull();
-    expect((b.deadlines as Body[]).map((d) => d.kind)).toEqual(['deliverable', 'milestone', 'claim_due']);
+    expect((b.deadlines as Body[]).map((d) => d.kind)).toEqual(['claim_due', 'deliverable', 'milestone']);
     expect((b.deadlines as Body[]).find((d) => d.kind === 'claim_due')!.link).toBe(`projekti/${f.A.id}`);
     expect(JSON.stringify(b)).not.toMatch(/3300000|1150000|"planned"/);
   });
@@ -157,7 +160,7 @@ describe('Portfelj (WP1.15, e2e)', () => {
     for (const [t, evA, evB] of [[f.tokens.fin, 1, 0], [f.tokens.rdr, 2, 1]] as const) {
       const b = await get(t);
       expect(b.access).toEqual({ full: true, people: true, pipeline: true, calls: true, finance: 'all' });
-      expect(b.summary).toMatchObject({ projects: 2, money: { spent: 1_620_000 }, overdue: 5, deadlinesSoon: 5, successRate: { rejected: 1 } });
+      expect(b.summary).toMatchObject({ projects: 2, money: { spent: 1_620_000 }, overdue: 6, deadlinesSoon: 4, successRate: { rejected: 1 } });
       const { A, B } = byAcr(b);
       expect([A.attention.expensesWithoutEvidence, B.attention.expensesWithoutEvidence]).toEqual([evA, evB]);
       expect(b.people.persons).toHaveLength(3);
