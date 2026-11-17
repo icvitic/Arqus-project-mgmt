@@ -3,6 +3,8 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+### Dodano
+- Strategija, odj. 8: rad tijekom točke zaustavljanja – WP1.19 (sigurnosne dorade prije penetracijskog testa) i WP1.20 (S3 pohrana i kopije izvan poslužitelja); nove funkcije i dalje čekaju bilješke s demonstracija.
 
 ## [0.26.0] - 2026-11-17
 ### Dodano
