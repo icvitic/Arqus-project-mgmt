@@ -83,7 +83,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   };
 
   // ---------- radar poziva ----------
-  const npooStart = firstOfMonth(today, -8); // NPOO projekt: RP1 (mj. 1–6) završio je prije dva mjeseca
+  const npooStart = firstOfMonth(today, -12); // NPOO projekt u 13. mjesecu: RP1 (mj. 1–6) isplaćen, RP2 (mj. 7–12) završio prošli mjesec, ZNS još nije predan
   const heStart = firstOfMonth(today, -10); // HE projekt: u 11. mjesecu provedbe
   const npooPackageId = 'npoo-poziv-zdp-2025';
   const pkgRow = await office.post<Row>('/programme-packages', {
@@ -162,7 +162,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     { title: 'Promidžba i prijenos znanja', leadMemberId: nAgency, startMonth: 1, endMonth: 24, personMonths: 4 },
   ]) await office.post(`/proposals/${npooPid}/work-packages`, w);
   await office.put(`/proposals/${npooPid}/budget/lines`, { lines: [
-    { memberId: nSelf, categoryCode: 'OS', amount: 9_600_000 }, { memberId: nSelf, categoryCode: 'VU', amount: 4_500_000 }, { memberId: nSelf, categoryCode: 'OP', amount: 8_200_000 },
+    { memberId: nSelf, categoryCode: 'OS', amount: 9_600_000 }, { memberId: nSelf, categoryCode: 'VU', amount: 4_500_000 }, { memberId: nSelf, categoryCode: 'OP', amount: 12_000_000 },
     { memberId: nSelf, categoryCode: 'PUT', amount: 600_000 }, { memberId: nSelf, categoryCode: 'UP', amount: 1_800_000 }, { memberId: nSelf, categoryCode: 'PV', amount: 700_000 },
     { memberId: nAgency, categoryCode: 'OS', amount: 2_400_000 }, { memberId: nAgency, categoryCode: 'VU', amount: 900_000 }, { memberId: nAgency, categoryCode: 'PV', amount: 800_000 },
   ] });
@@ -197,17 +197,20 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   await upload(office, 'project', npoo, 'ZELENI-LAB-ugovor.pdf', 'Ugovor o dodjeli bespovratnih sredstava', 'contract', ['Broj ugovora: NPOO.C3.2.R3-I2.07.0147', `Početak provedbe: ${npooStart}`, 'Trajanje: 24 mjeseca'], 'confidential');
   await office.post(`/projects/${npoo}/transition`, { to: 'active' });
 
-  // Timesheetovi NPOO: mj. 1–8 (RP1 i dio RP2), svi odobreni.
+  // Timesheetovi NPOO: mj. 1–12 (RP1 i RP2), svi odobreni. Marina u 12. mjesecu radi i na BLUESENSE (portfelj: dan iznad 8 h kroz dva projekta).
   const timesheet = async (writer: Api, approver: Api, projectId: string, memberId: string, month: string, entries: unknown[], approve = true) => {
     await writer.put(`/projects/${projectId}/team/${memberId}/timesheets/${month}`, { entries });
     await writer.post(`/projects/${projectId}/team/${memberId}/timesheets/${month}/submit`);
     if (approve) await approver.post(`/projects/${projectId}/team/${memberId}/timesheets/${month}/approve`);
     sum.timesheets++;
   };
-  for (let m = 1; m <= 8; m++) {
+  let marinaLast: { day: number; minutes: number }[] = [];
+  for (let m = 1; m <= 12; m++) {
     const month = projectMonth(npooStart, m);
+    const mEntries = timesheetEntries(month, m, [360, 420, 300, 480, 240, 360], nWp, 3);
     await timesheet(pm2, office, npoo, josip, month, timesheetEntries(month, m, [120, 180, 90, 240, 120], nWp, 1));
-    await timesheet(pm2, pm2, npoo, marina, month, timesheetEntries(month, m, [360, 420, 300, 480, 240, 360], nWp, 3));
+    await timesheet(pm2, pm2, npoo, marina, month, mEntries);
+    if (m === 12) marinaLast = mEntries;
   }
   // Ručni troškovi RP1 s dokazima (trošak i dokaz unose financije).
   const expense = async (projectId: string, body: Record<string, unknown>, evidence?: { api: Api; file: string }) => {
@@ -217,7 +220,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     return e;
   };
   const rp1 = [
-    { categoryCode: 'OP', date: dayOf(npooStart, 3, 12), description: 'Termovizijska kamera i mjerna oprema za laboratorij', supplier: 'Mjerna tehnika d.o.o.', amount: 2_450_000, evidenceRef: 'R-412/2026' },
+    // Glavna oprema laboratorija (120.000 EUR) još nije nabavljena – žalba u javnoj nabavi; zato potrošnja kasni za vremenom (portfelj).
+    { categoryCode: 'OP', date: dayOf(npooStart, 3, 12), description: 'Prijenosni mjerači temperature i vlage (sitna oprema)', supplier: 'Mjerna tehnika d.o.o.', amount: 320_000, evidenceRef: 'R-412/2026' },
     { categoryCode: 'VU', date: dayOf(npooStart, 4, 8), description: 'Elaborat energetskog pregleda pilot-zgrade', supplier: 'Energo-plan d.o.o.', amount: 1_180_000, evidenceRef: 'R-88/2026' },
     { categoryCode: 'PUT', date: dayOf(npooStart, 5, 21), description: 'Studijsko putovanje – posjet laboratoriju za zgradarstvo', supplier: 'Putnički nalog 14/2026', amount: 86_500, evidenceRef: 'PN-14/2026' },
     { categoryCode: 'PV', date: dayOf(npooStart, 2, 17), description: 'Vizualni identitet i informativne ploče projekta', supplier: 'Studio Kvadrat d.o.o.', amount: 245_000, evidenceRef: 'R-31/2026' },
@@ -311,6 +315,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   const petra = (await finance.post<Row>(`/projects/${heId}/team`, { fullName: 'Petra Horvat', userId: userIds.pm, role: 'voditeljica projekta', annualCost: 5_400_000 })).id;
   const luka = (await finance.post<Row>(`/projects/${heId}/team`, { fullName: 'Luka Novak', userId: userIds.member, role: 'asistent – istraživač', annualCost: 3_900_000 })).id;
   const ivana = (await finance.post<Row>(`/projects/${heId}/team`, { fullName: 'Ivana Marić', role: 'poslijedoktorandica', annualCost: 4_500_000 })).id;
+  // Marina Šimić (ZELENI-LAB) od prošlog mjeseca pomaže i na mjerenjima BLUESENSE; bez korisničkog računa – portfelj je prepoznaje po imenu.
+  const marinaHe = (await finance.post<Row>(`/projects/${heId}/team`, { fullName: 'Marina Šimić', role: 'istraživačica – terenska mjerenja', annualCost: 3_600_000 })).id;
   await upload(office, 'project', heId, 'BLUESENSE-grant-agreement.pdf', 'Ugovor o dodjeli (Grant Agreement)', 'contract', ['Projekt: BLUESENSE (RIA)', 'Broj ugovora: GA-DEMO-2025-0117', `Početak: ${heStart}, trajanje 36 mjeseci`], 'confidential');
   await upload(office, 'project', heId, 'BLUESENSE-sporazum-o-konzorciju.pdf', 'Sporazum o konzorciju', 'contract', ['Partneri: Pokazno sveučilište, Hochschule Nordwald, Politecnico di Valmarina, Fundación Tecnológica Montesol, Polder Analytics B.V.']);
   // Povjerljivo (WP1.14): vide ga ured, voditeljica i financije; član tima i uprava ga ne vide ni u popisu.
@@ -326,6 +332,10 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     await timesheet(member, pm, heId, luka, month, timesheetEntries(month, m, [360, 420, 480, 300, 420, 360], hWp, 5), m < curMonth - 1);
     await timesheet(pm, pm, heId, ivana, month, timesheetEntries(month, m, [300, 360, 240, 420], hWp, 7));
   }
+  // Marina na BLUESENSE prošli mjesec: dva dana po 2 h; jedan od njih je dan s 8 h na ZELENI-LAB → 10 h kroz dva projekta (provjera dvostrukog financiranja).
+  const fullDay = marinaLast.find((e) => e.minutes === 480) ?? marinaLast[0]!;
+  const lightDay = marinaLast.find((e) => e.minutes <= 300 && e.day !== fullDay.day) ?? marinaLast.find((e) => e.day !== fullDay.day)!;
+  await timesheet(pm, pm, heId, marinaHe, projectMonth(heStart, curMonth - 1), [fullDay, lightDay].sort((a, b) => a.day - b.day).map((e) => ({ day: e.day, minutes: 120, workPackageId: hWps[3]!.id })));
   const thisMonth = projectMonth(heStart, curMonth);
   const draft = timesheetEntries(thisMonth, curMonth, [360, 420, 480, 300], hWp, 5, today.getUTCDate() - 1);
   if (draft.length) await member.put(`/projects/${heId}/team/${luka}/timesheets/${thisMonth}`, { entries: draft });
@@ -362,6 +372,18 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   await upload(office, 'proposal', aq.id, 'AQUAREST-Part-B-nacrt-v3.pdf', 'Part B – nacrt v3', 'proposal', ['Odjeljci 1 (Izvrsnost) i 2 (Učinak) – nacrt', 'Odjeljak 3 (Provedba) – u izradi']);
   sum.proposals.push('AQUAREST (u pripremi)');
   log('prijava AQUAREST u pripremi');
+
+  // ---------- odbijena prijava (prošli krug NPOO-a): uspješnost prijava na portfelju ----------
+  const rj = await office.post<{ id: string; members: Row[] }>('/proposals', { packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', acronym: 'PAMETNI-KAMPUS', title: 'Digitalni blizanac sveučilišnog kampusa za upravljanje energijom', durationMonths: 24, leadUserId: userIds.pm2 });
+  const rjSelf = rj.members[0]!.id;
+  await office.post(`/proposals/${rj.id}/work-packages`, { title: 'Digitalni blizanac i senzorska mreža kampusa', leadMemberId: rjSelf, startMonth: 1, endMonth: 24, personMonths: 14 });
+  await office.put(`/proposals/${rj.id}/budget/lines`, { lines: [{ memberId: rjSelf, categoryCode: 'OS', amount: 7_200_000 }, { memberId: rjSelf, categoryCode: 'OP', amount: 5_500_000 }, { memberId: rjSelf, categoryCode: 'VU', amount: 1_800_000 }] });
+  await office.post(`/proposals/${rj.id}/budget/lock`);
+  await office.post(`/proposals/${rj.id}/transition`, { to: 'preparation' });
+  await office.post(`/proposals/${rj.id}/transition`, { to: 'internal_review' });
+  await office.post(`/proposals/${rj.id}/submit`, { portal: 'eNPOO (fondovieu.gov.hr)', reference: 'ZDP-2025-0093', submittedAt: `${addMonths(npooStart, -4)}T12:00:00Z` });
+  await office.post(`/proposals/${rj.id}/outcome`, { result: 'rejected', score: '61/100', note: 'Ispod praga za financiranje (65 bodova).' });
+  sum.proposals.push('PAMETNI-KAMPUS (odbijena)');
 
   for (const api of [admin, office, pm, pm2, member, finance]) await api.post('/auth/logout').catch(() => undefined);
   return sum;

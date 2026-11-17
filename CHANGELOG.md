@@ -4,6 +4,18 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-17
+### Dodano
+- Revizija strategije nakon WP1.15 (`docs/strategija-razvoja-faza-1b.md`, odj. 7): WP1.16 proširen ispravnošću ZNS-a, WP1.14b proširen i pomaknut iza njega, WP1.17 i WP1.18 uvjetni; točka zaustavljanja do povratne informacije s demonstracija.
+- WP1.15 **Portfelj** (M10): `GET /api/portfolio[?days=N]` – pregled svih projekata institucije u jednom zahtjevu, samo čitanje, bez novih tablica i migracija. Brojke (projekti u provedbi; ugovoreni proračun, zatraženo financiranje i potrošnja vlastite organizacije, uz iznose cijelih projekata; rokovi u 30 dana i prošli rokovi; prijave u tijeku s traženim iznosima; uspješnost prijava), projekti s proteklim vremenom i potrošnjom (oznaka kad se razlikuju za više od 20 postotnih bodova), sljedećim izvještajem i upozorenjima (isporuke koje kasne, visoki rizici, timesheetovi koji čekaju odobrenje, ručni troškovi bez dokaza, završena razdoblja bez predanog ZNS-a), jedan popis rokova (prošli neispunjeni prvi, zatim idućih 60 dana: razdoblja i ZNS, isporuke, prekretnice, rokovi i interni rokovi praćenih poziva, interni rokovi prijava), opterećenje ljudi kroz projekte (sati po mjesecu, sati ove godine prema godišnjem fondu iz pravila paketa, dani s više od 8 h ukupno – provjera dvostrukog financiranja) i prijave po statusu.
+- Pristup prema WP1.14: ruta `@AnyScope('projects:read')`; uz `portfolio:read` institucije (ured, financije, uprava, administrator) sve; inače samo projekti s dodjelom, iznosi samo uz `finance:read` na projektu, bez opterećenja ljudi, prijave i pozivi samo uz dozvolu institucije.
+- Domena (`packages/domain/src/portfolio.ts`): napredak u vremenu, postotak i signal potrošnje, spajanje i poredak rokova, godišnji fond sati iz pravila paketa, opterećenje po osobi (prepoznavanje po računu ili imenu), uspješnost prijava – s testovima rubnih slučajeva.
+- Web: stranica **Portfelj** – prva stavka izbornika i početna stranica uz `portfolio:read` institucije (ostali i dalje počinju na Projektima, a Portfelj otvaraju za svoje projekte); pločice, dvije trake vrijeme/potrošnja, upozorenja kao oznake koje vode na karticu gdje se popravljaju, rokovi u stilu „za N d / kasni N d” s izborom prozora, prazno stanje s prvim koracima za novu instituciju.
+- Testovi: `portfolio.e2e.test.ts` (točne brojke na postavi s dva projekta, pravila pristupa za voditelja i člana tima na projektu, financije i upravu), domena (15), e2e u pregledniku: korak „portfelj” (22 koraka).
+
+### Promijenjeno
+- Demo: ZELENI-LAB počinje 12 mjeseci prije punjenja (13. mjesec; RP2 završio, ZNS 2 još nije predan), glavna oprema (120.000 EUR) nije nabavljena – potrošnja kasni za vremenom, isporuka D2.1 i prekretnica kasne; timesheetovi za 12 mjeseci; Marina Šimić radi i na BLUESENSE-u (dan s 10 h kroz dva projekta); odbijena prijava PAMETNI-KAMPUS. Scenarij demonstracije počinje na portfelju.
+
 ## [0.21.0] - 2026-11-17
 ### Dodano
 - WP1.14 pristup po projektu (`docs/sigurnost/AUTORIZACIJA.md`): uloga se dodjeljuje na razini institucije (svi projekti) ili na jednom projektu i tada vrijedi samo za taj projekt – u API-ju i u popisima. Kontekst zahtjeva nosi dozvole institucije i mapu dozvola po projektu, svježe pri svakom zahtjevu (opoziv vrijedi odmah).

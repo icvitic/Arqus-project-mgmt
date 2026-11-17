@@ -9,3 +9,4 @@ export * from './call.js';
 export * from './proposal.js';
 export * from './documents.js';
 export * from './ft-import.js';
+export * from './portfolio.js';

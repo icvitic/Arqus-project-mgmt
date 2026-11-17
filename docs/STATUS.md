@@ -1,8 +1,9 @@
 # Stanje projekta
 
-**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.21.0 · **Faza:** 1 – MVP i pilot
+**Zadnje ažuriranje:** 2026-11-17 · **Verzija:** v0.22.0 · **Faza:** 1 – MVP i pilot
 
 ## Gotovo
+- WP1.15 (v0.22.0): portfelj – prvi zaslon uprave i ureda nakon prijave: projekti s potrošnjom prema proteklom vremenu (oznaka kad se razlikuju za više od 20 postotnih bodova), upozorenja koja vode na mjesto popravka (isporuke koje kasne, visoki rizici, timesheetovi na odobrenju, troškovi bez dokaza, razdoblja bez ZNS-a), jedan popis rokova (izvještaji, isporuke, pozivi, interni rokovi), opterećenje ljudi kroz projekte s provjerom godišnjeg fonda sati i dana iznad 8 h (dvostruko financiranje), prijave po statusu i uspješnost. Poštuje pristup po projektu (voditelj vidi samo svoje projekte, bez novca tamo gdje nema financije, bez ljudi i prijava). Demonstracija počinje na portfelju. Prodekan u jednom pogledu vidi sve projekte i sljedeće rokove.
 - WP1.14 (v0.21.0): pristup po projektu – uloga dodijeljena na projektu vrijedi samo za taj projekt (API, popisi, dokumenti); voditelj projekta A ne vidi projekt B ni izravnom poveznicom (404). Svaka ruta mora biti izričito razvrstana, a test pokrivenosti za svaku projektnu rutu provjerava izolaciju. Plaće upisuju i vide samo ovlašteni, nitko ne odobrava vlastiti timesheet, povjerljive dokumente vide samo ured, voditelj i financije; financije prilažu dokaze. Kartica „Pristup” na projektu i uloge na projektima u izborniku Korisnici. Vrata za stvarne podatke prve institucije i za penetracijski test su otvorena (`docs/sigurnost/AUTORIZACIJA.md`).
 - WP1.13 (v0.20.0): demo okruženje – `demo.cmd` (Windows, Docker Desktop) u nekoliko minuta digne ArQus Projekti na http://localhost:8080 s popunjenom demo institucijom (HE projekt u provedbi, NPOO projekt s isplaćenim ZNS-om, prijava u pripremi, radar, 7 korisnika s različitim ulogama); `demo.cmd reset` vraća početno stanje. Scenarij demonstracije od 20 minuta u `docs/DEMO-SCENARIJ.md`. Ivan može pokazati pravi proizvod bez ručne instalacije.
 - WP1.12 (v0.19.0): uvoz poziva s portala EU Funding & Tenders – ~470 aktualnih tema (365 Horizon Europe s paketom i vrstom akcije) osvježava se svaki dan; radar s filtrima po programu i „vlastiti i praćeni”. Institucija više ne mora ručno unositi EU pozive.
@@ -36,7 +37,7 @@
 - WP1.9 – čeka odabir pružatelja i pilot-institucije (instalacija za ~1 sat prema `docs/PILOT-INSTALACIJA.md`) i vanjski penetracijski test (WP1.14 gotov – test se može naručiti; opseg autorizacije u `docs/sigurnost/AUTORIZACIJA.md`).
 
 ## Sljedeće
-Prema `docs/strategija-razvoja-faza-1b.md`: WP1.15 portfelj (poštuje pristup po projektu) → WP1.14b zaštita od istovremenog prepisivanja proračuna i pregled revizije u sučelju (može i usporedno) → WP1.16 ZNS paket za predaju → WP1.17 uvoz iz Excela → WP1.18 rokovi i „Moj rad”. Usporedno (Ivan): demonstracija trima do pet institucija s demo okruženjem. Revizija strategije nakon WP1.15 ili s prvim pilotom.
+Prema reviziji strategije nakon WP1.15 (`docs/strategija-razvoja-faza-1b.md`, odj. 7): WP1.16 ZNS – ispravnost i paket za predaju → WP1.14b dorade prije pilota. Zatim **točka zaustavljanja**: WP1.17 (uvoz iz Excela) i WP1.18 (rokovi i „Moj rad”) rade se tek nakon povratne informacije s barem tri demonstracije.
 
 ## Otvorena pitanja za Ivana
 - WP1.14: postojeće instalacije zadržavaju uloge na razini institucije – nakon nadogradnje u izborniku Korisnici voditeljima i članovima tima zamijeniti ulogu institucije ulogom na projektu. Odluka: prijave ostaju na razini institucije (nositelj prijave bez uloge institucije ne vidi prijavu dok se ne ugovori) – je li to prihvatljivo za pilot?

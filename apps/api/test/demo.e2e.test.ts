@@ -99,7 +99,7 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(st.milestones.length).toBeGreaterThan(0); expect(st.risks.length).toBeGreaterThan(0);
     expect((await http().get(`/api/projects/${he.id}/budget`).set(as('office')).expect(200)).body.status).toBe('locked');
     const team = (await http().get(`/api/projects/${he.id}/team`).set(as('finance')).expect(200)).body as { id: string; fullName: string; annualCost: number }[];
-    expect(team).toHaveLength(3); expect(team.every((t) => t.annualCost > 0)).toBe(true);
+    expect(team).toHaveLength(4); expect(team.every((t) => t.annualCost > 0)).toBe(true);
     const luka = team.find((t) => t.fullName === 'Luka Novak')!;
     const { rows: tsRows } = await pool.query<{ status: string; n: number }>(`select status, count(*)::int as n from timesheets where project_id = $1 group by status`, [he.id]);
     const ts = Object.fromEntries(tsRows.map((x) => [x.status, x.n]));
@@ -134,6 +134,27 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(await heDocs('pm')).toContain(confidentialTitle); expect(await heDocs('finance')).toContain(confidentialTitle);
     expect(await heDocs('member')).not.toContain(confidentialTitle);
     expect(((await http().get(`/api/projects/${he.id}/team`).set(as('member')).expect(200)).body as { annualCost: number | null }[]).every((t) => t.annualCost === null)).toBe(true);
+
+    // WP1.15 portfelj (uprava): svaki signal ima primjer u demo podacima.
+    const pf = (await http().get('/api/portfolio').set(as('board')).expect(200)).body;
+    const row = (acr: string) => pf.projects.find((x: Row) => x.acronym === acr);
+    expect(pf.access.full).toBe(true);
+    expect(row('ZELENI-LAB').budget.signal).toBe('lagging'); // oprema još nije nabavljena
+    expect(row('BLUESENSE').budget.signal).toBe('ok');
+    expect(row('BLUESENSE').attention).toMatchObject({ timesheetsToApprove: 1, expensesWithoutEvidence: 1 });
+    expect(row('BLUESENSE').attention.lateDeliverables).toBeGreaterThanOrEqual(1);
+    expect(row('ZELENI-LAB').attention).toMatchObject({ lateDeliverables: 1, unclaimedPeriods: 1, expensesWithoutEvidence: 1 });
+    expect(row('ZELENI-LAB').attention.highRisks + row('BLUESENSE').attention.highRisks).toBeGreaterThanOrEqual(2);
+    const marina = pf.people.persons.find((x: Row) => x.name === 'Marina Šimić');
+    expect(marina.projects).toHaveLength(2);
+    expect(marina.overDays).toEqual([expect.objectContaining({ minutes: 600, projects: 2 })]);
+    expect(pf.people.persons.filter((x: Row) => (x.overDays as unknown[]).length)).toHaveLength(1);
+    expect(pf.summary.successRate).toEqual({ funded: 1, rejected: 1, percent: 50 });
+    expect(pf.summary.overdue).toBeGreaterThanOrEqual(2);
+    expect(pf.deadlines.some((d: Row) => d.kind === 'claim_due' && !d.overdue)).toBe(true);
+    // Voditeljica BLUESENSE vidi samo svoj projekt, bez ljudi i prijava.
+    const pmPf = (await http().get('/api/portfolio').set(as('pm')).expect(200)).body;
+    expect(pmPf.projects.map((x: Row) => x.acronym)).toEqual(['BLUESENSE']); expect(pmPf.people).toBeNull(); expect(pmPf.pipeline).toBeNull();
   }, 120_000);
 
   it('drugo pokretanje ne mijenja ništa (idempotentno)', async () => {

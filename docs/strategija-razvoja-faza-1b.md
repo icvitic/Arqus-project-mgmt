@@ -71,3 +71,24 @@ Razvoj sam ne može ispuniti nijedan uvjet faze 2. Najduži rok ima pronalazak p
 - **Izvedba:** Opus 5.5 – po jedan radni paket prema zadatku iz ovog dokumenta.
 - **Tempo:** najviše dva radna paketa dnevno; nakon svakog izvještaj i stanka dok tjedna potrošnja ne dopusti nastavak (granica 80 %).
 - **Gotovo znači:** testovi i e2e prolaze, revizija ovisnosti čista, dokumentacija i demo podaci ažurirani, PR spojen.
+
+## 7. Revizija nakon WP1.15 (2026-11-17, v0.22.0)
+
+**Stanje.** WP1.13 demo, WP1.14 pristup po projektu i WP1.15 portfelj su gotovi. Proizvod se sada može pokazati (demo), smije primiti stvarne podatke (pristup po projektu) i ima pogled za kupca (portfelj). Od četiri uvjeta faze 2 razvoj je otključao tri preduvjeta; ispunjenje svih i dalje ovisi o pilotima.
+
+**Što je punjenje demo podataka pokazalo.** Najviše nedostataka je u samom ZNS-u, a to je jedina mjerljiva vrijednost iz uvjeta faze 2:
+- ZNS se može predati prije kraja razdoblja; djelomično odobren ZNS označi sve troškove prihvaćenima, i nepriznate; datum isplate se ne provjerava prema odluci.
+- Svaki odobreni timesheet stvara po jedan trošak za svaki radni paket, pa ZNS jednog razdoblja ima 40+ redaka.
+- Valjanost paketa programa (rok, pravila `validations`) ne provjerava se pri stvaranju projekta.
+
+**Promjena redoslijeda.**
+
+| # | Radni paket | Promjena |
+| --- | --- | --- |
+| **WP1.16** | ZNS: ispravnost i paket za predaju | Prošireno: prvo pravila (predaja tek nakon kraja razdoblja, odluka po trošku, provjera datuma, sažeti prikaz troškova osoblja), zatim izvoz i mjerenje. Ostaje sljedeći. |
+| **WP1.14b** | Dorade prije pilota | Prošireno i pomaknuto iza WP1.16: zaštita od istovremenog prepisivanja proračuna, pregled revizijskog zapisa, provjera valjanosti paketa, pristup voditelja vlastitoj prijavi, „danas” po zoni Europe/Zagreb, uklanjanje istovremenih upita na jednoj transakciji (prestaje raditi u pg 9). |
+| WP1.17, WP1.18 | Uvoz iz Excela; rokovi i „Moj rad” | **Uvjetno.** Rade se tek nakon povratne informacije s prvih demonstracija. |
+
+**Točka zaustavljanja.** Nakon WP1.16 i WP1.14b daljnji razvoj bez povratne informacije kupaca je nagađanje: ne znamo unose li institucije postojeće projekte iz Excela (WP1.17) ili im više treba nešto treće. Zato se nakon ta dva paketa razvoj zaustavlja dok Ivan ne održi barem tri demonstracije i zapiše što su sugovornici tražili (predložak: `docs/faza-0/predlozak-biljeske.md`). Te bilješke određuju sljedeću reviziju.
+
+**Poznata ograničenja koja ostaju do pilota:** izolacija projekata samo u aplikaciji (bez RLS-a po projektu), prijave na razini institucije, voditelj može unijeti i odobriti timesheet člana bez korisničkog računa, iznosi troškova osoblja vidljivi uz `finance:read`. Sva su zapisana u `docs/sigurnost/AUTORIZACIJA.md` i idu u opseg penetracijskog testa.

@@ -11,6 +11,7 @@ import { Account } from './pages/Account';
 import { Packages } from './pages/Packages';
 import { Radar } from './pages/Radar';
 import { Proposals } from './pages/Proposals';
+import { Portfolio } from './pages/Portfolio';
 import { Loading } from './ui';
 import { can, canAny } from './lib/access';
 
@@ -20,7 +21,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const route = useRoute();
-  const logout = useCallback(() => { token.clear(); setMe(null); go('projekti'); }, []);
+  const logout = useCallback(() => { token.clear(); setMe(null); go(''); }, []);
   const signOut = useCallback(async () => { try { await api('POST', '/auth/logout'); } catch { /* sesija možda već istekla */ } logout(); }, [logout]);
   const loadMe = useCallback(async () => {
     if (!token.get()) { setChecking(false); return; }
@@ -29,9 +30,11 @@ export function App() {
   useEffect(() => { setUnauthorizedHandler(logout); void loadMe(); }, [logout, loadMe]);
 
   if (checking) return <main><Loading /></main>;
-  if (!me) return <Login onLogin={async () => { go('projekti'); await loadMe(); }} />;
+  if (!me) return <Login onLogin={async () => { go(''); await loadMe(); }} />;
 
-  const [page, id, tab] = route;
+  // Početna stranica: portfelj za upravu i ured (portfolio:read institucije), inače popis projekata (WP1.15).
+  const [routePage, id, tab] = route;
+  const page = routePage ?? (can(me, 'portfolio:read') ? 'portfelj' : 'projekti');
   return (
     <>
       <header className="top">
@@ -39,6 +42,7 @@ export function App() {
         <nav>
           {/* Izbornik prikazuje samo ono što korisnik smije otvoriti (WP1.14): radar i prijave su radnje institucije,
               projekti, organizacije i paketi dostupni su i uz ulogu samo na projektu. */}
+          {canAny(me, 'projects:read') && <a href="#/portfelj" className={page === 'portfelj' ? 'active' : ''}>Portfelj</a>}
           {can(me, 'calls:read') && <a href="#/radar" className={page === 'radar' ? 'active' : ''}>Radar poziva</a>}
           {can(me, 'proposals:read') && <a href="#/prijave" className={page === 'prijave' ? 'active' : ''}>Prijave</a>}
           {canAny(me, 'projects:read') && <a href="#/projekti" className={page === 'projekti' ? 'active' : ''}>Projekti</a>}
@@ -58,6 +62,7 @@ export function App() {
           : page === 'radar' ? (can(me, 'calls:read') ? <Radar me={me} route={route} /> : <NoAccess />)
           : page === 'prijave' ? (can(me, 'proposals:read') ? <Proposals me={me} route={route} /> : <NoAccess />)
           : !canAny(me, 'projects:read') ? <NoAccess what="Nemaš pristup nijednom projektu. Administrator ili voditelj projekta može ti dodijeliti ulogu na projektu." />
+          : page === 'portfelj' ? <Portfolio me={me} />
           : id ? <ProjectDetail id={id} tab={tab ?? 'pregled'} me={me} />
           : <Projects me={me} />}
       </main>

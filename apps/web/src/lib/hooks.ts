@@ -16,7 +16,7 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
 
 /** Hash usmjeravanje: #/projekti/<id>/<kartica>. */
 export function useRoute(): string[] {
-  const parse = () => (window.location.hash.replace(/^#\/?/, '') || 'projekti').split('/').filter(Boolean);
+  const parse = () => window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean); // prazno = početna stranica (App)
   const [route, setRoute] = useState(parse);
   useEffect(() => {
     const on = () => setRoute(parse());

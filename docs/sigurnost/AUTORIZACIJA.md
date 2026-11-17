@@ -43,7 +43,7 @@ Središnje mjesto je `apps/api/src/common/access.ts` (`canOnProject`, `canSeePro
 
 - **Projektne** (`@ProjectPermission`, sve pod `/api/projects/:id`): projekt (detalj, izmjena, partneri, prijelaz statusa), struktura (radni paketi, zadaci, isporuke, prekretnice, rizici), proračun, tim i članovi tima, timesheetovi (unos, predaja, odobrenje, povrat), troškovi, ugovoreno/ostvareno, zahtjevi za nadoknadu (stvaranje, predaja, odluka, isplata), pristup projektu (`/access`). Entitet iz putanje (`wpId`, `taskId`, `mid`, `eid`, `cid` …) uvijek se traži zajedno s projektom iz putanje, pa id s drugog projekta daje 404; id-jevi u tijelu (partner, radni paket) provjeravaju se prema istom projektu.
 - **Razriješene u servisu** (`@ResolvesProject`): sve rute `/api/documents`. Za dokument se čita vlasnik (projekt ili prijava); za prijenos i popis entitet (`project`, `expense`, `deliverable`, `claim`, `proposal`). Svaki navedeni opseg u upitu mora biti dopušten (tuđi id u kombinaciji s vlastitim projektom ne prolazi tiho). Dokumenti prijave traže `documents:*` i `proposals:read`/`proposals:write` na razini institucije.
-- **Bilo koji opseg** (`@AnyScope`): `GET /api/projects` (filtriran: svi projekti uz `projects:read` institucije, inače samo projekti s dodjelom), `GET /api/organisations[/:id]` i `GET /api/programme-packages…` (referentni podaci potrebni za rad na projektu: partneri, kategorije troškova; izmjene su radnja institucije).
+- **Bilo koji opseg** (`@AnyScope`): `GET /api/projects` (filtriran: svi projekti uz `projects:read` institucije, inače samo projekti s dodjelom), `GET /api/portfolio` (vidi odj. 4 – Portfelj), `GET /api/organisations[/:id]` i `GET /api/programme-packages…` (referentni podaci potrebni za rad na projektu: partneri, kategorije troškova; izmjene su radnja institucije).
 - **Institucija** (`@RequirePermission`): korisnici, uloge, revizija, paketi (izmjene, provjera), organizacije (izmjene), radar poziva, prijave, `POST /api/projects`, ugovaranje prijave (`projects:write` i `proposals:read` institucije).
 
 ## 3. Uloge i dozvole
@@ -82,6 +82,8 @@ Sistemske uloge definirane su u `apps/api/src/identity/permissions.ts`; pri svak
 | `documents:confidential` | ● | ● | ● |  | ● |  |
 | `portfolio:read` | ● | ● |  |  | ● | ● |
 
+`portfolio:read` postoji od WP1.2, a koristi se od v0.22.0 (portfelj, odj. 4).
+
 Promjene u v0.21.0: nova dozvola `documents:confidential` (administrator, ured za projekte, voditelj projekta, financije); financije dobivaju `documents:write` (prilaganje dokaza uz trošak).
 
 ## 4. Posebna pravila
@@ -90,6 +92,7 @@ Promjene u v0.21.0: nova dozvola `documents:confidential` (administrator, ured z
 - **Upravljanje pristupom** (`/api/projects/:id/access`, kartica „Pristup” na projektu, izbornik Korisnici): smije administrator korisnika (`users:write` institucije) ili tko ima `projects:write` na projektu. Bez `users:write` dodijeliti ili oduzeti se može samo uloga čije sve dozvole dodjeljivač i sam ima na tom projektu (voditelj ne može nikome, ni sebi, dati ulogu s `personnel:read` ili `*`). Dodjela s jednog projekta ne može se opozvati kroz putanju drugog. Zaštita „barem jedan aktivni administrator institucije” odnosi se na uloge institucije i ostaje.
 - **Plaće.** Godišnji trošak člana tima čita se, upisuje i mijenja samo uz `personnel:read` na tom projektu. Voditelj bez te dozvole dodaje člana tima bez troška; financije ili ured upisuju ga poslije (`PATCH /team/:mid`). Timesheet člana bez upisanog troška ne može se odobriti (409).
 - **Nema samoodobrenja.** Nitko ne odobrava timesheet člana tima povezanog s vlastitim računom, bez obzira na ulogu (403).
+- **Portfelj** (`GET /api/portfolio`, WP1.15, v0.22.0). Dostupan svakome tko vidi barem jedan projekt. Uz `portfolio:read` **na razini institucije** (administrator, ured za projekte, financije, uprava/čitatelj) vidi sve projekte i sve dijelove: iznose, opterećenje ljudi, prijave i rokove poziva – i kad uloga inače nema `timesheets:read`, `proposals:read` ili `calls:read` (portfelj je zbirni prikaz za upravu; satnice i plaće se ne prikazuju, samo sati). Bez toga: samo projekti s `projects:read`; iznosi, troškovi bez dokaza i razdoblja bez ZNS-a samo za projekte s `finance:read`; broj timesheetova na odobrenju uz `timesheets:read`; **opterećenje ljudi** samo uz `projects:read` i `timesheets:read` institucije (inače bi otkrilo sate na tuđim projektima); prijave uz `proposals:read` institucije, rokovi poziva uz `calls:read` institucije. Uloga na projektu (i projektni `portfolio:read`) ne otvara podatke institucije. Troškovi bez dokaza broje se po pravilu povjerljivih dokumenata (trošak samo s povjerljivim dokazom bez `documents:confidential` je trošak bez dokaza). Test: `apps/api/test/portfolio.e2e.test.ts`.
 - **Povjerljivi dokumenti** (`confidentiality = 'confidential'`) vidljivi su samo uz `documents:confidential` na tom opsegu. Ostali ih ne vide u popisima ni u brojanju dokaza (troškovi, ZNS – trošak s povjerljivim dokazom izgleda kao trošak bez dokaza), a izravan pristup i preuzimanje daju 404. Označiti dokument povjerljivim može samo tko ima tu dozvolu.
 
 ## 5. Nadogradnja postojeće instalacije
