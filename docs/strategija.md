@@ -1,5 +1,7 @@
 # Strategija – sažetak
 
+**Aktualni plan razvoja (faza 1b, od 2026-11-17):** `docs/strategija-razvoja-faza-1b.md`.
+
 Puni dokument: **Strategija razvoja SaaS platforme za prijavu i upravljanje projektima** (Claude Docs): https://claude.ai/artifact/NdzgwA6jL3SYqCLDksjviZ
 
 - **Preporuka:** uvjetno da – tržišna potreba postoji; razvoj počinje provjerom s kupcima.

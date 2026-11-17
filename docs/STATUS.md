@@ -34,11 +34,10 @@
 - WP1.9 – čeka odabir pružatelja i pilot-institucije (instalacija za ~1 sat prema `docs/PILOT-INSTALACIJA.md`) i vanjski penetracijski test.
 
 ## Sljedeće
-1. Proračun teme iz detalja F&T-a i hrvatski izvori poziva (fondovieu, HRZZ) – po potrebi pilota.
-2. Uloge na razini projekta (pristup po oznaci povjerljivosti dokumenata).
-3. Kad bude pilot-institucije: OIDC, instalacija, penetracijski test.
+Prema `docs/strategija-razvoja-faza-1b.md` (2026-11-17): WP1.13 demo okruženje → WP1.14 pristup po projektu → WP1.15 portfelj → WP1.16 ZNS paket za predaju → WP1.17 uvoz iz Excela → WP1.18 rokovi i „Moj rad”. Revizija strategije nakon WP1.15 ili s prvim pilotom.
 
 ## Otvorena pitanja za Ivana
+- Ljudski kolosijek iz strategije faze 1b: pokazati demo (nakon WP1.13) trima do pet institucija, odabrati EU pružatelja, od prvog pilota dobiti polaznu mjeru trajanja pripreme ZNS-a, budžet za penetracijski test.
 - Kad odabereš pružatelja i pilot-instituciju, instalacija ide prema `docs/PILOT-INSTALACIJA.md`; za vanjski penetracijski test treba budžet i izvođača.
 - Prototip: isprobaj tok u `verzija.cmd` → verzija ≥ v0.4.0 → poveznica „Prototip”. Što nedostaje da ga pokažeš sugovorniku?
 - NPOO stopa neizravnih troškova (15 %) nije potvrđena u pozivima – Upute za prijavitelje jednog stvarnog poziva i dalje bi pomogle.

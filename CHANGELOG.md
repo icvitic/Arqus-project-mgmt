@@ -3,6 +3,8 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+### Dodano
+- Strategija razvoja za fazu 1b „Spremnost za pilot” (`docs/strategija-razvoja-faza-1b.md`): radni paketi WP1.13–WP1.18 u ROADMAP-u.
 
 ## [0.19.0] - 2026-11-16
 ### Dodano
