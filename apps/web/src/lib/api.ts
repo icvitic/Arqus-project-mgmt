@@ -41,8 +41,8 @@ export async function api<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   return data as T;
 }
 
-/** Slanje datoteke (multipart); Content-Type s granicom postavlja preglednik. */
-export async function upload<T>(path: string, form: FormData): Promise<T> {
+/** Slanje datoteke (multipart); Content-Type s granicom postavlja preglednik. `maxLabel` – granica veličine za poruku (413). */
+export async function upload<T>(path: string, form: FormData, maxLabel = '25 MB'): Promise<T> {
   const t = token.get();
   const res = await fetch(`/api${path}`, { method: 'POST', headers: { Accept: 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: form });
   const text = await res.text();
@@ -50,7 +50,7 @@ export async function upload<T>(path: string, form: FormData): Promise<T> {
   if (!res.ok) {
     if (res.status === 401) onUnauthorized();
     const msg = (data as { message?: unknown })?.message;
-    throw new ApiError(res.status, res.status === 413 ? 'Datoteka je prevelika (najviše 25 MB)' : typeof msg === 'string' ? msg : `Greška ${res.status}`, issuesOf(data), data);
+    throw new ApiError(res.status, res.status === 413 ? `Datoteka je prevelika (najviše ${maxLabel})` : typeof msg === 'string' ? msg : `Greška ${res.status}`, issuesOf(data), data);
   }
   return data as T;
 }

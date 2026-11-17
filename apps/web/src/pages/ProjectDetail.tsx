@@ -11,6 +11,7 @@ import { ClaimsTab } from '../tabs/Claims';
 import { FinanceTab } from '../tabs/Finance';
 import { DocumentsTab } from '../tabs/Documents';
 import { AccessTab } from '../tabs/Access';
+import { ImportTab } from '../tabs/Import';
 import { canManageAccess, canOn } from '../lib/access';
 
 /** Kartice projekta i dozvola potrebna za prikaz (na razini institucije ili na ovom projektu, WP1.14). */
@@ -23,6 +24,8 @@ const TABS: [string, string, (me: Me, projectId: string) => boolean][] = [
   ['zns', 'Zahtjevi za nadoknadu', (me, id) => canOn(me, 'finance:read', id)],
   ['financije', 'Ugovoreno / ostvareno', (me, id) => canOn(me, 'finance:read', id)],
   ['dokumenti', 'Dokumenti', (me, id) => canOn(me, 'documents:read', id)],
+  // WP1.17: uvoz iz Excela – tko smije pisati strukturu ili financije projekta.
+  ['uvoz', 'Uvoz', (me, id) => canOn(me, 'projects:write', id) || canOn(me, 'finance:write', id)],
   ['pristup', 'Pristup', (me, id) => canManageAccess(me, id)],
 ];
 
@@ -47,7 +50,7 @@ export function ProjectDetail({ id, tab, me }: { id: string; tab: string; me: Me
       <div className="tabs" role="tablist">{tabs.map(([k, l]) => <a key={k} role="tab" aria-selected={active === k} href={`#/projekti/${id}/${k}`} className={active === k ? 'active' : ''}>{l}</a>)}</div>
       {active === 'struktura' ? <StructureTab {...props} /> : active === 'proracun' ? <BudgetTab {...props} /> : active === 'tim' ? <TimesheetsTab {...props} />
         : active === 'troskovi' ? <ExpensesTab {...props} /> : active === 'zns' ? <ClaimsTab {...props} /> : active === 'financije' ? <FinanceTab {...props} />
-        : active === 'dokumenti' ? <DocumentsTab {...props} /> : active === 'pristup' ? <AccessTab {...props} /> : <Overview {...props} />}
+        : active === 'dokumenti' ? <DocumentsTab {...props} /> : active === 'uvoz' ? <ImportTab {...props} /> : active === 'pristup' ? <AccessTab {...props} /> : <Overview {...props} />}
     </>
   );
 }

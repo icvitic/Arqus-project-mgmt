@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   categoryNames, claimChecklist, claimDecision, claimTotals, computePartnerBudget, hoursToMinutes, dateIn, monthsInPeriod, paymentIssues, preparationMeasures,
@@ -141,9 +141,10 @@ export class ClaimsService {
     const budget = (await tx.select({ id: projectBudgets.id }).from(projectBudgets).where(eq(projectBudgets.projectId, c.projectId)).orderBy(desc(projectBudgets.version)).limit(1))[0];
     const planned = budget ? await tx.select({ code: budgetLines.categoryCode, amount: sql<string>`sum(${budgetLines.amountCents})` }).from(budgetLines)
       .where(and(eq(budgetLines.budgetId, budget.id), eq(budgetLines.partnerId, c.partnerId))).groupBy(budgetLines.categoryCode) : [];
-    // Ranije zatraženo istog partnera, kao ostvareno: priznati iznos nakon odluke, inače traženi.
+    // Ranije zatraženo istog partnera, kao ostvareno: priznati iznos nakon odluke, inače traženi. WP1.17: i troškovi
+    // potraživani izvan sustava (prije ArQusa) – kumulativ prema proračunu uključuje cijelo dosadašnje potraživanje.
     const before = await tx.select({ code: expenses.categoryCode, amount: sql<string>`sum(coalesce(${expenses.recognisedCents}, ${expenses.amountCents}))` }).from(expenses)
-      .where(and(eq(expenses.projectId, c.projectId), eq(expenses.partnerId, c.partnerId), isNotNull(expenses.claimId), ne(expenses.claimId, c.id))).groupBy(expenses.categoryCode);
+      .where(and(eq(expenses.projectId, c.projectId), eq(expenses.partnerId, c.partnerId), or(and(isNotNull(expenses.claimId), ne(expenses.claimId, c.id)), eq(expenses.status, 'historic')))).groupBy(expenses.categoryCode);
     const names = categoryNames(pkg);
     const codes = new Set([...planned.map((x) => x.code), ...before.map((x) => x.code)]);
     const asItem = (e: ExpenseRow) => ({ id: e.id, date: e.date, description: e.description, amount: e.amountCents, categoryCode: e.categoryCode, source: e.source, documents: docs(e.id) });

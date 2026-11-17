@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { and, asc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-import { monthEndDate, riskLevel } from '@arqus/domain';
+import { deliverableCodeIssues, monthEndDate, monthRangeIssue, riskLevel } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
 import { deliverables, milestones, risks, tasks, users, workPackages, type Project } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
@@ -31,9 +31,10 @@ const clean = <T extends Row>(r: T) => { const { tenantId: _t, createdBy: _c, up
 export class ImplementationService {
   constructor(private readonly audit: AuditService, private readonly packages: ProgrammePackagesService) {}
 
+  /** Pravila mjeseci i šifara isporuka dijele ručni unos i uvoz iz Excela (WP1.17, domena `project-import`). */
   private assertMonths(p: Project, start: number, end: number, what: string): void {
-    if (end < start) throw new BadRequestException(`${what}: završni mjesec je prije početnog`);
-    if (p.durationMonths && end > p.durationMonths) throw new BadRequestException(`${what}: mjesec ${end} je izvan trajanja projekta (${p.durationMonths} mj.)`);
+    const issue = monthRangeIssue(p.durationMonths, start, end, what);
+    if (issue) throw new BadRequestException(issue);
   }
 
   private async nextNumber(tx: Tx, table: PgTable, numberCol: PgColumn, scope: SQL): Promise<number> {
@@ -49,10 +50,8 @@ export class ImplementationService {
 
   private async assertCodes(tx: Tx, p: Project, type?: string, dissemination?: string): Promise<void> {
     const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
-    const types = pkg.deliverableTypes?.map((d) => d.code);
-    const levels = pkg.disseminationLevels?.map((d) => d.code);
-    if (type && types?.length && !types.includes(type)) throw new BadRequestException(`Vrsta isporuke "${type}" ne postoji u paketu (dopušteno: ${types.join(', ')})`);
-    if (dissemination && levels?.length && !levels.includes(dissemination)) throw new BadRequestException(`Razina diseminacije "${dissemination}" ne postoji u paketu (dopušteno: ${levels.join(', ')})`);
+    const issues = deliverableCodeIssues(pkg, type, dissemination);
+    if (issues.length) throw new BadRequestException(issues[0]);
   }
 
   async structure(tx: Tx, projectId: string) {

@@ -12,7 +12,8 @@
     "db:generate": "node scripts/generate.mjs",
     "db:migrate": "node -r ./scripts/register.js scripts/migrate.ts",
     "db:seed": "node -r ./scripts/register.js scripts/seed.ts",
-    "db:import-packages": "node -r ./scripts/register.js scripts/import-packages.ts"
+    "db:import-packages": "node -r ./scripts/register.js scripts/import-packages.ts",
+    "demo:import-example": "node -r ./scripts/register.js scripts/demo-import-workbook.ts"
   },
   "dependencies": {
     "@arqus/domain": "workspace:*",

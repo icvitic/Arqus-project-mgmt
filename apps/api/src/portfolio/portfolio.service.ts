@@ -128,9 +128,12 @@ export class PortfolioService {
     const claimedBasis = expenseSums.map((r) => ({ projectId: r.projectId, partnerId: r.partnerId, categoryCode: r.categoryCode, amount: r.claimed }));
     const periods = ids.length ? await tx.select({
       projectId: reportingPeriods.projectId, number: reportingPeriods.number, endDate: reportingPeriods.endDate, dueDate: reportingPeriods.dueDate,
-      // Predan ZNS vlastite organizacije za razdoblje (sve osim nacrta).
-      submitted: sql<boolean>`exists (select 1 from reimbursement_claims c join project_partners pp on pp.id = c.partner_id join organisations o on o.id = pp.organisation_id
-        where c.reporting_period_id = "reporting_periods"."id" and o.is_self and c.status <> 'draft')`,
+      // Predan ZNS vlastite organizacije za razdoblje (sve osim nacrta). WP1.17: razdoblje s troškovima vlastite organizacije
+      // potraživanim izvan sustava (ZNS predan prije ArQusa, uvezen iz Excela) također je predano – nije „razdoblje bez ZNS-a”.
+      submitted: sql<boolean>`(exists (select 1 from reimbursement_claims c join project_partners pp on pp.id = c.partner_id join organisations o on o.id = pp.organisation_id
+        where c.reporting_period_id = "reporting_periods"."id" and o.is_self and c.status <> 'draft')
+        or exists (select 1 from expenses he join project_partners pp on pp.id = he.partner_id join organisations o on o.id = pp.organisation_id
+        where he.project_id = "reporting_periods"."project_id" and o.is_self and he.status = 'historic' and he.date between "reporting_periods"."start_date" and "reporting_periods"."end_date"))`,
     }).from(reportingPeriods).where(inArray(reportingPeriods.projectId, ids)).orderBy(asc(reportingPeriods.projectId), asc(reportingPeriods.number)) : [];
     const delivs = ids.length ? await tx.select({ id: deliverables.id, projectId: deliverables.projectId, wp: workPackages.number, number: deliverables.number, title: deliverables.title, dueMonth: deliverables.dueMonth })
       .from(deliverables).innerJoin(workPackages, eq(workPackages.id, deliverables.workPackageId))
@@ -142,9 +145,10 @@ export class PortfolioService {
       highRisks: sql<number>`(select count(*)::int from risks r where r.project_id = "projects"."id" and r.deleted_at is null and r.status in ('open','occurred') and r.likelihood * r.impact >= 6)`,
       toApprove: sql<number>`(select count(*)::int from timesheets t where t.project_id = "projects"."id" and t.status = 'submitted')`,
       // Ručno uneseni troškovi bez dokaza (trošak osoblja dokazuje se timesheetom). Povjerljiv dokaz broji se samo tko ga smije vidjeti (WP1.14).
-      noEvidence: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and e.source = 'manual' and e.status <> 'rejected'
+      // WP1.17: trošak potraživan izvan sustava (prije ArQusa) nije otvorena stavka – dokazi su već predani financijeru.
+      noEvidence: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and e.source = 'manual' and e.status not in ('rejected', 'historic')
         and not exists (select 1 from documents d where d.entity_type = 'expense' and d.entity_id = e.id and d.deleted_at is null))`,
-      noVisibleEvidence: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and e.source = 'manual' and e.status <> 'rejected'
+      noVisibleEvidence: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and e.source = 'manual' and e.status not in ('rejected', 'historic')
         and not exists (select 1 from documents d where d.entity_type = 'expense' and d.entity_id = e.id and d.deleted_at is null and d.confidentiality <> 'confidential'))`,
       // WP1.16b: nepredani troškovi iz ranijih razdoblja (razdoblje već predano, trošak nije odabran ni u jednom nacrtu).
       stranded: sql<number>`(select count(*)::int from expenses e where e.project_id = "projects"."id" and ${strandedExpense('e')} and ${notSelectedInDraft('e')})`,

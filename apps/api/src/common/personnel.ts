@@ -17,8 +17,14 @@ export const seesPersonnelAmounts = (projectId: string): boolean => {
   return !c?.userId || canOnProject(c, 'personnel:read', projectId);
 };
 
-/** Je li iznos ovog troška skriven za korisnika (samo trošak osoblja iz timesheeta). */
-export const hidesAmount = (source: string, canSee: boolean): boolean => source === 'timesheet' && !canSee;
+/**
+ * Izvori troška koji su iznos rada jedne osobe: trošak iz odobrenog timesheeta i (WP1.17) trošak osoblja iz ranijeg
+ * razdoblja uvezen iz Excela (iznos po osobi i mjesecu, potraživan izvan sustava) – isto skrivanje.
+ */
+export const PERSONNEL_SOURCES: readonly string[] = ['timesheet', 'historic_personnel'];
+export const isPersonnelSource = (source: string): boolean => PERSONNEL_SOURCES.includes(source);
+/** Je li iznos ovog troška skriven za korisnika (samo trošak osoblja). */
+export const hidesAmount = (source: string, canSee: boolean): boolean => isPersonnelSource(source) && !canSee;
 
 /**
  * Odluka o ZNS-u: bez `personnel:read` korisnik s `finance:write` donosi odluku, vraća zahtjev i bilježi isplatu, ali o

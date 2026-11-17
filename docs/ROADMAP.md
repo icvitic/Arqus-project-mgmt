@@ -45,8 +45,8 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [x] **WP1.14b** Dorade prije pilota: zaštita od istovremenog prepisivanja (proračuni, timesheetovi, osnovni podaci), pregled revizijskog zapisa (stranica Revizija, CSV), četiri oka na timesheetovima, pristup voditelja vlastitoj prijavi, provjera valjanosti paketa i odstupanja od pravila programa, „danas” po zoni institucije (Europe/Zagreb), bez istovremenih upita na jednoj transakciji, jedinstvenost dodjela uloga (v0.25.0; `docs/sigurnost/AUTORIZACIJA.md`). **Točka zaustavljanja** – razvoj staje do barem tri demonstracije.
 - [x] **WP1.19** (v0.27.0) Sigurnosne dorade prije penetracijskog testa: iznosi troškova osoblja samo uz pravo na plaće, obvezni MFA za povlaštene uloge, obvezna revizija u API-ju, zapis neuspjele prijave bez upisanog teksta, opseg testa za izvođača
 - [x] **WP1.20** (v0.28.0) S3 pohrana dokumenata i kopije izvan poslužitelja, mjerenje vremena obnove: S3 izvedba pohrane bez novih ovisnosti (vlastiti SigV4), `documents verify` i `documents migrate`, šifrirane kopije izvan poslužitelja (servis `offsite`), skriptirana i izmjerena obnova (ADR-0012)
-- [ ] **WP1.17** Uvoz postojećeg projekta iz Excela – uvjetno, nakon povratne informacije s demonstracija
-- [ ] **WP1.18** Rokovi i „Moj rad”: stranica člana tima i obavijesti u aplikaciji – uvjetno, nakon povratne informacije s demonstracija
+- [x] **WP1.17** (v0.29.0) Uvoz postojećeg projekta iz Excela: predložak za projekt, vlastiti čitač XLSX/CSV, pregled s greškama po listu, retku i stupcu, potvrda istih bajtova, sve ili ništa, troškovi potraživani prije ArQusa, povijest i poništavanje (`docs/UVOZ-PROJEKTA.md`)
+- [ ] **WP1.18** Rokovi i „Moj rad”: stranica člana tima i obavijesti u aplikaciji – sljedeće (odluka vlasnika 2026-11-17, strategija odj. 9)
 
 ## Faza 2 – Komercijalna v1 (mj. 10–15)
 Uvjet za fazu 3: 10 kupaca koji plaćaju, 60.000 € ARR.

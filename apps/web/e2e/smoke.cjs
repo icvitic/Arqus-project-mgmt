@@ -4,7 +4,8 @@
  * WP1.14b: istovremena izmjena proračuna (drugi korisnik – ured za projekte – sprema prvi; poruka o sukobu, učitavanje, vraćanje vlastitog unosa),
  *      četiri oka na timesheetu (predavatelj ne vidi „Odobri”, odobrava ured), stranica Revizija (filtri, prije/poslije, CSV).
  * WP1.19: obvezni MFA (administrator postroži postavku, ured u otvorenoj sesiji ide na postavljanje MFA), iznosi troškova osoblja
- *      skriveni upravi bez prava na plaće (sati vidljivi). */
+ *      skriveni upravi bez prava na plaće (sati vidljivi).
+ * WP1.17: uvoz iz Excela (predložak, greške po retku, pregled s upozorenjem, potvrda, podaci na karticama, povijest). */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -310,6 +311,44 @@ const tag = Date.now().toString(36);
     await page.getByRole('tab', { name: 'Ugovoreno / ostvareno' }).click();
     await page.getByText('iskorištenost proračuna').waitFor();
     await shot('financije');
+  });
+  await step('uvoz iz Excela: predložak, greške po retku, pregled s upozorenjem, potvrda, podaci vidljivi, povijest', async () => {
+    // Radna knjiga vlastitim XLSX pisačem API-ja (izgrađen u run-local.sh) – isti format kao predložak.
+    const { buildXlsx } = require('../../api/dist/export/xlsx-writer');
+    const head = ['Datum', 'Kategorija', 'Radni paket', 'Opis', 'Iznos (EUR)', 'Potraživano izvan sustava', 'Razdoblje / ZNS'];
+    const book = (cat) => buildXlsx({ sheets: [
+      { name: 'Radni paketi', rows: [['Naziv', 'Početni mjesec', 'Završni mjesec'], ['Diseminacija rezultata', 1, 12]] },
+      { name: 'Troškovi', rows: [head, [{ v: '2027-02-20', s: 'date' }, cat, 2, 'Tisak letaka (uvoz)', 120, 'NE', null], [{ v: '2027-01-20', s: 'date' }, 'PUT', 1, 'Putovanje – prije ArQusa', 80, 'DA', 'ZNS 0 (papirnato)']] },
+    ] });
+    await page.getByRole('tab', { name: 'Uvoz' }).click();
+    await page.getByRole('heading', { name: 'Uvoz postojećeg projekta iz Excela' }).waitFor();
+    const [tpl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Preuzmi predložak za ovaj projekt' }).click()]);
+    if (!/^Uvoz_E2E[0-9a-z_-]+_predlozak\.xlsx$/i.test(tpl.suggestedFilename())) throw new Error(`predložak: ${tpl.suggestedFilename()}`);
+    const file = page.getByLabel(/Ispunjena datoteka/);
+    await file.setInputFiles({ name: 'projekt-greska.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await book('XX') });
+    await page.getByRole('button', { name: 'Provjeri datoteku' }).click();
+    await page.getByText('Ništa još nije spremljeno.').waitFor();
+    await page.getByRole('heading', { name: 'Greške', exact: true }).waitFor();
+    await page.getByRole('cell', { name: /kategorija ne postoji u paketu programa/ }).waitFor();
+    if (await page.getByRole('button', { name: 'Potvrdi uvoz' }).isEnabled()) throw new Error('uvoz s greškama ne smije se moći potvrditi');
+    await shot('uvoz-greske');
+    await file.setInputFiles({ name: 'projekt.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await book('VU') });
+    await page.getByRole('button', { name: 'Provjeri datoteku' }).click();
+    await page.getByText(/Datoteka je valjana, uz \d+ upozorenj/).waitFor();
+    const confirm = page.getByRole('button', { name: 'Potvrdi uvoz' });
+    if (await confirm.isEnabled()) throw new Error('upozorenja se moraju potvrditi');
+    await page.getByLabel(/Pročitao\/la sam/).check();
+    await shot('uvoz-pregled');
+    await confirm.click();
+    await page.getByRole('heading', { name: 'Uvoz je spremljen' }).waitFor();
+    await page.locator('table.import-history').getByText('primijenjen').waitFor();
+    await shot('uvoz-rezultat');
+    await page.getByRole('link', { name: 'Otvori: Troškovi →' }).click();
+    await page.getByRole('cell', { name: 'Putovanje – prije ArQusa' }).waitFor();
+    await page.getByText('potraživan izvan sustava').first().waitFor();
+    await page.getByRole('cell', { name: 'Tisak letaka (uvoz)' }).waitFor();
+    await page.getByRole('tab', { name: 'Struktura rada' }).click();
+    await page.getByText('Diseminacija rezultata').first().waitFor();
   });
   await step('portfelj: projekt, potrošnja i rokovi', async () => {
     await page.getByRole('link', { name: 'Portfelj' }).click();

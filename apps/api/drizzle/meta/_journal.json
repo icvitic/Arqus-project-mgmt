@@ -169,6 +169,20 @@
       "when": 1794929323925,
       "tag": "0023_dorade_prije_pilota",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794950757514,
+      "tag": "0024_uvoz_projekta",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794950768354,
+      "tag": "0025_uvoz_projekta_rls",
+      "breakpoints": true
     }
   ]
 }

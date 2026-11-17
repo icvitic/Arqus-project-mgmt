@@ -9,7 +9,8 @@ Stariji scenarij iz faze 0 (klikabilni prototip) ostaje u [faza-0/scenarij-demon
 1. `demo.cmd reset` – svježi datumi, bez tragova prethodnog razgovora.
 2. Preglednik na http://localhost:8080, prijava: institucija `demo`, `ured@demo.local`, lozinka `Plavi-Jadran-2026` – otvara se **Portfelj**. (Ako je na razgovoru prodekan, isto pokazuje i `uprava@demo.local` – samo čitanje; za korake s odobravanjem ostani na računu ureda.)
 3. U drugoj kartici (privatni prozor) spremna prijava `clan@demo.local` za korak 5.
-4. Sugovornika prije razgovora pitaj (ili zapamti iz razgovora): koliko projekata vode, koje programe, u čemu vode evidenciju rada i kako pripremaju ZNS. Na to se vraćaš u koracima 6 i 8.
+4. Datoteka `docs/primjeri/uvoz-projekta-DIGI-ARHIV.xlsx` na radnoj površini (za korak 8b); po želji otvorena u Excelu da se vidi da je to „obična tablica”.
+5. Sugovornika prije razgovora pitaj (ili zapamti iz razgovora): koliko projekata vode, koje programe, u čemu vode evidenciju rada i kako pripremaju ZNS. Na to se vraćaš u koracima 6 i 8.
 
 Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured vidite ujutro: svi projekti, novac, rokovi i ljudi na jednom mjestu – a iza svake brojke je stvarni rad u sustavu, bez Excela između.”*
 
@@ -17,7 +18,7 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 
 **Zaslon:** **Portfelj** (otvara se sam nakon prijave).
 
-- **Brojke na vrhu**: 2 projekta u provedbi, ugovoreni proračun *našeg dijela* (~1,01 mil. EUR, a cijeli projekti s partnerima ~2,79 mil. EUR), potrošeno ~21 %, rokovi u idućih 30 dana i **3 prošla roka**, prijava u tijeku, uspješnost prijava 50 %.
+- **Brojke na vrhu**: 3 projekta u provedbi (treći, **DIGI-ARHIV**, je u tijeku, ali u ArQusu tek otvoren – uvozi se uživo u koraku 8b), ugovoreni proračun *našeg dijela* (~1,01 mil. EUR, a cijeli projekti s partnerima ~2,79 mil. EUR), potrošeno ~21 %, rokovi u idućih 30 dana i **prošli rokovi** (među njima rok ZNS-a za RP1 projekta DIGI-ARHIV – nestaje nakon uvoza, jer je taj ZNS predan prije ArQusa), prijava u tijeku, uspješnost prijava 50 %.
   *„Ovo je odgovor na pitanje koje uprava inače postavi uredu i čeka dva dana.”*
 - **Projekti – vrijeme i potrošnja**: dvije tanke trake po projektu. **ZELENI-LAB**: 52 % vremena, 24 % potrošnje → oznaka *potrošnja kasni −28 p. b.* *„Novac koji ne trošimo na vrijeme često se na kraju vraća. Ovdje se vidi u 13. mjesecu, ne u 24.”* (Razlog je u projektu: oprema od 120.000 EUR čeka ishod žalbe u javnoj nabavi – visok rizik i isporuka D2.1 koja kasni.) **BLUESENSE**: 29 % / 19 % – u granicama.
 - **Traži pažnju** – oznake vode ravno na mjesto gdje se popravlja: *1 isporuka kasni* → Struktura rada, *1 timesheet čeka odobrenje* → Tim, *1 trošak bez dokaza* → Troškovi, *1 razdoblje bez predanog ZNS-a* i *1 nepredan trošak iz ranijeg razdoblja* → Zahtjevi za nadoknadu.
@@ -106,6 +107,19 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 - **Revizija** (izbornik, ured i administrator): filtar *Vrsta zapisa* = praćenje poziva → odluka go za NPOO poziv, tko ju je donio i s kojim obrazloženjem; zatim *ZNS* → odluka o ZNS-u 1 s umanjenim i odbijenim troškom (**Prikaži prije / poslije**). Izvoz u CSV za revizora jednim klikom.
   *„Kad revizor ili dekan pita ‘tko je to odlučio i kada’, odgovor je ovdje – i ne može se naknadno mijenjati.”*
 
+## 8b. Projekt koji je već u tijeku – uvoz iz Excela (1–2 min)
+
+**Klik:** **Projekti → DIGI-ARHIV** (pregled: uputa „Projekt je već u tijeku?”) → kartica **Uvoz**.
+
+Rečenica: *„Vi već imate projekte u tijeku – u Excelu. Ne prepisujete ih: preuzmete predložak za projekt, zalijepite svoje tablice i za minutu je projekt u sustavu, zajedno s troškovima koje ste već tražili u ZNS-ovima prije nas.”*
+
+- *Preuzmi predložak za ovaj projekt* – pokaži list **Šifarnik** (partneri, kategorije paketa) i stupac **Potraživano izvan sustava**.
+- Učitaj `uvoz-projekta-DIGI-ARHIV.xlsx` → *Provjeri datoteku*: **„Ništa još nije spremljeno”**, po listu 3 radna paketa, 2 isporuke, prekretnica, 7 redaka proračuna, 3 člana tima, 19 troškova (16 označenih „potraživano prije ArQusa”). *„Da je u tablici greška, ovdje bi pisalo u kojem retku i stupcu i kako je ispraviti – kao u Excelu.”*
+- *Potvrdi uvoz* → **Uvoz je spremljen** → *Otvori: Troškovi*: troškovi RP1 označeni „potraživan izvan sustava” s oznakom ZNS-a i priznatim iznosom (usluga skeniranja umanjena s razlogom); troškovi rujna i listopada obični – ulaze u ZNS 2.
+  *„Ono što je već potraživano računa se u potrošnju, ali vam se nikad više ne nudi u novom zahtjevu – nema dvostrukog potraživanja.”*
+- **Ugovoreno / ostvareno** i **Portfelj**: DIGI-ARHIV sada ima proračun i potrošnju, rok ZNS-a za RP1 više nije na popisu prošlih rokova.
+- **Povijest uvoza**: tko je uvezao koju datoteku (SHA-256) – i *Poništi* dok na podacima ništa nije izgrađeno. Nakon demonstracije `demo.cmd reset` vraća projekt u prazno stanje.
+
 ## 9. Tko vidi koji projekt (1 min) – pristup po projektu
 
 **Klik:** u privatnoj kartici odjava → prijava `voditelj@demo.local` (Petra Horvat, voditeljica BLUESENSE-a).
@@ -120,7 +134,7 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 - Pitanja za kraj (bilježi odgovore u `docs/faza-0/predlozak-biljeske.md` ili sličnu bilješku):
   1. *Koliko vam danas traje priprema jednog ZNS-a i koliko ljudi sudjeluje?*
   2. *Što od pokazanog biste koristili prvo, a što vam nedostaje?*
-  3. *Biste li isprobali sustav na jednom projektu koji je u tijeku (pilot)?* – uvoz postojećeg projekta iz Excela je sljedeći korak razvoja.
+  3. *Biste li isprobali sustav na jednom projektu koji je u tijeku (pilot)?* – projekt u tijeku unosi se iz Excela (korak 8b), pilot može početi istog dana.
 
 ## Ako ostane vremena ili pitaju
 
@@ -128,6 +142,7 @@ Jedna rečenica za početak: *„Ovo je prvi zaslon koji vi kao uprava ili ured 
 | --- | --- |
 | „Tko što smije?” | odjava → prijava `uprava@demo.local` (samo čitanje: nema gumba za izmjene); **Korisnici** kao `admin@demo.local` – uloge institucije i uloge na projektima, dodjela uloge na projektu |
 | „Imamo i druge programe” | **Paketi programa** → Novi paket po pozivu (nasljeđuje NPOO/HE, mijenjaju se samo razlike) |
+| „A ako je naša tablica drugačija?” | **Uvoz** na DIGI-ARHIV: stupci se prepoznaju po nazivu (smiju biti drugim redoslijedom, vlastiti stupci se zanemaruju), CSV po listu; upute u `docs/UVOZ-PROJEKTA.md` |
 | „Kako izgleda za voditelja NPOO projekta?” | prijava `voditelj2@demo.local` → vidi samo ZELENI-LAB |
 | „A dvofaktorska prijava?” | ime korisnika gore desno → **Moj račun** → Uključi MFA; institucija je može učiniti obveznom za povlaštene uloge ili sve (`admin@demo.local` → **Korisnici**) |
 

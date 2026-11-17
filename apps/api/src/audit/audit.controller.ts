@@ -136,7 +136,7 @@ export class AuditController {
     const list = rows.map(({ e, actorName }) => ({ ...e, diff: e.diff ? scrubSecrets(e.diff) : null, actor: e.actorId ? { id: e.actorId, displayName: actorName ?? null } : null }));
     if (scope.seesSalary) return list.map((e) => ({ ...e, redacted: false }));
     const ids = expenseIdsIn(list);
-    const personnel = ids.length ? new Set((await tx.select({ id: expenses.id }).from(expenses).where(and(inArray(expenses.id, ids), eq(expenses.source, 'timesheet')))).map((r) => r.id)) : new Set<string>();
+    const personnel = ids.length ? new Set((await tx.select({ id: expenses.id }).from(expenses).where(and(inArray(expenses.id, ids), inArray(expenses.source, ['timesheet', 'historic_personnel'])))).map((r) => r.id)) : new Set<string>();
     return list.map((e) => redactSalary(e, personnel));
   }
 }

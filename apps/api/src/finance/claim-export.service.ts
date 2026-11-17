@@ -190,6 +190,12 @@ export class ClaimExportService {
       evidenceRefs.set(e.id, refs);
     });
 
+    // WP1.17: troškovi partnera potraživani izvan sustava (prije ArQusa) – samo broj i zbrojevi; troškovi osoblja uz personnel:read.
+    const hist = (await tx.select({ n: sql<number>`count(*)::int`,
+      claimed: sql<string>`coalesce(sum(${expenses.amountCents}) filter (where ${canPersonnel ? sql`true` : sql`${expenses.source} <> 'historic_personnel'`}), 0)`,
+      recognised: sql<string>`coalesce(sum(coalesce(${expenses.recognisedCents}, ${expenses.amountCents})) filter (where ${canPersonnel ? sql`true` : sql`${expenses.source} <> 'historic_personnel'`}), 0)`,
+      personnel: sql<number>`(count(*) filter (where ${expenses.source} = 'historic_personnel'))::int` })
+      .from(expenses).where(and(eq(expenses.projectId, projectId), eq(expenses.partnerId, claim.partnerId), eq(expenses.status, 'historic'))))[0]!;
     const isDecided = ['approved', 'partially_approved', 'rejected'].includes(claim.status);
     let recognised: PartnerBudgetResult | null = null;
     if (isDecided) recognised = claimTotals(pkg, project.actionType, partner.beneficiaryType, expRows.map((e) => ({ categoryCode: e.categoryCode, amount: e.amount, recognised: e.recognised }))).recognised;
@@ -205,6 +211,7 @@ export class ClaimExportService {
       expenseWp: new Map(expRows.map((e) => [e.id, e.wp])),
       expenseFolder, evidence: evidenceRefs, personnel, recognised, openedAt: opened,
       expenseTotal: expRows.reduce((a, e) => a + e.amount, 0), recognisedTotal: expRows.reduce((a, e) => a + (e.recognised ?? 0), 0),
+      historic: hist.n ? { count: hist.n, claimed: Number(hist.claimed), recognised: Number(hist.recognised), personnelHidden: !canPersonnel && hist.personnel > 0 } : null,
     };
     return { data, evidence, omitted, records, exporter: exporterRow ? `${exporterRow.name} <${exporterRow.email}>` : 'sustav' };
   }

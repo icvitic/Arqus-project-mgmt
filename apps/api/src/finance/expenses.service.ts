@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-import { budgetLineIssues, computeProjectBudget, diffTotals, effectiveAmount, flattenCategories } from '@arqus/domain';
+import { computeProjectBudget, diffTotals, effectiveAmount, expenseRuleIssues, flattenCategories } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
 import { budgetLines, expenses, organisations, projectBudgets, projectPartners, reimbursementClaims, reportingPeriods, teamMembers, timesheets, workPackages, type Project } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
@@ -37,6 +38,8 @@ const view = (e: typeof expenses.$inferSelect, documents = 0, extra: { person?: 
     supplier: e.supplier, amount: hidden ? null : e.amountCents, recognised: hidden ? null : e.recognisedCents, amountHidden: hidden,
     decisionReason: e.decisionReason, evidenceRef: e.evidenceRef, source: e.source,
     timesheetId: e.timesheetId, claimId: e.claimId, status: e.status, documents,
+    // WP1.17: trošak potraživan izvan sustava (ZNS predan prije ArQusa) – oznaka zahtjeva i član tima troška osoblja iz ranijeg razdoblja.
+    historic: e.status === 'historic', externalClaim: e.externalClaim, teamMemberId: e.teamMemberId, imported: !!e.importId,
     person: extra.person ?? null, month: extra.month ?? null, workPackage: extra.wp ? `WP${extra.wp}` : null,
   };
 };
@@ -46,23 +49,24 @@ const view = (e: typeof expenses.$inferSelect, documents = 0, extra: { person?: 
 export class ExpensesService {
   constructor(private readonly audit: AuditService, private readonly packages: ProgrammePackagesService) {}
 
+  /** Pravila troška su ista za ručni unos i uvoz iz Excela (WP1.17): `expenseRuleIssues` u domeni. */
   private async validate(tx: Tx, p: Project, partnerId: string, input: { categoryCode: string; workPackageId?: string | null; date: string; amount: number }) {
     const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
     const partners = await tx.select({ id: projectPartners.id }).from(projectPartners).where(eq(projectPartners.projectId, p.id));
-    const issues = budgetLineIssues(pkg, [{ partnerId, categoryCode: input.categoryCode, amount: input.amount }], new Set(partners.map((x) => x.id)));
-    if (pkg.personnelRule?.timeRecordingRequired && input.categoryCode === pkg.personnelRule.categoryCode) issues.push(`trošak osoblja (${input.categoryCode}) nastaje odobrenjem timesheeta, ne ručnim unosom`);
-    const end = projectEnd(p);
-    if (p.startDate && end && (input.date < p.startDate || input.date > end)) issues.push(`datum ${input.date} je izvan trajanja projekta (${p.startDate} – ${end})`);
-    if (input.workPackageId && !(await tx.select({ id: workPackages.id }).from(workPackages).where(and(eq(workPackages.id, input.workPackageId), eq(workPackages.projectId, p.id)))).length) issues.push(`radni paket ${input.workPackageId} nije na projektu`);
-    if (issues.length) throw new BadRequestException({ message: 'Trošak nije valjan', issues: issues.map((i) => i.replace(/^redak 1: /, '')) });
+    const wps = input.workPackageId ? await tx.select({ id: workPackages.id }).from(workPackages).where(and(eq(workPackages.id, input.workPackageId), eq(workPackages.projectId, p.id))) : [];
+    const issues = expenseRuleIssues(pkg, { partnerIds: new Set(partners.map((x) => x.id)), workPackageIds: new Set(wps.map((w) => w.id)), projectStart: p.startDate, projectEnd: projectEnd(p) }, { partnerId, ...input });
+    if (issues.length) throw new BadRequestException({ message: 'Trošak nije valjan', issues });
   }
 
   async list(tx: Tx, projectId: string, filter: { status?: string; period?: number } = {}) {
     await loadProject(tx, projectId);
     const conds: (SQL | undefined)[] = [eq(expenses.projectId, projectId), filter.status ? eq(expenses.status, filter.status as never) : undefined];
-    let rows = (await tx.select({ e: expenses, docs: evidenceCount(seesConfidential(projectId)), person: teamMembers.fullName, month: timesheets.month, wp: workPackages.number }).from(expenses)
+    const historicMember = alias(teamMembers, 'historic_member');
+    let rows = (await tx.select({ e: expenses, docs: evidenceCount(seesConfidential(projectId)), person: teamMembers.fullName, historicPerson: historicMember.fullName, month: timesheets.month, wp: workPackages.number }).from(expenses)
       .leftJoin(timesheets, eq(timesheets.id, expenses.timesheetId)).leftJoin(teamMembers, eq(teamMembers.id, timesheets.teamMemberId)).leftJoin(workPackages, eq(workPackages.id, expenses.workPackageId))
-      .where(and(...conds)).orderBy(desc(expenses.date), asc(expenses.createdAt))).map((r) => Object.assign(r.e, { docs: r.docs, extra: { person: r.person, month: r.month, wp: r.wp } }));
+      .leftJoin(historicMember, eq(historicMember.id, expenses.teamMemberId))
+      .where(and(...conds)).orderBy(desc(expenses.date), asc(expenses.createdAt))).map((r) => Object.assign(r.e, { docs: r.docs, extra: {
+        person: r.person ?? r.historicPerson, month: r.month ?? (r.e.source === 'historic_personnel' ? r.e.date.slice(0, 7) : null), wp: r.wp } }));
     if (filter.period) {
       const rp = (await tx.select().from(reportingPeriods).where(and(eq(reportingPeriods.projectId, projectId), eq(reportingPeriods.number, filter.period))))[0];
       if (!rp) throw new NotFoundException(`Razdoblje RP${filter.period} ne postoji`);
@@ -86,6 +90,7 @@ export class ExpensesService {
   private async editable(tx: Tx, projectId: string, id: string) {
     const e = (await tx.select().from(expenses).where(and(eq(expenses.id, id), eq(expenses.projectId, projectId))))[0];
     if (!e) throw new NotFoundException('Trošak ne postoji na projektu');
+    if (e.status === 'historic') throw new ConflictException('Trošak potraživan izvan sustava (uvezen iz Excela) se ne mijenja – ako je uvoz pogrešan, poništi ga na kartici „Uvoz”');
     if (e.status !== 'recorded') throw new ConflictException(`Trošak u statusu "${e.status}" se ne mijenja (ispravak: storno i novi zapis)`);
     if (e.source !== 'manual') throw new ConflictException('Trošak osoblja mijenja se kroz timesheet');
     return e;

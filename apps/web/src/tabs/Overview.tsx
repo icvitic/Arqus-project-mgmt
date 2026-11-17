@@ -23,6 +23,7 @@ export function Overview({ project: p, me, reloadProject }: TabProps) {
   const available = (orgs.data ?? []).filter((o) => !p.partners.some((x) => x.organisationId === o.id));
   return (
     <>
+    <ImportHint projectId={p.id} show={(can(me, 'projects:write', p.id) || can(me, 'finance:write', p.id)) && ['contracting', 'active'].includes(p.status)} />
     <Deviations list={p.deviations} />
     <div className="grid g2">
       <div className="card">
@@ -101,6 +102,24 @@ export function Deviations({ list }: { list: Deviation[] | undefined }) {
       <h2>Odstupanja od pravila programa ({list.length})</h2>
       <ul>{list.map((d) => <li key={d.key} className={d.severity}>{d.message}</li>)}</ul>
       <small className="muted">Projekt je prihvaćen; provjeri odstupanja s financijerom ili ispravi podatke. Popis se osvježava pri svakoj izmjeni.</small>
+    </div>
+  );
+}
+
+/**
+ * WP1.17: projekt koji je već u tijeku unosi se iz Excela – uputa na novom projektu (dok na njemu nema primijenjenog uvoza),
+ * koju korisnik može sakriti (zapamćeno u ovom pregledniku); kartica „Uvoz” ostaje uvijek dostupna.
+ */
+function ImportHint({ projectId, show }: { projectId: string; show: boolean }) {
+  const key = `arqus.importHint.${projectId}`;
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(key) === '1'; } catch { return false; } });
+  const imports = useLoad(() => (show && !hidden ? api<{ status: string }[]>('GET', `/projects/${projectId}/imports`) : Promise.resolve(null)), [projectId, show, hidden]);
+  if (!show || hidden || !imports.data || imports.data.some((i) => i.status === 'applied')) return null;
+  return (
+    <div className="import-hint" role="note">
+      <span><b>Projekt je već u tijeku?</b> Radne pakete, proračun, tim i dosadašnje troškove (i one već potraživane prije ArQusa) uvezi iz Excela – pregled prije spremanja, sve ili ništa.</span>
+      <span className="actions" style={{ marginTop: 0 }}><a className="chip acc" href={`#/projekti/${projectId}/uvoz`}>Uvoz iz Excela →</a>
+        <button className="link" onClick={() => { try { localStorage.setItem(key, '1'); } catch { /* privatni način */ } setHidden(true); }}>Sakrij</button></span>
     </div>
   );
 }

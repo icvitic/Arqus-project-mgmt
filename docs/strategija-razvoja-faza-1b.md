@@ -103,3 +103,14 @@ Točka zaustavljanja iz odjeljka 7 vrijedi za **nove funkcije**: WP1.17 (uvoz iz
 | **WP1.20** | S3 pohrana dokumenata i kopije izvan poslužitelja | Treba svakoj instalaciji kod pružatelja; S3 sučelje je standardno pa ne ovisi o tome koji će pružatelj biti odabran (ADR-0010). Uključuje mjerenje vremena obnove (RTO). |
 
 Nakon ta dva paketa nema više razvoja koji nije nagađanje: sljedeći korak određuju bilješke s demonstracija, odluka o pružatelju i nalazi penetracijskog testa.
+
+## 9. Odluka vlasnika: WP1.17 i WP1.18 sada (2026-11-17, v0.28.0)
+
+Ivan je 2026-11-17 odlučio da se **WP1.17** (uvoz postojećeg projekta iz Excela) i **WP1.18** (rokovi i „Moj rad”) rade odmah, bez čekanja bilješki s demonstracija. Time je točka zaustavljanja iz odjeljka 7 (i odjeljka 8) ukinuta za ta dva paketa. Razlog: svaka institucija kojoj se proizvod nudi već ima projekte u tijeku u Excelu – ako unos jednog takvog projekta traje danima, pilot ne počinje; WP1.18 je ono što član tima vidi svaki dan.
+
+| # | Radni paket | Gotovo kad |
+| --- | --- | --- |
+| **WP1.17** | Uvoz iz Excela (v0.29.0) | projekt u tijeku unese se za manje od sat vremena, uključujući troškove već potraživane prije ArQusa |
+| **WP1.18** | Rokovi i „Moj rad” | član tima nakon prijave vidi što danas treba napraviti |
+
+Nakon WP1.17 i WP1.18 sljedeći koraci su ponovno na ljudskom kolosijeku: **demonstracije** (barem tri, s bilješkama – one određuju sljedeću reviziju strategije), **odluka o pružatelju** i **penetracijski test**.

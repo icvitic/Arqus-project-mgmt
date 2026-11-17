@@ -48,7 +48,7 @@ export function redactSalary<T extends RedactableEntry>(e: T, personnelExpenseId
   let redacted = false;
   const hide = (): string => { redacted = true; return HIDDEN; };
   const personnelExpense = e.entity === 'expense' && (!!e.entityId && personnelExpenseIds.has(e.entityId)
-    || [e.diff.before, e.diff.after].some((x) => (x as { source?: string } | undefined)?.source === 'timesheet'));
+    || [e.diff.before, e.diff.after].some((x) => ['timesheet', 'historic_personnel'].includes((x as { source?: string } | undefined)?.source ?? '')));
   const diff = mapDeep(e.diff, (k, v) => {
     if (SALARY_KEY.test(k)) return v === null || v === undefined ? v : hide();
     // Trošak osoblja iz odobrenog timesheeta (iznos po radnom paketu) i izmjene takvih troškova.

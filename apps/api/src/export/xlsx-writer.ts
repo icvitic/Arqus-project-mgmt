@@ -23,6 +23,8 @@ export interface Sheet {
   autoFilter?: string;
   /** Spojene ćelije, npr. `A1:E1`. */
   merges?: string[];
+  /** WP1.17: padajući popis (provjera podataka) – raspon ćelija i izvor: popis `"DA,NE"` ili raspon `'Šifarnik'!$A$2:$A$9`. */
+  validations?: { sqref: string; formula: string }[];
 }
 
 export interface Workbook { sheets: Sheet[]; title?: string; creator?: string }
@@ -94,10 +96,12 @@ function sheetXml(sheet: Sheet, sst: SharedStrings): string {
   }).join('');
   const filter = sheet.autoFilter ? `<autoFilter ref="${sheet.autoFilter}"/>` : '';
   const merges = sheet.merges?.length ? `<mergeCells count="${sheet.merges.length}">${sheet.merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '';
+  // Popis je samo pomoć pri unosu (showErrorMessage="0"): korisnik smije upisati i vrijednost izvan popisa – provjerava je uvoz.
+  const validations = sheet.validations?.length ? `<dataValidations count="${sheet.validations.length}">${sheet.validations.map((v) => `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="0" sqref="${v.sqref}"><formula1>${xmlText(v.formula)}</formula1></dataValidation>`).join('')}</dataValidations>` : '';
   // Redoslijed elemenata propisuje shema CT_Worksheet (Excel odbija datoteku s pogrešnim redoslijedom).
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-    + `<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:${lastRef}"/>${freeze}<sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${rows}</sheetData>${filter}${merges}`
+    + `<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:${lastRef}"/>${freeze}<sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${rows}</sheetData>${filter}${merges}${validations}`
     + '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>';
 }
 

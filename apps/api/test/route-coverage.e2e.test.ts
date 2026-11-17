@@ -97,7 +97,7 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
   /** Id-jevi projekta B za parametre putanje; nepoznati parametar ruši test (treba ga dodati ovdje). */
   const paramsB = (): Record<string, string> => ({
     id: f.B.id, wpId: f.B.wp, taskId: f.B.task, did: f.B.deliverable, mid: f.B.member, rid: f.B.risk, eid: f.B.expense, cid: f.B.claim,
-    partnerId: f.B.self, assignmentId: randomUUID(), month: f.month, n: '1',
+    partnerId: f.B.self, assignmentId: randomUUID(), month: f.month, n: '1', importId: randomUUID(),
   });
   const fill = (path: string, values: Record<string, string>) => path.replace(/:(\w+)/g, (_, k: string) => {
     if (!(k in values)) throw new Error(`Nepoznat parametar :${k} u ${path} – dodaj ga u paramsB`);

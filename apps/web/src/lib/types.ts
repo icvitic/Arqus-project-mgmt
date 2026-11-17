@@ -46,6 +46,8 @@ export interface Timesheet { status: string; revision: number; submittedBy: stri
 export interface Expense {
   id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number | null; recognised: number | null; amountHidden: boolean; decisionReason: string | null;
   evidenceRef: string | null; source: string; status: string; documents: number; timesheetId: string | null; person: string | null; month: string | null; workPackage: string | null;
+  /** WP1.17: trošak potraživan izvan sustava (ZNS predan prije ArQusa, uvezen iz Excela) i oznaka tog zahtjeva. */
+  historic?: boolean; externalClaim?: string | null; imported?: boolean;
 }
 export interface Money { direct: number; indirect: number; total: number; requested: number }
 export interface ChecklistItem { key: string; ok: boolean; severity: 'blocking' | 'warning'; title: string; details: string[]; resolution?: 'early_reason' | 'acknowledge'; expenseIds?: string[] }

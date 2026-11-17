@@ -66,6 +66,19 @@ Nacrt automatski uzima samo evidentirane troškove partnera **datirane u svom ra
 - U zahtjevu, radnoj knjizi i kontrolnoj listi označen je kao „ranije razdoblje”.
 - Signal „nepredani troškovi iz ranijih razdoblja” (kartica Ugovoreno / ostvareno, portfelj → Traži pažnju) broji takve troškove koji nisu odabrani ni u jednom nacrtu.
 
+## Troškovi potraživani izvan sustava (WP1.17)
+
+Projekt koji se uvozi iz Excela (`docs/UVOZ-PROJEKTA.md`) ima razdoblja čiji su ZNS-ovi predani prije ArQusa. Njihovi troškovi uvoze se sa statusom **`historic`** („potraživan izvan sustava”), uz neobaveznu oznaku zahtjeva (`external_claim`), priznati iznos (`recognised_cents`, prazno = priznat kako je zatražen) i razlog umanjenja (obavezan kad je priznato manje od traženog).
+
+- **Ostvareno** = priznati iznos, inače traženi (ista funkcija `effectiveAmount` kao za odlučene troškove); razlika je **nepriznato** – pregled financija i portfelj ih uključuju bez posebnog koda.
+- **Nisu ni u jednom zahtjevu sustava** (`claim_id` prazan): nacrt uzima samo status `recorded`, pa ih ne uzima; nisu „nepredani troškovi iz ranijih razdoblja” (pravilo traži `recorded`); ne broje se kao trošak bez dokaza.
+- **Kumulativ prema proračunu** u popisu za provjeru (stavka *budget*) uključuje ih uz ranije zahtjeve istog partnera.
+- **Razdoblje** vlastite organizacije s barem jednim takvim troškom portfelj smatra predanim (nije „razdoblje bez ZNS-a”).
+- **Paket za predaju**: list *Sažetak* navodi broj i zbroj troškova partnera potraživanih izvan sustava („nisu dio ovog zahtjeva”); bez `personnel:read` zbroj je bez troškova osoblja.
+- **Nepromjenjivi**: ruta troška ih ne mijenja ni ne briše (409), a okidač `expenses_immutable_trg` (migracija 0025) odbija svaku izmjenu i brisanje osim brisanja pri poništavanju uvoza koji ih je stvorio (transakcija najavljuje `app.import_undo`).
+- **Trošak osoblja iz ranijeg razdoblja** (`source = historic_personnel`): iznos po osobi (`team_member_id`) i mjesecu, uvoz samo uz `personnel:read`; iznos skriven bez `personnel:read` kao trošak iz timesheeta (troškovi, revizija, paket). Za mjesec s takvim troškom timesheet osobe se ne odobrava (409), a za mjesec s predanim ili odobrenim timesheetom uvoz se odbija – trošak ne nastaje dvaput. Trošak osoblja koji nije potraživan i dalje nastaje samo iz timesheeta.
+- Ograničenja u bazi: `historic` bez `claim_id`; `historic_personnel` samo kao `historic` i uz osobu; oznaka zahtjeva samo uz `historic`; priznati iznos između 0 i traženog.
+
 ## Paket za predaju (WP1.16b)
 
 `GET /api/projects/:id/claims/:cid/export` (`finance:read` na projektu, svaki status) vraća jedan ZIP `ZNS_<AKRONIM>_RP<n>[_NACRT]_<datum>.zip`:
