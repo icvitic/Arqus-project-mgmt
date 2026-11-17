@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
-import { budgetLineIssues, computeProjectBudget, flattenCategories } from '@arqus/domain';
+import { budgetLineIssues, computeProjectBudget, diffTotals, effectiveAmount, flattenCategories } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
-import { budgetLines, expenses, organisations, projectBudgets, projectPartners, reimbursementClaims, reportingPeriods, workPackages, type Project } from '../db/schema';
+import { budgetLines, expenses, organisations, projectBudgets, projectPartners, reimbursementClaims, reportingPeriods, teamMembers, timesheets, workPackages, type Project } from '../db/schema';
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { loadProject } from '../common/project-access';
@@ -25,9 +25,12 @@ export const evidenceCount = (includeConfidential: boolean) => includeConfidenti
   : sql<number>`(select count(*)::int from documents d where d.entity_type = 'expense' and d.entity_id = "expenses"."id" and d.deleted_at is null and d.confidentiality <> 'confidential')`;
 /** Smije li korisnik iz konteksta vidjeti povjerljive dokumente projekta. */
 export const seesConfidential = (projectId: string): boolean => { const c = currentContext(); return !c || canOnProject(c, 'documents:confidential', projectId); };
-const view = (e: typeof expenses.$inferSelect, documents = 0) => ({
+/** Trošak za prikaz; `person`/`month`/`workPackage` služe grupiranju troškova osoblja (osoba i mjesec → retci po radnom paketu). */
+const view = (e: typeof expenses.$inferSelect, documents = 0, extra: { person?: string | null; month?: string | null; wp?: number | null } = {}) => ({
   id: e.id, partnerId: e.partnerId, categoryCode: e.categoryCode, workPackageId: e.workPackageId, date: e.date, description: e.description,
-  supplier: e.supplier, amount: e.amountCents, evidenceRef: e.evidenceRef, source: e.source, timesheetId: e.timesheetId, claimId: e.claimId, status: e.status, documents,
+  supplier: e.supplier, amount: e.amountCents, recognised: e.recognisedCents, decisionReason: e.decisionReason, evidenceRef: e.evidenceRef, source: e.source,
+  timesheetId: e.timesheetId, claimId: e.claimId, status: e.status, documents,
+  person: extra.person ?? null, month: extra.month ?? null, workPackage: extra.wp ? `WP${extra.wp}` : null,
 });
 
 /** Evidencija troškova (invarijante 3 i 6) i pregled ugovoreno vs. ostvareno. */
@@ -49,13 +52,15 @@ export class ExpensesService {
   async list(tx: Tx, projectId: string, filter: { status?: string; period?: number } = {}) {
     await loadProject(tx, projectId);
     const conds: (SQL | undefined)[] = [eq(expenses.projectId, projectId), filter.status ? eq(expenses.status, filter.status as never) : undefined];
-    let rows = (await tx.select({ e: expenses, docs: evidenceCount(seesConfidential(projectId)) }).from(expenses).where(and(...conds)).orderBy(desc(expenses.date), asc(expenses.createdAt))).map((r) => Object.assign(r.e, { docs: r.docs }));
+    let rows = (await tx.select({ e: expenses, docs: evidenceCount(seesConfidential(projectId)), person: teamMembers.fullName, month: timesheets.month, wp: workPackages.number }).from(expenses)
+      .leftJoin(timesheets, eq(timesheets.id, expenses.timesheetId)).leftJoin(teamMembers, eq(teamMembers.id, timesheets.teamMemberId)).leftJoin(workPackages, eq(workPackages.id, expenses.workPackageId))
+      .where(and(...conds)).orderBy(desc(expenses.date), asc(expenses.createdAt))).map((r) => Object.assign(r.e, { docs: r.docs, extra: { person: r.person, month: r.month, wp: r.wp } }));
     if (filter.period) {
       const rp = (await tx.select().from(reportingPeriods).where(and(eq(reportingPeriods.projectId, projectId), eq(reportingPeriods.number, filter.period))))[0];
       if (!rp) throw new NotFoundException(`Razdoblje RP${filter.period} ne postoji`);
       rows = rows.filter((e) => e.date >= rp.startDate && e.date <= rp.endDate);
     }
-    return rows.map((e) => view(e, e.docs));
+    return rows.map((e) => view(e, e.docs, e.extra));
   }
 
   async create(tx: Tx, tenantId: string, projectId: string, input: z.infer<typeof expenseInput>, actorId?: string) {
@@ -95,7 +100,11 @@ export class ExpensesService {
     return { deleted: true };
   }
 
-  /** Ugovoreno (zadnja verzija proračuna) vs. ostvareno (svi troškovi osim odbijenih), s neizravnima iz paketa; pregled ZNS-ova. */
+  /**
+   * Ugovoreno (zadnja verzija proračuna) vs. ostvareno, s neizravnima iz paketa; pregled ZNS-ova.
+   * Ostvareno (jedna definicija, `docs/domena/zns-pravila.md`): prije odluke traženi iznos troška, nakon odluke priznati
+   * (odbijen = 0). Nepriznato = isti izračun s traženim iznosima − ostvareno.
+   */
   async overview(tx: Tx, projectId: string) {
     const p = await loadProject(tx, projectId);
     const pkg = await this.packages.get(tx, p.packageId, p.packageVersion);
@@ -103,22 +112,24 @@ export class ExpensesService {
       .innerJoin(organisations, eq(organisations.id, projectPartners.organisationId)).where(eq(projectPartners.projectId, projectId)).orderBy(asc(projectPartners.orderNo));
     const budget = (await tx.select().from(projectBudgets).where(eq(projectBudgets.projectId, projectId)).orderBy(desc(projectBudgets.version)).limit(1))[0];
     const planLines = budget ? await tx.select().from(budgetLines).where(eq(budgetLines.budgetId, budget.id)) : [];
-    const actualRows = await tx.select().from(expenses).where(and(eq(expenses.projectId, projectId), ne(expenses.status, 'rejected')));
+    const actualRows = await tx.select().from(expenses).where(eq(expenses.projectId, projectId));
     const planned = computeProjectBudget(pkg, p.actionType, partners, planLines.map((l) => ({ partnerId: l.partnerId, categoryCode: l.categoryCode, amount: l.amountCents })));
-    const actual = computeProjectBudget(pkg, p.actionType, partners, actualRows.map((e) => ({ partnerId: e.partnerId, categoryCode: e.categoryCode, amount: e.amountCents })));
+    const actual = computeProjectBudget(pkg, p.actionType, partners, actualRows.map((e) => ({ partnerId: e.partnerId, categoryCode: e.categoryCode, amount: effectiveAmount({ amount: e.amountCents, recognised: e.recognisedCents }) })));
+    const claimedBasis = computeProjectBudget(pkg, p.actionType, partners, actualRows.map((e) => ({ partnerId: e.partnerId, categoryCode: e.categoryCode, amount: e.amountCents })));
     const sumBy = (rows: { categoryCode: string; amount: number }[], code: string) => rows.filter((r) => r.categoryCode === code).reduce((a, r) => a + r.amount, 0);
     const plan = planLines.map((l) => ({ categoryCode: l.categoryCode, amount: l.amountCents }));
-    const act = actualRows.map((e) => ({ categoryCode: e.categoryCode, amount: e.amountCents }));
+    const act = actualRows.map((e) => ({ categoryCode: e.categoryCode, amount: effectiveAmount({ amount: e.amountCents, recognised: e.recognisedCents }) }));
+    const claimedRows = actualRows.map((e) => ({ categoryCode: e.categoryCode, amount: e.amountCents }));
     const byCategory = flattenCategories(pkg.costCategories).filter((c) => c.kind !== 'indirect' && !(c.children && c.children.length)).map((c) => {
       const pl = sumBy(plan, c.code), ac = sumBy(act, c.code);
-      return { code: c.code, name: c.name, planned: pl, actual: ac, remaining: pl - ac, percent: pl ? Math.round((ac / pl) * 100) : null };
+      return { code: c.code, name: c.name, planned: pl, actual: ac, unrecognised: sumBy(claimedRows, c.code) - ac, remaining: pl - ac, percent: pl ? Math.round((ac / pl) * 100) : null };
     });
     const claims = await tx.select({ c: reimbursementClaims, number: reportingPeriods.number }).from(reimbursementClaims)
       .innerJoin(reportingPeriods, eq(reportingPeriods.id, reimbursementClaims.reportingPeriodId)).where(eq(reimbursementClaims.projectId, projectId)).orderBy(asc(reportingPeriods.number));
     return {
       projectId, budgetVersion: budget?.version ?? null, budgetStatus: budget?.status ?? 'none',
-      planned: planned.totals, actual: actual.totals, byCategory,
-      byPartner: partners.map((x, i) => ({ partnerId: x.id, name: x.name, planned: planned.partners[i]!.total, actual: actual.partners[i]!.total })),
+      planned: planned.totals, actual: actual.totals, unrecognised: diffTotals(claimedBasis.totals, actual.totals), byCategory,
+      byPartner: partners.map((x, i) => ({ partnerId: x.id, name: x.name, planned: planned.partners[i]!.total, actual: actual.partners[i]!.total, unrecognised: claimedBasis.partners[i]!.total - actual.partners[i]!.total })),
       claims: claims.map(({ c, number }) => ({ id: c.id, period: number, partnerId: c.partnerId, status: c.status, requested: c.requestedCents, approved: c.approvedCents, paid: c.paidCents })),
     };
   }

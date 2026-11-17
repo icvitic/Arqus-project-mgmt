@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { TimesheetsService, memberInput, memberPatch, timesheetInput, monthParam } from './timesheets.service';
 import { ExpensesService, expenseInput, expensePatch } from './expenses.service';
-import { ClaimsService, claimInput, decisionInput, paymentInput } from './claims.service';
+import { ClaimsService, claimInput, correctionInput, decisionInput, paymentInput, previewInput, submitInput } from './claims.service';
 import { ProjectPermission } from '../identity/auth.guard';
 import { DbService, type Tx } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
@@ -36,7 +36,9 @@ export class FinanceController {
   @Get('claims') @ProjectPermission('finance:read') claims(@Param('id', uuid) id: string) { return this.run((tx) => this.cl.list(tx, id)); }
   @Post('claims') @ProjectPermission('finance:write') createClaim(@Param('id', uuid) id: string, @Body() b: unknown) { const i = parseBody(claimInput, b); return this.run((tx, t, u) => this.cl.create(tx, t, id, i, u)); }
   @Get('claims/:cid') @ProjectPermission('finance:read') claim(@Param('id', uuid) id: string, @Param('cid', uuid) cid: string) { return this.run((tx) => this.cl.get(tx, id, cid)); }
-  @Post('claims/:cid/submit') @ProjectPermission('finance:write') submitClaim(@Param('id', uuid) id: string, @Param('cid', uuid) cid: string) { return this.run((tx, _t, u) => this.cl.submit(tx, id, cid, u)); }
+  @Post('claims/:cid/submit') @ProjectPermission('finance:write') submitClaim(@Param('id', uuid) id: string, @Param('cid', uuid) cid: string, @Body() b: unknown) { const i = parseBody(submitInput, b); return this.run((tx, _t, u) => this.cl.submit(tx, id, cid, i, u)); }
   @Post('claims/:cid/decision') @ProjectPermission('finance:write') decide(@Param('id', uuid) id: string, @Param('cid', uuid) cid: string, @Body() b: unknown) { const i = parseBody(decisionInput, b); return this.run((tx, _t, u) => this.cl.decide(tx, id, cid, i, u)); }
+  @Post('claims/:cid/decision/preview') @ProjectPermission('finance:write') previewDecision(@Param('id', uuid) id: string, @Param('cid', uuid) cid: string, @Body() b: unknown) { const i = parseBody(previewInput, b); return this.run((tx) => this.cl.previewDecision(tx, id, cid, i)); }
+  @Post('claims/:cid/decision/correction') @ProjectPermission('finance:write') correctDecision(@Param('id', uuid) id: string, @Param('cid', uuid) cid: string, @Body() b: unknown) { const i = parseBody(correctionInput, b); return this.run((tx, _t, u) => this.cl.correct(tx, id, cid, i, u)); }
   @Post('claims/:cid/payment') @ProjectPermission('finance:write') pay(@Param('id', uuid) id: string, @Param('cid', uuid) cid: string, @Body() b: unknown) { const i = parseBody(paymentInput, b); return this.run((tx, _t, u) => this.cl.pay(tx, id, cid, i, u)); }
 }

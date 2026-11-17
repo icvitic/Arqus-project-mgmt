@@ -19,19 +19,20 @@ export function FinanceTab({ project: p }: TabProps) {
         <div className="tile"><div className="v">{pct} %</div><div className="l">iskorištenost proračuna</div></div>
         <div className="tile"><div className="v">{eur(d.planned.total - d.actual.total)}</div><div className="l">preostalo</div></div>
       </div>
+      <p className="muted">Ostvareno: trošak prije odluke o ZNS-u s traženim iznosom, nakon odluke s priznatim (odbijen = 0).{d.unrecognised.total > 0 && <> Nepriznato u odlukama: <b>{eur(d.unrecognised.total)}</b> (izravno {eur(d.unrecognised.direct)}, neizravno {eur(d.unrecognised.indirect)}).</>}</p>
       <div className="card scroll" style={{ marginTop: 16 }}>
         <h2>Po kategoriji (izravni troškovi)</h2>
         <table>
-          <thead><tr><th>Kategorija</th><th className="num">Ugovoreno</th><th className="num">Ostvareno</th><th className="num">Preostalo</th><th>Iskorištenost</th></tr></thead>
-          <tbody>{d.byCategory.filter((c) => c.planned || c.actual).map((c) => (
-            <tr key={c.code}><td>{c.code} {c.name}</td><td className="num">{eur(c.planned)}</td><td className="num">{eur(c.actual)}</td><td className="num">{eur(c.remaining)}</td>
+          <thead><tr><th>Kategorija</th><th className="num">Ugovoreno</th><th className="num">Ostvareno</th><th className="num">Nepriznato</th><th className="num">Preostalo</th><th>Iskorištenost</th></tr></thead>
+          <tbody>{d.byCategory.filter((c) => c.planned || c.actual || c.unrecognised).map((c) => (
+            <tr key={c.code}><td>{c.code} {c.name}</td><td className="num">{eur(c.planned)}</td><td className="num">{eur(c.actual)}</td><td className="num">{c.unrecognised ? eur(c.unrecognised) : '–'}</td><td className="num">{eur(c.remaining)}</td>
               <td><div className="bar" role="img" aria-label={`${c.percent ?? 0} %`}><i style={{ width: `${Math.min(c.percent ?? (c.actual ? 100 : 0), 100)}%` }} /></div><span className="muted">{c.percent === null ? 'bez plana' : `${c.percent} %`}</span></td></tr>
           ))}</tbody>
         </table>
       </div>
       <div className="card scroll"><h2>Po partneru (ukupno s neizravnima)</h2>
-        <table><thead><tr><th>Partner</th><th className="num">Ugovoreno</th><th className="num">Ostvareno</th></tr></thead>
-          <tbody>{d.byPartner.map((x) => <tr key={x.partnerId}><td>{x.name}</td><td className="num">{eur(x.planned)}</td><td className="num">{eur(x.actual)}</td></tr>)}</tbody></table>
+        <table><thead><tr><th>Partner</th><th className="num">Ugovoreno</th><th className="num">Ostvareno</th><th className="num">Nepriznato</th></tr></thead>
+          <tbody>{d.byPartner.map((x) => <tr key={x.partnerId}><td>{x.name}</td><td className="num">{eur(x.planned)}</td><td className="num">{eur(x.actual)}</td><td className="num">{x.unrecognised ? eur(x.unrecognised) : '–'}</td></tr>)}</tbody></table>
       </div>
     </>
   );

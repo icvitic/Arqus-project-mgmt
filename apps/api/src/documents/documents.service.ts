@@ -67,7 +67,7 @@ export class DocumentsService {
       case 'expense': {
         const e = (await tx.select({ projectId: expenses.projectId, status: expenses.status }).from(expenses).where(eq(expenses.id, id)))[0];
         if (!e) throw new NotFoundException('Trošak ne postoji');
-        return ofProject(e.projectId, 'Trošak ne postoji', ['claimed', 'accepted'].includes(e.status) ? 'trošak je u zahtjevu za nadoknadu – dokazi su zamrznuti' : null);
+        return ofProject(e.projectId, 'Trošak ne postoji', ['claimed', 'accepted', 'partially_accepted', 'rejected'].includes(e.status) ? 'trošak je u zahtjevu za nadoknadu – dokazi su zamrznuti' : null);
       }
       case 'deliverable': {
         const d = (await tx.select({ projectId: deliverables.projectId }).from(deliverables).where(eq(deliverables.id, id)))[0];

@@ -1,6 +1,6 @@
 /* E2E provjera web sučelja na pravom API-ju (Playwright). Pokretanje: apps/web/e2e/run-local.sh
  * Tok: prijava → paket → radar (go) → organizacija → prijava na poziv (konzorcij, RP, proračun, predaja, ishod) → ugovaranje u projekt → aktivacija → tim i timesheet (predaja, odobrenje)
- *      → trošak (dokaz) → ZNS → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → portfelj → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve. */
+ *      → trošak (dokaz) → ZNS (provjera, rana predaja, odluka po trošku, isplata) → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → portfelj → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve. */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -182,15 +182,37 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Dokazi (1)' }).waitFor();
     await page.getByRole('cell', { name: /Račun 17-2027\.pdf/ }).last().waitFor();
   });
-  await step('ZNS RP1', async () => {
+  await step('ZNS RP1: popis za provjeru, rana predaja s razlogom', async () => {
     await page.getByRole('tab', { name: 'Zahtjevi za nadoknadu' }).click();
     await page.getByRole('button', { name: 'Otvori zahtjev' }).click();
     await page.getByRole('heading', { name: /ZNS za RP1/ }).waitFor();
     await page.getByText(/2\.856,50/).first().waitFor(); // 310 + 2.500 + 15 % od 310 = 2.856,50
     await page.getByRole('cell', { name: 'dokaz (1)' }).waitFor();
-    await page.getByRole('button', { name: 'Predaj zahtjev' }).click();
+    // Troškovi osoblja grupirani po osobi i mjesecu; redak po radnom paketu na klik.
+    await page.getByRole('button', { name: /Rad: Ivana Horvat, velj\. 2027\./ }).click();
+    await page.getByRole('cell', { name: /WP1/ }).first().waitFor();
+    // Projekt počinje 2027-01-01: razdoblje još traje – predaja tek uz razlog rane predaje.
+    await page.getByText(/Razdoblje još traje/).waitFor();
+    const submit = page.getByRole('button', { name: 'Predaj zahtjev' });
+    if (await submit.isEnabled()) throw new Error('predaja bez razloga rane predaje ne smije biti moguća');
+    await page.getByLabel(/Razlog rane predaje/).fill('E2E: provjera rane predaje');
+    await submit.click();
     await page.locator('h2 .chip', { hasText: 'predan' }).waitFor();
+    await page.getByText('Predan prije kraja razdoblja. Razlog: E2E: provjera rane predaje').waitFor();
     await shot('zns');
+  });
+  await step('ZNS RP1: odluka po trošku (umanjenje s razlogom) i isplata', async () => {
+    await page.getByLabel('Priznato: Anketno istraživanje').fill('2.000,00');
+    await page.getByText(/razlog je obavezan/).waitFor(); // pregled s poslužitelja traži razlog
+    await page.getByLabel('Razlog: Anketno istraživanje').fill('Priznato prema ugovoru s agencijom');
+    await page.locator('.tile', { hasText: 'priznato (izračun)' }).getByText('2.356,50').waitFor(); // 310 + 2.000 + 46,50
+    await page.getByRole('button', { name: 'Spremi odluku' }).click();
+    await page.locator('h2 .chip', { hasText: 'djelomično odobren' }).waitFor();
+    await page.locator('.tile', { hasText: 'nepriznato' }).getByText('500,00').first().waitFor();
+    await page.getByText('Razlog: Priznato prema ugovoru s agencijom').waitFor();
+    await page.getByRole('button', { name: 'Zabilježi isplatu' }).click();
+    await page.getByText(/isplaćeno 2\.356,50/).waitFor();
+    await shot('zns-odluka');
   });
   await step('dokumenti projekta: ugovor, verzije, preuzimanje', async () => {
     await page.getByRole('tab', { name: 'Dokumenti' }).click();

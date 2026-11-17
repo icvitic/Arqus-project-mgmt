@@ -40,7 +40,8 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [x] **WP1.13** Demo okruženje: demo institucija s realnim podacima, pokretanje jednom naredbom, scenarij demonstracije (v0.20.0; `demo.cmd`, `docs/DEMO.md`, `docs/DEMO-SCENARIJ.md`)
 - [x] **WP1.14** Pristup po projektu: uloge na projektu, povjerljivi dokumenti, plaće i razdvajanje dužnosti, provjera pokrivenosti svih ruta (v0.21.0; `docs/sigurnost/AUTORIZACIJA.md`)
 - [x] **WP1.15** Portfelj (M10): pregled institucije – projekti, potrošnja, rokovi, opterećenje ljudi
-- [ ] **WP1.16** ZNS: ispravnost i paket za predaju – pravila (predaja nakon kraja razdoblja, odluka po trošku, provjera datuma, sažeti troškovi osoblja), izvoz troškova, evidencije rada i dokaza, mjerenje trajanja pripreme
+- [x] **WP1.16a** ZNS – ispravnost: predaja nakon kraja razdoblja (ranije uz razlog), popis za provjeru prije predaje, odluka po trošku s priznatim iznosom, provjera isplate, jedna definicija ostvarenog uz nepriznato, sažeti troškovi osoblja (v0.23.0; `docs/domena/zns-pravila.md`)
+- [ ] **WP1.16b** ZNS paket za predaju: izvoz troškova, evidencije rada i dokaza; mjerenje trajanja pripreme
 - [ ] **WP1.14b** Dorade prije pilota: zaštita od istovremenog prepisivanja proračuna, pregled revizijskog zapisa, provjera valjanosti paketa, pristup voditelja vlastitoj prijavi, „danas” po zoni Europe/Zagreb, bez istovremenih upita na jednoj transakciji
 - [ ] **WP1.17** Uvoz postojećeg projekta iz Excela – uvjetno, nakon povratne informacije s demonstracija
 - [ ] **WP1.18** Rokovi i „Moj rad”: stranica člana tima i obavijesti u aplikaciji – uvjetno, nakon povratne informacije s demonstracija

@@ -197,7 +197,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   await upload(office, 'project', npoo, 'ZELENI-LAB-ugovor.pdf', 'Ugovor o dodjeli bespovratnih sredstava', 'contract', ['Broj ugovora: NPOO.C3.2.R3-I2.07.0147', `Početak provedbe: ${npooStart}`, 'Trajanje: 24 mjeseca'], 'confidential');
   await office.post(`/projects/${npoo}/transition`, { to: 'active' });
 
-  // Timesheetovi NPOO: mj. 1–12 (RP1 i RP2), svi odobreni. Marina u 12. mjesecu radi i na BLUESENSE (portfelj: dan iznad 8 h kroz dva projekta).
+  // Timesheetovi NPOO: mj. 1–12 (RP1 i RP2). Josipov timesheet za 12. mjesec čeka odobrenje ureda (otvorena stavka ZNS-a 2).
+  // Marina u 12. mjesecu radi i na BLUESENSE (portfelj: dan iznad 8 h kroz dva projekta).
   const timesheet = async (writer: Api, approver: Api, projectId: string, memberId: string, month: string, entries: unknown[], approve = true) => {
     await writer.put(`/projects/${projectId}/team/${memberId}/timesheets/${month}`, { entries });
     await writer.post(`/projects/${projectId}/team/${memberId}/timesheets/${month}/submit`);
@@ -208,7 +209,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   for (let m = 1; m <= 12; m++) {
     const month = projectMonth(npooStart, m);
     const mEntries = timesheetEntries(month, m, [360, 420, 300, 480, 240, 360], nWp, 3);
-    await timesheet(pm2, office, npoo, josip, month, timesheetEntries(month, m, [120, 180, 90, 240, 120], nWp, 1));
+    await timesheet(pm2, office, npoo, josip, month, timesheetEntries(month, m, [120, 180, 90, 240, 120], nWp, 1), m < 12);
     await timesheet(pm2, pm2, npoo, marina, month, mEntries);
     if (m === 12) marinaLast = mEntries;
   }
@@ -226,20 +227,28 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     { categoryCode: 'PUT', date: dayOf(npooStart, 5, 21), description: 'Studijsko putovanje – posjet laboratoriju za zgradarstvo', supplier: 'Putnički nalog 14/2026', amount: 86_500, evidenceRef: 'PN-14/2026' },
     { categoryCode: 'PV', date: dayOf(npooStart, 2, 17), description: 'Vizualni identitet i informativne ploče projekta', supplier: 'Studio Kvadrat d.o.o.', amount: 245_000, evidenceRef: 'R-31/2026' },
   ];
-  for (const e of rp1) await expense(npoo, e, { api: finance, file: `${e.evidenceRef.replace(/[^A-Za-z0-9-]/g, '-')}.pdf` });
-  // ZNS za RP1: predaja → djelomično odobren → isplaćen.
+  const rp1Ids: string[] = [];
+  for (const e of rp1) rp1Ids.push((await expense(npoo, e, { api: finance, file: `${e.evidenceRef.replace(/[^A-Za-z0-9-]/g, '-')}.pdf` })).id);
+  // ZNS za RP1 (razdoblje je završilo): predaja → odluka po trošku (elaborat umanjen, putovanje odbijeno) → isplaćen priznati iznos.
   const claim1 = await finance.post<Row>(`/projects/${npoo}/claims`, { period: 1 });
-  const submitted = await finance.post<{ requested: number }>(`/projects/${npoo}/claims/${claim1.id}/submit`);
-  const approvedAmount = submitted.requested - 86_500;
-  await finance.post(`/projects/${npoo}/claims/${claim1.id}/decision`, { decision: 'partially_approved', approvedAmount, note: 'Trošak studijskog putovanja (865,00 EUR) nije priznat – nedostaje izvješće s putovanja.' });
-  await finance.post(`/projects/${npoo}/claims/${claim1.id}/payment`, { paidAmount: approvedAmount, paidAt: todayIso });
-  await upload(pm2, 'claim', claim1.id, 'ZNS-1-odluka.pdf', 'Odluka posredničkog tijela o ZNS-u 1', 'correspondence', [`Odobreno: ${eur(approvedAmount)}`, 'Nepriznat trošak: studijsko putovanje (865,00 EUR)']);
-  // RP2 u tijeku: dva troška (jedan bez dokaza) i nacrt ZNS-a.
+  await finance.post(`/projects/${npoo}/claims/${claim1.id}/submit`, {});
+  const reducedTo = 1_050_000;
+  const decided = await finance.post<{ approved: number; requested: number }>(`/projects/${npoo}/claims/${claim1.id}/decision`, {
+    decision: 'decided', decisionDate: todayIso,
+    expenses: [
+      { id: rp1Ids[1], recognised: reducedTo, reason: 'Priznato do iznosa iz ugovora s izvršiteljem (10.500,00 EUR); razlika je dodatni posao izvan plana nabave.' },
+      { id: rp1Ids[2], recognised: 0, reason: 'Nedostaje izvješće sa studijskog putovanja.' },
+    ],
+    note: 'Odluka posredničkog tijela: djelomično odobren – jedan trošak umanjen, jedan nije priznat.',
+  });
+  await finance.post(`/projects/${npoo}/claims/${claim1.id}/payment`, { paidAmount: decided.approved, paidAt: todayIso });
+  await upload(pm2, 'claim', claim1.id, 'ZNS-1-odluka.pdf', 'Odluka posredničkog tijela o ZNS-u 1', 'correspondence', [`Zatraženo: ${eur(decided.requested)}`, `Odobreno: ${eur(decided.approved)}`, `Elaborat energetskog pregleda umanjen na ${eur(reducedTo)}`, 'Nepriznat trošak: studijsko putovanje (865,00 EUR)']);
+  // RP2 završio prošli mjesec: dva troška (brošure bez dokaza) i nacrt ZNS-a s otvorenim stavkama (timesheet čeka odobrenje, trošak bez dokaza).
   await expense(npoo, { categoryCode: 'VU', date: dayOf(npooStart, 7, 15), description: 'Kalibracija mjernih senzora', supplier: 'Mjerna tehnika d.o.o.', amount: 320_000, evidenceRef: 'R-655/2026' }, { api: finance, file: 'R-655-2026.pdf' });
   await expense(npoo, { categoryCode: 'PV', date: dayOf(npooStart, 8, 6), description: 'Tisak brošura za info-dan', supplier: 'Tiskara Primorje d.o.o.', amount: 118_000, evidenceRef: 'R-702/2026' });
   await finance.post(`/projects/${npoo}/claims`, { period: 2 });
   sum.claims += 2;
-  log('NPOO: projekt aktivan, ZNS 1 isplaćen, ZNS 2 u nacrtu');
+  log('NPOO: projekt aktivan, ZNS 1 djelomično odobren i isplaćen, ZNS 2 u nacrtu s otvorenim stavkama');
 
   // ---------- Horizon Europe: projekt u provedbi (izravni unos – projekt prije uvođenja sustava) ----------
   const he = await office.post<{ id: string; partners: Row[] }>('/projects', {

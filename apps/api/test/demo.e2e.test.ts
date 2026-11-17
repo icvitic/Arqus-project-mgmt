@@ -121,6 +121,18 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(claims.map((c) => c.status)).toEqual(['partially_approved', 'draft']);
     expect(claims[0]!.submittedAt).toBeTruthy(); expect(claims[0]!.paid).toBe(claims[0]!.approved); expect(claims[0]!.missingEvidence).toBe(0);
     expect(claims[1]!.missingEvidence).toBe(1);
+    // WP1.16a: odluka po trošku – jedan umanjen, jedan odbijen, s razlozima; priznato < zatraženo; isplaćen priznati iznos.
+    type DemoExp = { status: string; amount: number; recognised: number | null; decisionReason: string | null };
+    const c1 = claims[0] as unknown as { expenses: DemoExp[]; requested: number; approved: number; recognised: { requested: number }; unrecognised: { total: number }; decisionDate: string };
+    expect(c1.expenses.filter((e) => e.status === 'partially_accepted')).toEqual([expect.objectContaining({ amount: 1_180_000, recognised: 1_050_000, decisionReason: expect.stringMatching(/ugovora/) })]);
+    expect(c1.expenses.filter((e) => e.status === 'rejected')).toEqual([expect.objectContaining({ amount: 86_500, recognised: 0, decisionReason: expect.stringMatching(/izvješće/) })]);
+    expect(c1.approved).toBe(c1.recognised.requested); expect(c1.approved).toBeLessThan(c1.requested);
+    expect(c1.requested - c1.approved).toBe(216_500); expect(c1.unrecognised.total).toBe(216_500);
+    // ZNS 2 (razdoblje završilo) u nacrtu: stvarne otvorene stavke – timesheet čeka odobrenje, trošak bez dokaza.
+    const c2 = claims[1] as unknown as { checklist: { canSubmit: boolean; blocking: { key: string; details: string[] }[] } };
+    expect(c2.checklist.canSubmit).toBe(false);
+    expect(c2.checklist.blocking.map((b) => b.key)).toEqual(['timesheets_approved', 'evidence']);
+    expect(c2.checklist.blocking[0]!.details).toEqual([expect.stringMatching(/^Josip Barić, \d{4}-\d{2} \(čeka odobrenje/)]);
     expect((await http().get(`/api/documents?projectId=${npoo.id}`).set(as('office')).expect(200)).body.length).toBeGreaterThanOrEqual(6);
 
     // WP1.14: voditelj vidi samo svoj projekt; tuđi projekt je 404; član tima ne vidi plaće ni povjerljive dokumente.

@@ -412,6 +412,14 @@ export const reimbursementClaims = pgTable('reimbursement_claims', {
   decidedAt: timestamp('decided_at', { withTimezone: true }),
   paidAt: date('paid_at', { mode: 'string' }),
   note: text('note'),
+  /** WP1.16a: razlog predaje prije kraja razdoblja (obavezan za ranu predaju). */
+  earlyReason: text('early_reason'),
+  /** WP1.16a: snimka pri predaji – upozorenja popisa za provjeru i potvrđeni troškovi bez dokaza. */
+  submission: jsonb('submission').$type<Record<string, unknown>>(),
+  /** WP1.16a: datum odluke financijera (ne vrijeme unosa) i izračun priznatog iznosa uz iznos financijera. */
+  decisionDate: date('decision_date', { mode: 'string' }),
+  decision: jsonb('decision').$type<Record<string, unknown>>(),
+  paymentNote: text('payment_note'),
   ...audited,
 }, (t) => [
   unique('reimbursement_claims_tenant_id_uq').on(t.tenantId, t.id),
@@ -421,7 +429,7 @@ export const reimbursementClaims = pgTable('reimbursement_claims', {
   foreignKey({ name: 'reimbursement_claims_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),
 ]);
 
-export type ExpenseStatus = 'recorded' | 'claimed' | 'accepted' | 'rejected';
+export type ExpenseStatus = 'recorded' | 'claimed' | 'accepted' | 'partially_accepted' | 'rejected';
 export const expenses = pgTable('expenses', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenantId: uuid('tenant_id').notNull(),
@@ -438,6 +446,9 @@ export const expenses = pgTable('expenses', {
   timesheetId: uuid('timesheet_id'),
   claimId: uuid('claim_id'),
   status: text('status').$type<ExpenseStatus>().notNull().default('recorded'),
+  /** WP1.16a: priznati iznos iz odluke o ZNS-u (null dok odluke nema; odbijen = 0) i razlog umanjenja ili odbijanja. */
+  recognisedCents: bigint('recognised_cents', { mode: 'number' }),
+  decisionReason: text('decision_reason'),
   ...audited,
 }, (t) => [
   index('expenses_project_date_idx').on(t.projectId, t.date),
@@ -448,6 +459,12 @@ export const expenses = pgTable('expenses', {
   foreignKey({ name: 'expenses_claim_fk', columns: [t.tenantId, t.claimId], foreignColumns: [reimbursementClaims.tenantId, reimbursementClaims.id] }),
   check('expenses_amount_ck', sql`amount_cents >= 0`),
   check('expenses_claim_status_ck', sql`(status = 'recorded') = (claim_id is null)`),
+  // Priznati iznos postoji točno kad je o trošku odlučeno, i odgovara statusu (cijeli / umanjen / 0).
+  check('expenses_decision_ck', sql`(status in ('accepted', 'partially_accepted', 'rejected')) = (recognised_cents is not null)
+    and (recognised_cents is null or recognised_cents between 0 and amount_cents)
+    and (status <> 'accepted' or recognised_cents = amount_cents)
+    and (status <> 'rejected' or recognised_cents = 0)
+    and (status <> 'partially_accepted' or (recognised_cents > 0 and recognised_cents < amount_cents))`),
 ]);
 
 /* ---------- M3 Radar poziva ---------- */

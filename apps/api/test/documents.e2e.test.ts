@@ -76,7 +76,8 @@ describe('Dokumenti (e2e)', () => {
     const c = (await http().post(`/api/projects/${pid}/claims`).set(auth(A)).send({ period: 1 }).expect(201)).body;
     expect(c.missingEvidence).toBe(1);
     expect(c.expenses.find((e: { id: string }) => e.id === e2).documents).toBe(0);
-    await http().post(`/api/projects/${pid}/claims/${c.id}/submit`).set(auth(A)).expect(201);
+    // Razdoblje još traje (2027.) – rana predaja s razlogom; trošak bez dokaza izričito potvrđen (WP1.16a).
+    await http().post(`/api/projects/${pid}/claims/${c.id}/submit`).set(auth(A)).send({ earlyReason: 'Provjera zamrzavanja dokaza', acknowledgeWithoutEvidence: [e2] }).expect(201);
     await http().post(`/api/documents/${docId}/versions`).set(auth(A)).attach('file', Buffer.from('%PDF-1.7\n3'), 'novi.pdf').expect(409);
     await http().delete(`/api/documents/${docId}`).set(auth(A)).expect(409);
     await http().post('/api/documents').set(auth(A)).field('entityType', 'expense').field('entityId', e2).attach('file', PDF1, 'kasno.pdf').expect(409);

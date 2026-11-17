@@ -67,6 +67,7 @@ function Figures({ d }: { d: Data }) {
       {m && (
         <Tile v={eur(m.spent)} l={`potrošeno · ${m.spentPercent ?? 0} % proračuna`}>
           <div className="bar" role="img" aria-label={`potrošeno ${m.spentPercent ?? 0} %`}><i style={{ width: `${Math.min(m.spentPercent ?? 0, 100)}%` }} /></div>
+          {m.unrecognised > 0 && <span>nepriznato u odlukama o ZNS-u {eur(m.unrecognised)}<br /></span>}
           {d.access.finance === 'partial' && <span>samo projekti na kojima vidiš financije ({m.projects})</span>}
         </Tile>
       )}

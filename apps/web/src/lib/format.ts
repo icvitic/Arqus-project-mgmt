@@ -49,7 +49,7 @@ export const TRANSITIONS: Record<string, string[]> = {
 export const GENERIC_STATUS: Record<string, string> = {
   draft: 'nacrt', submitted: 'predan', approved: 'odobren', locked: 'zaključan', none: 'nema', partially_approved: 'djelomično odobren', rejected: 'odbijen',
   planned: 'planirano', in_progress: 'u izradi', accepted: 'prihvaćeno', done: 'gotovo', cancelled: 'otkazano', achieved: 'ostvareno', missed: 'propušteno',
-  open: 'otvoren', mitigated: 'ublažen', occurred: 'nastupio', recorded: 'evidentiran', claimed: 'u zahtjevu', invited: 'pozvan', disabled: 'deaktiviran', published: 'objavljen', deprecated: 'zastario', announced: 'najavljen', go: 'go', no_go: 'no-go', watch: 'pratimo',
+  open: 'otvoren', mitigated: 'ublažen', occurred: 'nastupio', recorded: 'evidentiran', claimed: 'u zahtjevu', partially_accepted: 'djelomično priznat', invited: 'pozvan', disabled: 'deaktiviran', published: 'objavljen', deprecated: 'zastario', announced: 'najavljen', go: 'go', no_go: 'no-go', watch: 'pratimo',
   idea: 'ideja', preparation: 'u pripremi', internal_review: 'interna provjera', in_evaluation: 'u evaluaciji', funded: 'financirana', reserve: 'rezervna lista', withdrawn: 'povučena', contracted: 'ugovorena',
 };
 export const label = (s: string): string => PROJECT_STATUS[s] ?? GENERIC_STATUS[s] ?? s;

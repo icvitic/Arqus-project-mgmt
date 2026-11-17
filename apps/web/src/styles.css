@@ -61,3 +61,7 @@ tr.overdue td:first-child{color:var(--bad);font-weight:600}
 .num-inline{font-variant-numeric:tabular-nums;white-space:nowrap}
 table.portfolio a,.card td a:not(.chip){color:var(--accent)}.break{overflow-wrap:anywhere}
 @media(max-width:520px){.tile .v{font-size:18px}.tile{padding:10px}}
+/* ZNS (WP1.16a) */
+.form.one{grid-template-columns:minmax(0,480px)}
+.claim-table{min-width:680px}.claim-table td:nth-child(2){min-width:240px}.claim-table button.link{text-align:left}.claim-table td:first-child{white-space:nowrap}
+.expense-table td:first-child{white-space:nowrap}
