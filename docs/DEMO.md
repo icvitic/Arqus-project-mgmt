@@ -28,15 +28,17 @@ Prvo pokretanje gradi Docker sliku i traje nekoliko minuta; svako sljedeće dese
 
 Prijava: **Institucija (oznaka)** `demo`, lozinka za sve račune **`Plavi-Jadran-2026`**.
 
-| E-adresa | Osoba | Uloga | Za što |
-| --- | --- | --- | --- |
-| `ured@demo.local` | Ana Kovačević | voditeljica ureda za projekte | **glavni račun za demonstraciju**: radar, prijave, svi projekti, plaće |
-| `voditelj@demo.local` | doc. dr. sc. Petra Horvat | voditeljica projekta | BLUESENSE (HE) i prijava AQUAREST; odobrava timesheetove |
-| `voditelj2@demo.local` | Josip Barić | voditelj projekta | ZELENI-LAB (NPOO) |
-| `clan@demo.local` | Luka Novak | član tima | vlastiti timesheetovi; jedan čeka odobrenje, tekući mjesec u nacrtu |
-| `financije@demo.local` | Maja Jurić | financije / računovodstvo | troškovi, tim s godišnjim troškom, ZNS |
-| `uprava@demo.local` | prof. dr. sc. Tomislav Perić | uprava (samo čitanje) | pregled projekata i financija |
-| `admin@demo.local` | Nikola Radić | administrator stanara | korisnici i uloge |
+| E-adresa | Osoba | Uloga | Opseg | Za što |
+| --- | --- | --- | --- | --- |
+| `ured@demo.local` | Ana Kovačević | voditeljica ureda za projekte | institucija | **glavni račun za demonstraciju**: radar, prijave, svi projekti, plaće, povjerljivi dokumenti |
+| `voditelj@demo.local` | doc. dr. sc. Petra Horvat | voditeljica projekta | **samo BLUESENSE** | vidi samo svoj projekt; struktura, tim, odobrava timesheetove (ne vlastite), kartica **Pristup**; ne vidi plaće ni radar/prijave |
+| `voditelj2@demo.local` | Josip Barić | voditelj projekta | **samo ZELENI-LAB** | vidi samo svoj projekt (postao voditelj ugovaranjem prijave kojoj je bio nositelj) |
+| `clan@demo.local` | Luka Novak | član tima | **samo BLUESENSE** | vlastiti timesheetovi (jedan čeka odobrenje, tekući mjesec u nacrtu); ne vidi plaće ni povjerljive dokumente |
+| `financije@demo.local` | Maja Jurić | financije / računovodstvo | institucija | troškovi i dokazi na svim projektima, tim s godišnjim troškom, ZNS |
+| `uprava@demo.local` | prof. dr. sc. Tomislav Perić | uprava (samo čitanje) | institucija | pregled projekata i financija |
+| `admin@demo.local` | Nikola Radić | administrator stanara | institucija | korisnici i uloge (institucija i projekti) |
+
+Uloge „na projektu” vrijede samo za taj projekt (WP1.14, `docs/sigurnost/AUTORIZACIJA.md`): voditelj BLUESENSE-a ne vidi ZELENI-LAB ni na popisu ni izravnom poveznicom. Prijave su i dalje na razini institucije, pa AQUAREST pripremaju ured i nositeljica tek kad dobije ulogu institucije.
 
 ## Što je u demo instituciji
 
@@ -46,7 +48,7 @@ Prijava: **Institucija (oznaka)** `demo`, lozinka za sve račune **`Plavi-Jadran
 | Radar poziva | 6 vlastitih poziva: 2 × go (jedan završio ugovorom, jedan s prijavom u pripremi), 2 × pratimo, 1 × no-go s obrazloženjem, 1 zatvoren; ocjene prikladnosti i interni rokovi → popunjeni „Nadolazeći rokovi (60 dana)” |
 | Paket po pozivu | `npoo-poziv-zdp-2025` nasljeđuje NPOO i mijenja izvještavanje na 6 mjeseci |
 | **ZELENI-LAB** (NPOO) | prošao cijeli put poziv → go → prijava → predaja → financirana → ugovorena; aktivan 9. mjesec; RP1 završen: ZNS 1 predan, djelomično odobren s napomenom i isplaćen; ZNS 2 u nacrtu s jednim troškom bez dokaza |
-| **BLUESENSE** (Horizon Europe, RIA) | koordinator, 4 partnera, aktivan 11. mjesec; 5 radnih paketa, zadaci, isporuke (prihvaćene, predana, jedna kasni), prekretnice, rizici; zaključan proračun ~2,4 mil. EUR; tim od 3 osobe s godišnjim troškom; 10 mjeseci timesheetova (jedan čeka odobrenje); 6 ručnih troškova s dokazima, jedan namjerno bez dokaza; ugovor i sporazum o konzorciju |
+| **BLUESENSE** (Horizon Europe, RIA) | koordinator, 4 partnera, aktivan 11. mjesec; 5 radnih paketa, zadaci, isporuke (prihvaćene, predana, jedna kasni), prekretnice, rizici; zaključan proračun ~2,4 mil. EUR; tim od 3 osobe s godišnjim troškom; 10 mjeseci timesheetova (jedan čeka odobrenje); 6 ručnih troškova s dokazima, jedan namjerno bez dokaza; ugovor (povjerljiv), sporazum o konzorciju i povjerljiva odluka o plaćama tima (vide je ured, voditeljica i financije, ne član tima) |
 | **AQUAREST** (prijava, HE) | u pripremi iz odluke go: konzorcij od 5 članova (2 nisu potvrdila), 5 radnih paketa, djelomičan proračun → provjera spremnosti pokazuje otvorene stavke |
 
 Stvarni pozivi s portala EU Funding & Tenders nisu dio demoa (demo ne ovisi o mreži). Ako ih želiš prikazati: `docker compose -f infra/demo/docker-compose.yml exec app node dist/db/cli.js import-calls` (traži internet).

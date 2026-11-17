@@ -1,5 +1,5 @@
 /* Operativni CLI za instalaciju (kontejner): `node dist/db/cli.js migrate | import-packages | seed | init`.
- * migrate – primjena migracija (vlasnička uloga DATABASE_MIGRATE_URL)
+ * migrate – primjena migracija i usklađivanje sistemskih uloga (vlasnička uloga DATABASE_MIGRATE_URL)
  * import-packages – uvoz/osvježavanje globalnih paketa programa (ARQUS_PACKAGES_DIR)
  * seed – prvi stanar i administrator (SEED_TENANT_SLUG, SEED_TENANT_NAME, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD)
  * init – migrate + import-packages (pri svakom pokretanju kontejnera; idempotentno)
@@ -7,7 +7,10 @@
  * demo [--reset] [--slug <oznaka>] – demo institucija s realnim podacima (WP1.13; nikad implicitno). Treba i DATABASE_URL (aplikacijska uloga);
  *   u produkciji samo uz ARQUS_DEMO=1. Lozinka demo korisnika: DEMO_PASSWORD ili zadana (docs/DEMO.md). */
 import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import * as schema from './schema';
 import { runMigrations } from './migrate';
+import { IdentityService } from '../identity/identity.service';
 import { importGlobalPackages, seedDemo } from './seed';
 import { readFileSync } from 'node:fs';
 import { fetchFtResults, importFtCalls } from '../calls/ft-import';
@@ -18,6 +21,8 @@ async function main(cmd: string | undefined): Promise<void> {
   if (!url) throw new Error('DATABASE_MIGRATE_URL nije postavljen');
   if (cmd === 'migrate' || cmd === 'init') {
     await runMigrations(url); console.log('Migracije primijenjene.');
+    // Sistemske uloge iz koda (dozvole se mijenjaju s verzijama, npr. WP1.14) – postojeća instalacija ih preuzima pri svakom pokretanju.
+    await syncSystemRoles(url); console.log('Sistemske uloge usklađene.');
     // Migracija 0001 stvara aplikacijsku ulogu sa zadanom lozinkom; u instalaciji je zamjenjujemo tajnom iz okruženja.
     const appPw = process.env.DB_APP_PASSWORD;
     if (appPw) {
@@ -46,6 +51,12 @@ async function main(cmd: string | undefined): Promise<void> {
   }
   if (cmd === 'demo') await demo(url, process.argv.slice(3));
   if (!['migrate', 'import-packages', 'seed', 'init', 'import-calls', 'demo'].includes(cmd ?? '')) throw new Error('Naredba: migrate | import-packages | seed | init | import-calls | demo');
+}
+
+async function syncSystemRoles(url: string): Promise<void> {
+  const pool = new Pool({ connectionString: url, max: 1 });
+  try { await drizzle(pool, { schema }).transaction((tx) => IdentityService.ensureSystemRoles(tx)); }
+  finally { await pool.end(); }
 }
 
 async function demo(ownerUrl: string, args: string[]): Promise<void> {

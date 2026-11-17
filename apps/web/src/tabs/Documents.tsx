@@ -15,7 +15,8 @@ const size = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).t
 export type DocTarget = { entityType: string; entityId: string };
 
 /** Popis dokumenata (za entitet ili cijeli projekt/prijavu) s učitavanjem, verzijama, preuzimanjem i brisanjem. */
-export function DocumentList({ target, scope, canWrite, defaultKind = 'other', onChange, showEntity }: { target: DocTarget; scope?: string; canWrite: boolean; defaultKind?: string; onChange?: () => void; showEntity?: boolean }) {
+/** `allowConfidential` – korisnik smije označiti dokument povjerljivim (documents:confidential na tom opsegu, WP1.14). */
+export function DocumentList({ target, scope, canWrite, allowConfidential = false, defaultKind = 'other', onChange, showEntity }: { target: DocTarget; scope?: string; canWrite: boolean; allowConfidential?: boolean; defaultKind?: string; onChange?: () => void; showEntity?: boolean }) {
   const q = scope ?? `entityType=${target.entityType}&entityId=${target.entityId}`;
   const docs = useLoad(() => api<DocumentSummary[]>('GET', `/documents?${q}`), [q]);
   const [open, setOpen] = useState<string | null>(null);
@@ -31,7 +32,7 @@ export function DocumentList({ target, scope, canWrite, defaultKind = 'other', o
           ))}</tbody>
         </table>
       )}
-      {canWrite && <UploadForm target={target} defaultKind={defaultKind} done={changed} />}
+      {canWrite && <UploadForm target={target} defaultKind={defaultKind} allowConfidential={allowConfidential} done={changed} />}
     </div>
   );
 }
@@ -83,7 +84,7 @@ function Versions({ id, canWrite, changed }: { id: string; canWrite: boolean; ch
   );
 }
 
-function UploadForm({ target, defaultKind, done }: { target: DocTarget; defaultKind: string; done: () => Promise<void> }) {
+function UploadForm({ target, defaultKind, allowConfidential, done }: { target: DocTarget; defaultKind: string; allowConfidential: boolean; done: () => Promise<void> }) {
   const file = useRef<HTMLInputElement>(null);
   const [f, setF] = useState({ title: '', kind: defaultKind, confidentiality: 'internal', ai: false });
   return (
@@ -100,7 +101,7 @@ function UploadForm({ target, defaultKind, done }: { target: DocTarget; defaultK
       <Field label="Datoteka" hint="PDF, slike, Office/ODF, CSV, ZIP, e-potpis; najviše 25 MB"><input type="file" ref={file} accept={ACCEPT} required /></Field>
       <Field label="Naslov dokumenta" hint="zadano: naziv datoteke"><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></Field>
       <Field label="Vrsta dokumenta"><select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>{Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-      <Field label="Povjerljivost"><select value={f.confidentiality} onChange={(e) => setF({ ...f, confidentiality: e.target.value })}>{Object.entries(CONF).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+      <Field label="Povjerljivost"><select value={f.confidentiality} onChange={(e) => setF({ ...f, confidentiality: e.target.value })}>{Object.entries(CONF).filter(([k]) => allowConfidential || k !== 'confidential').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
       <label className="field"><span>Oznaka AI sadržaja</span><span><input type="checkbox" checked={f.ai} onChange={(e) => setF({ ...f, ai: e.target.checked })} /> izrađeno uz pomoć AI-ja</span></label>
     </ActionForm>
   );
@@ -108,12 +109,12 @@ function UploadForm({ target, defaultKind, done }: { target: DocTarget; defaultK
 
 /** Kartica projekta: svi dokumenti projekta (uz projekt, troškove, isporuke, ZNS); novi se prilažu uz projekt. */
 export function DocumentsTab({ project: p, me }: TabProps) {
-  const write = can(me, 'documents:write') && !['closed', 'terminated', 'archived'].includes(p.status);
+  const write = can(me, 'documents:write', p.id) && !['closed', 'terminated', 'archived'].includes(p.status);
   return (
     <div className="card scroll">
       <h2>Dokumenti projekta</h2>
-      <p className="muted">Ugovor, izvještaji, isporuke i dokazi troškova na jednom mjestu. Svaka izmjena je nova verzija s hashem (SHA-256); dokazi troškova zamrzavaju se predajom zahtjeva za nadoknadu.</p>
-      <DocumentList target={{ entityType: 'project', entityId: p.id }} scope={`projectId=${p.id}`} showEntity canWrite={write} defaultKind="contract" />
+      <p className="muted">Ugovor, izvještaji, isporuke i dokazi troškova na jednom mjestu. Svaka izmjena je nova verzija s hashem (SHA-256); dokazi troškova zamrzavaju se predajom zahtjeva za nadoknadu. Povjerljive dokumente vide samo ovlaštene uloge (ured, voditelj, financije).</p>
+      <DocumentList target={{ entityType: 'project', entityId: p.id }} scope={`projectId=${p.id}`} showEntity canWrite={write} allowConfidential={can(me, 'documents:confidential', p.id)} defaultKind="contract" />
     </div>
   );
 }

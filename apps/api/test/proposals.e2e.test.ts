@@ -84,8 +84,14 @@ describe('Prijave (e2e)', () => {
     await http().post(`/api/proposals/${pid}/transition`).set(auth(A)).send({ to: 'in_evaluation' }).expect(201);
     d = (await http().post(`/api/proposals/${pid}/outcome`).set(auth(A)).send({ result: 'funded', score: '87/100' }).expect(201)).body;
     expect(d).toMatchObject({ status: 'funded', outcome: { result: 'funded', score: '87/100' } });
+    // WP1.14: nositelj prijave bez uloge institucije ugovaranjem postaje voditelj (samo) novog projekta.
+    const lead = (await http().post('/api/users').set(auth(A)).send({ email: `nositelj@${slugA}.hr`, displayName: 'Nositelj prijave', password: 'Plava-Staza-2027-x', roleCodes: [] }).expect(201)).body.id;
+    await http().patch(`/api/proposals/${pid}`).set(auth(A)).send({ leadUserId: lead }).expect(200);
     const c = (await http().post(`/api/proposals/${pid}/contract`).set(auth(A)).send({ contractNo: `NPOO-${tag}`, startDate: '2027-01-01' }).expect(201)).body;
     expect(c.proposal).toMatchObject({ status: 'contracted', projectId: c.projectId });
+    const leadToken = (await http().post('/api/auth/login').send({ tenantSlug: slugA, email: `nositelj@${slugA}.hr`, password: 'Plava-Staza-2027-x' }).expect(201)).body.accessToken;
+    expect((await http().get('/api/projects').set(auth(leadToken)).expect(200)).body.map((p: { id: string }) => p.id)).toEqual([c.projectId]);
+    await http().get(`/api/proposals/${pid}`).set(auth(leadToken)).expect(403); // prijave ostaju na razini institucije
     const proj = (await http().get(`/api/projects/${c.projectId}`).set(auth(A)).expect(200)).body;
     expect(proj).toMatchObject({ acronym: 'ZELP', contractNo: `NPOO-${tag}`, durationMonths: 24, sourceProposalId: pid });
     expect(proj.partners).toHaveLength(2);

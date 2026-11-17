@@ -72,10 +72,15 @@ export const roleAssignments = pgTable('role_assignments', {
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   userId: uuid('user_id').notNull().references(() => users.id),
   roleId: uuid('role_id').notNull().references(() => roles.id),
+  /** NULL = uloga na razini institucije (svi projekti); inače uloga vrijedi samo na tom projektu (WP1.14). */
   projectId: uuid('project_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   createdBy: uuid('created_by'),
-}, (t) => [index('role_assignments_user_idx').on(t.tenantId, t.userId)]);
+}, (t) => [
+  index('role_assignments_user_idx').on(t.tenantId, t.userId),
+  index('role_assignments_project_idx').on(t.tenantId, t.projectId),
+  foreignKey({ name: 'role_assignments_project_fk', columns: [t.tenantId, t.projectId], foreignColumns: [projects.tenantId, projects.id] }).onDelete('cascade'),
+]);
 
 /** M11 Revizijski zapis – samo dodavanje (aplikacijska uloga nema UPDATE/DELETE). */
 export const auditEntries = pgTable('audit_entries', {
@@ -344,7 +349,8 @@ export const teamMembers = pgTable('team_members', {
   userId: uuid('user_id'),
   fullName: text('full_name').notNull(),
   role: text('role'),
-  annualCostCents: bigint('annual_cost_cents', { mode: 'number' }).notNull(),
+  /** Godišnji trošak (plaća); NULL dok ga ne upiše uloga s personnel:read (WP1.14). */
+  annualCostCents: bigint('annual_cost_cents', { mode: 'number' }),
   active: boolean('active').notNull().default(true),
   ...audited,
 }, (t) => [

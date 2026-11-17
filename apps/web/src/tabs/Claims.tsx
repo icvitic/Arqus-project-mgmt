@@ -8,7 +8,7 @@ import { can, type TabProps } from '../pages/ProjectDetail';
 
 export function ClaimsTab({ project: p, me }: TabProps) {
   const claims = useLoad(() => api<Claim[]>('GET', `/projects/${p.id}/claims`), [p.id]);
-  const write = can(me, 'finance:write') && p.status !== 'contracting';
+  const write = can(me, 'finance:write', p.id) && p.status !== 'contracting';
   const free = p.reportingPeriods.filter((r) => !claims.data?.some((c) => c.period.number === r.number));
   const [period, setPeriod] = useState('');
   if (claims.error) return <ErrorBox error={claims.error} />;

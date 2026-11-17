@@ -1,4 +1,5 @@
-export interface Me { user: { id: string; email: string; displayName: string; mfaEnabled: boolean }; tenant: { id: string; slug: string; name: string } | null; permissions: string[] }
+/** `permissions` – dozvole na razini institucije; `projectPermissions` – dozvole po projektu (WP1.14). */
+export interface Me { user: { id: string; email: string; displayName: string; mfaEnabled: boolean }; tenant: { id: string; slug: string; name: string } | null; permissions: string[]; projectPermissions: Record<string, string[]> }
 export interface PackageSummary { id: string; packageId: string; version: string; programme: string; funder: string | null; status: string; scope: 'global' | 'tenant'; extendsId: string | null; validFrom: string; validTo: string | null; publishedAt: string | null }
 export interface Category { code: string; name: string; kind: string; calculation?: { ratePercent?: number; baseCategories?: string[]; excludeCategories?: string[] }; children?: Category[] }
 export interface ActionType { code: string; name: string; fundingRates: { beneficiaryType: string; ratePercent: number }[] }
@@ -28,7 +29,8 @@ export interface Budget {
   version: number | null; status: string; categories: Category[]; lines: { partnerId: string; categoryCode: string; workPackageId: string | null; amount: number }[];
   partners: PartnerBudget[]; totals: { direct: number; indirect: number; total: number; requested: number }; warnings: string[];
 }
-export interface TeamMember { id: string; fullName: string; userId: string | null; partnerId: string; role: string | null; annualCost: number | null; active: boolean }
+/** `annualCost` je null bez dozvole personnel:read; `costSet` kaže je li trošak upisan. */
+export interface TeamMember { id: string; fullName: string; userId: string | null; partnerId: string; role: string | null; annualCost: number | null; costSet: boolean; active: boolean }
 export interface Timesheet { status: string; entries: { day: number; minutes: number; workPackageId: string | null }[]; totalMinutes: number; warnings: string[] }
 export interface Expense { id: string; partnerId: string; categoryCode: string; workPackageId: string | null; date: string; description: string; supplier: string | null; amount: number; evidenceRef: string | null; source: string; status: string; documents: number }
 export interface Claim {
@@ -39,8 +41,12 @@ export interface FinanceOverview {
   budgetStatus: string; planned: { direct: number; indirect: number; total: number; requested: number }; actual: { direct: number; indirect: number; total: number; requested: number };
   byCategory: { code: string; name: string; planned: number; actual: number; remaining: number; percent: number | null }[]; byPartner: { partnerId: string; name: string; planned: number; actual: number }[];
 }
-export interface UserRow { id: string; email: string; displayName: string; status: string; mfaEnabled: boolean; lastLoginAt: string | null; roles: string[] }
+export interface ProjectRole { assignmentId: string; code: string; projectId: string; acronym: string | null }
+/** `roles` – uloge na razini institucije; `projectRoles` – uloge na pojedinom projektu. */
+export interface UserRow { id: string; email: string; displayName: string; status: string; mfaEnabled: boolean; lastLoginAt: string | null; roles: string[]; projectRoles: ProjectRole[] }
 export interface RoleRow { code: string; name: string; scope: string; system: boolean }
+export interface AccessEntry { assignmentId: string | null; userId: string; displayName: string; email: string; status: string; roleCode: string; roleName: string; scope: 'tenant' | 'project'; revocable: boolean }
+export interface ProjectAccess { projectId: string; entries: AccessEntry[]; users: { id: string; displayName: string; email: string }[]; roles: { code: string; name: string; scope: string; grantable: boolean }[] }
 
 /** Kategorije u koje se unose iznosi: listovi stabla bez neizravnih. */
 export function enterable(categories: Category[]): Category[] {

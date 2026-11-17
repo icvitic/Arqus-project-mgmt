@@ -12,7 +12,7 @@ export function ExpensesTab({ project: p, pkg, me }: TabProps) {
   const st = useLoad(() => api<Structure>('GET', `/projects/${p.id}/structure`), [p.id]);
   const cats = enterable(pkg.costCategories);
   const [open, setOpen] = useState<string | null>(null);
-  const write = can(me, 'finance:write') && ['active', 'suspended', 'closing'].includes(p.status);
+  const write = can(me, 'finance:write', p.id) && ['active', 'suspended', 'closing'].includes(p.status);
   const [f, setF] = useState({ categoryCode: cats[0]?.code ?? '', workPackageId: '', date: new Date().toISOString().slice(0, 10), description: '', supplier: '', amount: '', evidenceRef: '' });
   const catName = (c: string) => cats.find((x) => x.code === c)?.name ?? c;
   return (
@@ -47,7 +47,7 @@ export function ExpensesTab({ project: p, pkg, me }: TabProps) {
                 <td className="num">{eur(e.amount)}</td><td>{e.source === 'timesheet' ? 'timesheet' : 'ručno'}</td><td><Chip s={e.status} /></td>
                 <td style={{ whiteSpace: 'nowrap' }}>{e.source === 'manual' && <button onClick={() => setOpen(open === e.id ? null : e.id)} aria-expanded={open === e.id}>Dokazi ({e.documents})</button>}
                   {write && e.status === 'recorded' && e.source === 'manual' && <ActionButton kind="danger" confirm="Obrisati trošak?" onClick={async () => { await api('DELETE', `/projects/${p.id}/expenses/${e.id}`); await ex.reload(); }}>obriši</ActionButton>}</td></tr>
-              {open === e.id && <tr><td colSpan={8}><DocumentList target={{ entityType: 'expense', entityId: e.id }} defaultKind="evidence" canWrite={can(me, 'documents:write') && e.status === 'recorded'} onChange={ex.reload} /></td></tr>}</Fragment>
+              {open === e.id && <tr><td colSpan={8}><DocumentList target={{ entityType: 'expense', entityId: e.id }} defaultKind="evidence" canWrite={can(me, 'documents:write', p.id) && e.status === 'recorded'} allowConfidential={can(me, 'documents:confidential', p.id)} onChange={ex.reload} /></td></tr>}</Fragment>
             ))}
             {ex.data.length === 0 && <tr><td colSpan={8} className="muted">Nema troškova.</td></tr>}</tbody>
             <tfoot><tr><td colSpan={4}>Ukupno</td><td className="num">{eur(ex.data.filter((e) => e.status !== 'rejected').reduce((a, e) => a + e.amount, 0))}</td><td colSpan={3} /></tr></tfoot>

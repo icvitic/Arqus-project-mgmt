@@ -8,7 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { assertPartnerOnProject, loadProject } from '../common/project-access';
 import { selfPartner } from './finance-common';
-import { evidenceCount } from './expenses.service';
+import { evidenceCount, seesConfidential } from './expenses.service';
 
 export const claimInput = z.object({ period: z.number().int().min(1), partnerId: z.string().uuid().optional() });
 export const decisionInput = z.object({ decision: z.enum(['approved', 'partially_approved', 'rejected', 'returned']), approvedAmount: z.number().int().min(0).optional(), note: z.string().max(2000).optional() });
@@ -46,7 +46,7 @@ export class ClaimsService {
   async get(tx: Tx, projectId: string, id: string) {
     const { c, rp } = await this.claim(tx, projectId, id);
     const rows = await this.claimExpenses(tx, c, rp);
-    const docs = rows.length ? new Map((await tx.select({ id: expenses.id, n: evidenceCount }).from(expenses).where(inArray(expenses.id, rows.map((e) => e.id)))).map((r) => [r.id, r.n])) : new Map<string, number>();
+    const docs = rows.length ? new Map((await tx.select({ id: expenses.id, n: evidenceCount(seesConfidential(projectId)) }).from(expenses).where(inArray(expenses.id, rows.map((e) => e.id)))).map((r) => [r.id, r.n])) : new Map<string, number>();
     const t = c.status === 'draft' ? await this.totals(tx, projectId, c.partnerId, rows) : (c.totals as unknown as Awaited<ReturnType<ClaimsService['totals']>>);
     return {
       id: c.id, projectId, period: { number: rp.number, startDate: rp.startDate, endDate: rp.endDate, dueDate: rp.dueDate }, partnerId: c.partnerId, status: c.status,

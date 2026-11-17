@@ -1,6 +1,6 @@
 /* E2E provjera web sučelja na pravom API-ju (Playwright). Pokretanje: apps/web/e2e/run-local.sh
  * Tok: prijava → paket → radar (go) → organizacija → prijava na poziv (konzorcij, RP, proračun, predaja, ishod) → ugovaranje u projekt → aktivacija → tim i timesheet (predaja, odobrenje)
- *      → trošak (dokaz) → ZNS → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno. Bilježi greške konzole i neuspjele zahtjeve. */
+ *      → trošak (dokaz) → ZNS → dokumenti (otvaranje, predaja) → ugovoreno/ostvareno → korisnik s ulogom samo na projektu (pristup, vidi samo svoj projekt). Bilježi greške konzole i neuspjele zahtjeve. */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -213,13 +213,24 @@ const tag = Date.now().toString(36);
     await shot('financije');
   });
   const newEmail = `ana.${tag}@e2e.local`; const newPw = `plava-staza-${tag}-uz-more`;
-  await step('novi korisnik (administrator)', async () => {
+  const acronym = `E2E${tag}`.slice(0, 20);
+  await step('novi korisnik (administrator) – član tima samo na projektu', async () => {
     await page.getByRole('link', { name: 'Korisnici' }).click();
-    await page.getByLabel('Ime i prezime').fill('Ana Novak');
-    await page.getByLabel('E-adresa').fill(newEmail);
-    await page.getByLabel('Privremena lozinka').fill(newPw);
+    const form = page.locator('.card', { hasText: 'Novi korisnik' });
+    await form.getByLabel('Ime i prezime').fill('Ana Novak');
+    await form.getByLabel('E-adresa').fill(newEmail);
+    await form.getByLabel('Privremena lozinka').fill(newPw);
+    await form.getByLabel(/^Projekt/).selectOption({ label: `${acronym} – Projekt iz e2e testa` }); // član tima zadano: uloga na projektu
     await page.getByRole('button', { name: 'Dodaj korisnika' }).click();
     await page.getByRole('cell', { name: new RegExp(newEmail.replace('.', '\\.')) }).waitFor();
+    await page.getByText(`Član tima · ${acronym}`).waitFor();
+  });
+  await step('pristup projektu: korisnik s ulogom na projektu', async () => {
+    await page.getByRole('link', { name: 'Projekti' }).click();
+    await page.getByRole('cell', { name: new RegExp(acronym) }).first().click();
+    await page.getByRole('tab', { name: 'Pristup' }).click();
+    await page.locator('tr', { hasText: newEmail }).getByText('na ovom projektu').waitFor();
+    await shot('pristup');
   });
   const relogin = async (email, pw) => {
     await page.getByRole('button', { name: 'Odjava' }).click();
@@ -244,6 +255,19 @@ const tag = Date.now().toString(36);
     await page.getByLabel('Kod iz aplikacije za autentikaciju').fill(totp(secret, 1));
     await page.getByRole('button', { name: 'Potvrdi kod' }).click();
     await page.getByRole('heading', { name: 'Projekti' }).waitFor();
+  });
+  await step('član tima vidi samo svoj projekt i samo dopuštene radnje', async () => {
+    await page.getByRole('cell', { name: new RegExp(acronym) }).first().waitFor();
+    const rows = await page.locator('tbody tr.row').count();
+    if (rows !== 1) throw new Error(`očekivan 1 projekt, vidljivo ${rows}`);
+    if (await page.getByRole('link', { name: 'Radar poziva' }).count()) throw new Error('radar ne smije biti u izborniku');
+    if (await page.getByRole('button', { name: 'Novi projekt' }).count()) throw new Error('gumb Novi projekt ne smije biti vidljiv');
+    await page.getByRole('cell', { name: new RegExp(acronym) }).first().click();
+    await page.getByRole('tab', { name: 'Tim i timesheetovi' }).click();
+    await page.getByRole('cell', { name: 'Ivana Horvat' }).waitFor();
+    if (await page.getByRole('tab', { name: 'Pristup' }).count()) throw new Error('kartica Pristup ne smije biti vidljiva članu tima');
+    if (await page.getByRole('button', { name: 'Dodaj člana tima' }).count()) throw new Error('član tima ne dodaje članove');
+    await shot('clan-tima');
   });
   await browser.close();
   if (problems.length) { console.error('\nProblemi:\n' + problems.join('\n')); process.exit(1); }

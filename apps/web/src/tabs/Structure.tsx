@@ -10,7 +10,7 @@ const DELIV_STATUS = ['planned', 'in_progress', 'submitted', 'accepted', 'reject
 
 export function StructureTab({ project: p, pkg, me }: TabProps) {
   const s = useLoad(() => api<Structure>('GET', `/projects/${p.id}/structure`), [p.id]);
-  const write = can(me, 'projects:write') && !['closed', 'terminated', 'archived'].includes(p.status);
+  const write = can(me, 'projects:write', p.id) && !['closed', 'terminated', 'archived'].includes(p.status);
   const max = p.durationMonths ?? 120;
   const [wp, setWp] = useState({ title: '', startMonth: '1', endMonth: String(max), leadPartnerId: '' });
   const [d, setD] = useState({ wpId: '', title: '', type: pkg.deliverableTypes?.[0]?.code ?? '', dissemination: pkg.disseminationLevels?.[0]?.code ?? '', dueMonth: '' });

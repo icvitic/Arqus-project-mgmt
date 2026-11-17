@@ -7,6 +7,8 @@ import { budgetLines, expenses, organisations, projectBudgets, projectPartners, 
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { loadProject } from '../common/project-access';
+import { currentContext } from '../common/tenant-context';
+import { canOnProject } from '../common/access';
 import { assertSpendable, projectEnd, selfPartner } from './finance-common';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -17,8 +19,12 @@ export const expenseInput = z.object({
 });
 export const expensePatch = expenseInput.omit({ partnerId: true }).partial().strict();
 
-/** Broj aktivnih dokumenata (dokaza) uz trošak; RLS vrijedi i u podupitu. */
-export const evidenceCount = sql<number>`(select count(*)::int from documents d where d.entity_type = 'expense' and d.entity_id = "expenses"."id" and d.deleted_at is null)`;
+/** Broj aktivnih dokumenata (dokaza) uz trošak; RLS vrijedi i u podupitu. Povjerljivi se broje samo korisniku koji ih smije vidjeti (WP1.14). */
+export const evidenceCount = (includeConfidential: boolean) => includeConfidential
+  ? sql<number>`(select count(*)::int from documents d where d.entity_type = 'expense' and d.entity_id = "expenses"."id" and d.deleted_at is null)`
+  : sql<number>`(select count(*)::int from documents d where d.entity_type = 'expense' and d.entity_id = "expenses"."id" and d.deleted_at is null and d.confidentiality <> 'confidential')`;
+/** Smije li korisnik iz konteksta vidjeti povjerljive dokumente projekta. */
+export const seesConfidential = (projectId: string): boolean => { const c = currentContext(); return !c || canOnProject(c, 'documents:confidential', projectId); };
 const view = (e: typeof expenses.$inferSelect, documents = 0) => ({
   id: e.id, partnerId: e.partnerId, categoryCode: e.categoryCode, workPackageId: e.workPackageId, date: e.date, description: e.description,
   supplier: e.supplier, amount: e.amountCents, evidenceRef: e.evidenceRef, source: e.source, timesheetId: e.timesheetId, claimId: e.claimId, status: e.status, documents,
@@ -43,7 +49,7 @@ export class ExpensesService {
   async list(tx: Tx, projectId: string, filter: { status?: string; period?: number } = {}) {
     await loadProject(tx, projectId);
     const conds: (SQL | undefined)[] = [eq(expenses.projectId, projectId), filter.status ? eq(expenses.status, filter.status as never) : undefined];
-    let rows = (await tx.select({ e: expenses, docs: evidenceCount }).from(expenses).where(and(...conds)).orderBy(desc(expenses.date), asc(expenses.createdAt))).map((r) => Object.assign(r.e, { docs: r.docs }));
+    let rows = (await tx.select({ e: expenses, docs: evidenceCount(seesConfidential(projectId)) }).from(expenses).where(and(...conds)).orderBy(desc(expenses.date), asc(expenses.createdAt))).map((r) => Object.assign(r.e, { docs: r.docs }));
     if (filter.period) {
       const rp = (await tx.select().from(reportingPeriods).where(and(eq(reportingPeriods.projectId, projectId), eq(reportingPeriods.number, filter.period))))[0];
       if (!rp) throw new NotFoundException(`Razdoblje RP${filter.period} ne postoji`);
