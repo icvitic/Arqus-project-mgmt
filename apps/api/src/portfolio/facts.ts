@@ -13,6 +13,8 @@ export const OPEN_PROJECT_STATUSES: ProjectStatusCol[] = ['contracting', 'active
 export const RUNNING_PROJECT_STATUSES: ProjectStatusCol[] = ['active', 'suspended', 'closing'];
 /** Isporuka koja još nije predana ni prihvaćena (kasni ako je prošao kraj mjeseca roka). */
 export const OPEN_DELIVERABLE_STATUSES = ['planned', 'in_progress', 'rejected'] as const;
+/** WP1.22: zadatak koji još nije gotov ni otkazan (stavka odgovorne osobe kad mu se približi završni mjesec). */
+export const OPEN_TASK_STATUSES = ['planned', 'in_progress'] as const;
 /** Prekretnica koja još nije postignuta. */
 export const OPEN_MILESTONE_STATUSES = ['planned'] as const;
 /** Prijava u pripremi (interni rok je relevantan). */

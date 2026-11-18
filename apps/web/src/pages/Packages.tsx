@@ -30,8 +30,8 @@ function PackageList({ me }: { me: Me }) {
           <table>
             <thead><tr><th>Program / poziv</th><th>Oznaka</th><th>Verzija</th><th>Nasljeđuje</th><th>Vrijedi</th><th>Vrsta</th><th>Status</th></tr></thead>
             <tbody>{list.data.map((p) => (
-              <tr key={p.id} className="row" tabIndex={0} onClick={() => go(`paketi/pregled/${encodeURIComponent(p.packageId)}/${p.version}`)} onKeyDown={(e) => e.key === 'Enter' && go(`paketi/pregled/${encodeURIComponent(p.packageId)}/${p.version}`)}>
-                <td><b>{p.programme}</b>{p.funder && <><br /><span className="muted">{p.funder}</span></>}</td><td>{p.packageId}</td><td>{p.version}</td><td>{p.extendsId ?? '–'}</td>
+              <tr key={p.id} className="row" onClick={() => go(`paketi/pregled/${encodeURIComponent(p.packageId)}/${p.version}`)}>
+                <td><a href={`#/$paketi/pregled/${encodeURIComponent(p.packageId)}/${p.version}`} onClick={(e) => e.stopPropagation()}><b>{p.programme}</b></a>{p.funder && <><br /><span className="muted">{p.funder}</span></>}</td><td>{p.packageId}</td><td>{p.version}</td><td>{p.extendsId ?? '–'}</td>
                 <td>{date(p.validFrom)} – {date(p.validTo)}</td><td>{p.scope === 'global' ? 'globalni' : 'vlastiti'}</td><td><Chip s={p.status} tone={p.status === 'published' ? 'ok' : p.status === 'draft' ? 'warn' : 'bad'} /></td>
               </tr>
             ))}</tbody>
@@ -96,7 +96,7 @@ function PackageView({ me, packageId, version }: { me: Me; packageId: string; ve
         </>}
       </div>
       <Rules pkg={p} />
-      {versions.length > 1 && <div className="card"><h2>Verzije</h2><table><tbody>{versions.map((v) => <tr key={v.id} className="row" onClick={() => go(`paketi/pregled/${encodeURIComponent(packageId)}/${v.version}`)}><td>v{v.version}</td><td><Chip s={v.status} /></td><td>{date(v.publishedAt)}</td></tr>)}</tbody></table></div>}
+      {versions.length > 1 && <div className="card"><h2>Verzije</h2><table><tbody>{versions.map((v) => <tr key={v.id} className="row" onClick={() => go(`paketi/pregled/${encodeURIComponent(packageId)}/${v.version}`)}><td><a href={`#/paketi/pregled/${encodeURIComponent(packageId)}/${v.version}`} onClick={(e) => e.stopPropagation()}>v{v.version}</a></td><td><Chip s={v.status} /></td><td>{date(v.publishedAt)}</td></tr>)}</tbody></table></div>}
     </>
   );
 }

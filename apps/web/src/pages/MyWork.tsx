@@ -12,7 +12,7 @@ const GROUPS: [WorkUrgency, string, string][] = [
   ['waiting', 'Čeka', 'bez bliskog roka'],
   ['info', 'Za informaciju', ''],
 ];
-const ROLE: Record<string, string> = { member: 'član tima', owner: 'nositelj rizika', approver: 'odobravanje', finance: 'financije', manager: 'voditelj', proposals: 'prijave', calls: 'radar', admin: 'administracija' };
+const ROLE: Record<string, string> = { member: 'član tima', owner: 'nositelj rizika', responsible: 'odgovorna osoba', approver: 'odobravanje', finance: 'financije', manager: 'voditelj', proposals: 'prijave', calls: 'radar', admin: 'administracija' };
 
 /** Rok stavke: „kasni 3 d” / „danas” / „za 5 d”; bez roka ništa. */
 function DueChip({ it }: { it: WorkItem }) {
@@ -77,6 +77,7 @@ function Empty({ me }: { me: Me }) {
       <p>Svi tvoji timesheetovi su predani, ništa ne čeka tvoje odobrenje i nijedan rok nije blizu. Ovdje se pojavljuje:</p>
       <ul>
         <li>timesheet tekućeg mjeseca i mjeseci koji nisu predani, timesheet vraćen na doradu;</li>
+        <li>isporuke, prekretnice i zadaci za koje si odgovorna osoba, kad kasne ili im rok dolazi u 30 dana;</li>
         <li>timesheetovi koji čekaju tvoje odobrenje, isporuke i prekretnice koje kasne ili dospijevaju u 30 dana;</li>
         <li>troškovi bez dokaza i zahtjevi za nadoknadu koji čekaju predaju (ako radiš financije projekta);</li>
         <li>interni rokovi prijava i praćeni pozivi bez odluke (ured za projekte, voditelji prijava).</li>

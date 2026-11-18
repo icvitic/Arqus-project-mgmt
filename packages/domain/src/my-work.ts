@@ -10,9 +10,10 @@ import { daysInMonth } from './finance.js';
 /** Hitnost: rok je prošao / rok je blizu / čeka (radnja bez blizog roka) / samo informacija. */
 export type WorkUrgency = 'overdue' | 'due_soon' | 'waiting' | 'info';
 /** U kojoj je ulozi korisnik dobio stavku. */
-export type WorkRole = 'member' | 'owner' | 'approver' | 'finance' | 'manager' | 'proposals' | 'calls' | 'admin';
+export type WorkRole = 'member' | 'owner' | 'responsible' | 'approver' | 'finance' | 'manager' | 'proposals' | 'calls' | 'admin';
 export type WorkKind =
   | 'timesheet_current' | 'timesheet_missing' | 'timesheet_reopened' | 'timesheet_submitted' | 'risk_owned'
+  | 'deliverable_responsible' | 'milestone_responsible' | 'task_responsible'
   | 'timesheet_to_approve'
   | 'expenses_without_evidence' | 'claim_draft' | 'claim_returned' | 'period_unclaimed' | 'expenses_stranded' | 'claim_unpaid'
   | 'deliverable_due' | 'milestone_due' | 'risks_high' | 'deviations' | 'report_next'
@@ -60,10 +61,13 @@ export interface ApprovalFact { projectId: string; memberId: string; fullName: s
 export interface PeriodFact { number: number; endDate: string; dueDate: string; submitted: boolean }
 export interface ClaimFact { id: string; period: number; periodEnd: string; dueDate: string; status: string; returned: boolean; paid: boolean; blockers: number | null }
 export interface FinanceFacts { projectId: string; withoutEvidence: number; stranded: number; periods: PeriodFact[]; claims: ClaimFact[] }
+/** WP1.22: odgovorna osoba stavke kako je vidi voditelj (ime člana tima, povezani račun, je li član još aktivan). */
+export interface ResponsiblePerson { name: string; userId: string | null; active: boolean }
 export interface ManagerFacts {
   projectId: string;
-  deliverables: { id: string; code: string; title: string; due: string }[];
-  milestones: { id: string; code: string; title: string; due: string }[];
+  /** `responsible`: null = nije određena; izostavljeno = podatak nije poznat (tada opis ne govori o odgovornoj osobi). */
+  deliverables: { id: string; code: string; title: string; due: string; responsible?: ResponsiblePerson | null }[];
+  milestones: { id: string; code: string; title: string; due: string; responsible?: ResponsiblePerson | null }[];
   highRisks: number;
   deviations: number;
   periods: PeriodFact[];
@@ -71,6 +75,11 @@ export interface ManagerFacts {
   financeLink: boolean;
 }
 export interface OwnRiskFact { projectId: string; riskId: string; number: number; description: string }
+/**
+ * WP1.22: otvorena stavka kojoj je korisnik odgovorna osoba (povezan s AKTIVNIM članom tima koji je određen kao odgovoran).
+ * `due` – kraj mjeseca roka (isporuka, prekretnica) ili završnog mjeseca (zadatak); `status` za tekst i dopuštene korake.
+ */
+export interface ResponsibleFact { projectId: string; kind: 'deliverable' | 'milestone' | 'task'; id: string; code: string; title: string; due: string; status: string }
 export interface ProposalFact { id: string; acronym: string; title: string; internalDeadline: string; openReadiness: number }
 export interface CallFact { id: string; code: string; title: string; internalDeadline: string | null; submission: string | null }
 
@@ -83,6 +92,8 @@ export interface WorkFacts {
   finance: FinanceFacts[];
   managers: ManagerFacts[];
   ownRisks: OwnRiskFact[];
+  /** WP1.22: stavke kojima je korisnik odgovorna osoba (otvorene; servis ih skuplja istim definicijama kao voditeljeve). */
+  responsible?: ResponsibleFact[];
   proposals: ProposalFact[];
   calls: CallFact[];
   /** Administrator: broj aktivnih računa kojima je MFA obvezan, a nemaju ga; null = korisnik nije administrator. */
@@ -135,6 +146,18 @@ export function timesheetMonths(start: string | null, end: string | null, joined
 
 const ORDER: WorkUrgency[] = ['overdue', 'due_soon', 'waiting', 'info'];
 
+/** Status stavke riječima (u rodu imenice) – za opis stavke odgovorne osobe. */
+const STATUS_TEXT: Record<string, Record<string, string>> = {
+  deliverable: { planned: 'planirana', in_progress: 'u izradi', rejected: 'odbijena – dorada' },
+  task: { planned: 'planiran', in_progress: 'u tijeku' },
+};
+/** WP1.22: tko je odgovoran – da voditelj i odgovorna osoba ne pretpostave da stavku drži onaj drugi. */
+export function whoText(r: ResponsiblePerson | null | undefined): string {
+  if (!r) return 'odgovorna osoba nije određena';
+  if (!r.active) return `odgovorna osoba ${r.name} više nije aktivna u timu – odredi drugu`;
+  return `odgovorna osoba: ${r.name}${r.userId ? '' : ' (bez korisničkog računa)'}`;
+}
+
 /** Stavke „Moj rad” iz činjenica; poredak: hitnost, rok (najraniji prvi; bez roka na kraju), projekt, naslov. */
 export function deriveWorkItems(f: WorkFacts): { items: WorkItem[]; summary: WorkSummary } {
   const { today } = f;
@@ -181,6 +204,18 @@ export function deriveWorkItems(f: WorkFacts): { items: WorkItem[]; summary: Wor
         add({ key, kind: 'timesheet_missing', role: 'member', urgency: 'overdue', due, title: `Timesheet za ${monthName(month)} nije predan`, detail: minutes ? `u nacrtu (${hoursText(minutes)}) – predaj ga` : 'nije započet', link, projectId: p.id });
       }
     }
+  }
+  // ---------- WP1.22: odgovorna osoba – isporuke, prekretnice i zadaci koji kasne ili dospijevaju u 30 dana ----------
+  // Isto pravilo hitnosti kao voditeljeve stavke; ista stvar se ne pojavljuje dvaput (voditelj koji je i odgovoran vidi
+  // samo stavku odgovorne osobe).
+  const mine = new Set<string>();
+  for (const r of f.responsible ?? []) {
+    if (!projects.has(r.projectId) || daysBetween(today, r.due) > WORK_SOON_DAYS) continue;
+    mine.add(`${r.kind}:${r.id}`);
+    const what = r.kind === 'deliverable' ? 'Isporuka' : r.kind === 'milestone' ? 'Prekretnica' : 'Zadatak';
+    const hint = r.kind === 'milestone' ? 'ti si odgovorna osoba · postignuće potvrđuje voditelj projekta' : `ti si odgovorna osoba · ${STATUS_TEXT[r.kind]?.[r.status] ?? r.status}`;
+    add({ key: `${r.kind}:${r.id}`, kind: `${r.kind}_responsible`, role: 'responsible', urgency: urgencyFor(r.due, today, WORK_SOON_DAYS, 'waiting'), due: r.due,
+      title: `${what} ${r.code} ${r.title}`, detail: `${r.kind === 'task' ? dueText(r.due, today).replace(/^rok/, 'završava') : dueText(r.due, today)} · ${hint}`, link: `projekti/${r.projectId}/struktura`, projectId: r.projectId });
   }
   for (const r of f.ownRisks) {
     if (!projects.has(r.projectId)) continue;
@@ -235,12 +270,12 @@ export function deriveWorkItems(f: WorkFacts): { items: WorkItem[]; summary: Wor
     if (!p) continue;
     const struct = `projekti/${p.id}/struktura`;
     for (const d of x.deliverables) {
-      if (daysBetween(today, d.due) > WORK_SOON_DAYS) continue;
-      add({ key: `deliverable:${d.id}`, kind: 'deliverable_due', role: 'manager', urgency: urgencyFor(d.due, today, WORK_SOON_DAYS, 'waiting'), due: d.due, title: `Isporuka ${d.code} ${d.title}`, detail: dueText(d.due, today), link: struct, projectId: p.id });
+      if (daysBetween(today, d.due) > WORK_SOON_DAYS || mine.has(`deliverable:${d.id}`)) continue;
+      add({ key: `deliverable:${d.id}`, kind: 'deliverable_due', role: 'manager', urgency: urgencyFor(d.due, today, WORK_SOON_DAYS, 'waiting'), due: d.due, title: `Isporuka ${d.code} ${d.title}`, detail: [dueText(d.due, today), d.responsible === undefined ? '' : whoText(d.responsible)].filter(Boolean).join(' · '), link: struct, projectId: p.id });
     }
     for (const m of x.milestones) {
-      if (daysBetween(today, m.due) > WORK_SOON_DAYS) continue;
-      add({ key: `milestone:${m.id}`, kind: 'milestone_due', role: 'manager', urgency: urgencyFor(m.due, today, WORK_SOON_DAYS, 'waiting'), due: m.due, title: `Prekretnica ${m.code} ${m.title}`, detail: dueText(m.due, today), link: struct, projectId: p.id });
+      if (daysBetween(today, m.due) > WORK_SOON_DAYS || mine.has(`milestone:${m.id}`)) continue;
+      add({ key: `milestone:${m.id}`, kind: 'milestone_due', role: 'manager', urgency: urgencyFor(m.due, today, WORK_SOON_DAYS, 'waiting'), due: m.due, title: `Prekretnica ${m.code} ${m.title}`, detail: [dueText(m.due, today), m.responsible === undefined ? '' : whoText(m.responsible)].filter(Boolean).join(' · '), link: struct, projectId: p.id });
     }
     if (x.highRisks > 0) {
       add({ key: `risks:${p.id}`, kind: 'risks_high', role: 'manager', urgency: 'waiting', due: null, count: x.highRisks, title: `${x.highRisks} ${pl(x.highRisks, 'visok otvoren rizik', 'visoka otvorena rizika', 'visokih otvorenih rizika')}`, detail: 'provjeri mjere ublažavanja', link: struct, projectId: p.id });
@@ -292,7 +327,8 @@ export type NotificationKind =
   | 'claim_returned' | 'claim_decided' | 'claim_paid'
   | 'access_granted' | 'access_revoked'
   | 'project_manager' | 'proposal_lead'
-  | 'import_applied' | 'import_undone';
+  | 'import_applied' | 'import_undone'
+  | 'responsible_assigned' | 'responsible_removed';
 
 export interface NotificationData {
   acronym?: string;
@@ -304,8 +340,12 @@ export interface NotificationData {
   /** Razlog koji primatelj ionako vidi na entitetu (npr. razlog povrata ZNS-a). */
   reason?: string;
   fileName?: string;
+  /** WP1.22: stavka strukture (vrsta i oznaka s naslovom, npr. „D1.2 Izvještaj o anketi”). */
+  item?: string;
+  itemKind?: 'deliverable' | 'milestone' | 'task';
 }
 
+const ITEM_KIND: Record<string, string> = { deliverable: 'isporuku', milestone: 'prekretnicu', task: 'zadatak' };
 const OUTCOME: Record<string, string> = { approved: 'odobren', partially_approved: 'djelomično odobren', rejected: 'odbijen' };
 const ROLE: Record<string, string> = { 'project-manager': 'voditelj projekta', 'team-member': 'član tima', finance: 'financije', reader: 'čitatelj', 'project-office': 'ured za projekte', 'tenant-admin': 'administrator' };
 
@@ -324,6 +364,8 @@ export function notificationText(kind: NotificationKind, d: NotificationData, ac
     case 'project_manager': return { title: `Imenovan/a si voditeljem projekta ${d.acronym ?? ''}`.trim(), detail: `Imenovao/la ${who}.` };
     case 'proposal_lead': return { title: `Imenovan/a si voditeljem prijave ${d.acronym ?? ''}`.trim(), detail: `Imenovao/la ${who}.` };
     case 'import_applied': return { title: `Na projekt ${d.acronym ?? ''} uvezeni su podaci iz Excela`.trim(), detail: `${who}${d.fileName ? ` · datoteka ${d.fileName}` : ''}.` };
+    case 'responsible_assigned': return { title: `Odgovoran/na si za ${ITEM_KIND[d.itemKind ?? ''] ?? 'stavku'} ${d.item ?? ''}${on}`.replace(/\s+\(/, ' ('), detail: `Odredio/la ${who}. Stavka je u tvom „Moj rad” kad joj se približi rok.` };
+    case 'responsible_removed': return { title: `Više nisi odgovoran/na za ${ITEM_KIND[d.itemKind ?? ''] ?? 'stavku'} ${d.item ?? ''}${on}`.replace(/\s+\(/, ' ('), detail: `Promijenio/la ${who}.` };
     case 'import_undone': return { title: `Uvoz iz Excela na projektu ${d.acronym ?? ''} je poništen`.trim(), detail: `${who}${d.fileName ? ` · datoteka ${d.fileName}` : ''}.` };
   }
 }

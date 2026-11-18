@@ -305,8 +305,10 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     [3, 'Plan validacije i odabir lokacija', 10, 14, 'in_progress'], [3, 'Terenska validacija', 15, 33, 'planned'],
     [4, 'Web stranica i društvene mreže', 1, 36, 'in_progress'], [4, 'Plan iskorištavanja rezultata', 6, 36, 'in_progress'],
   ];
+  const taskIds: Record<string, string> = {};
   for (const [i, title, s, e, status] of taskDefs) {
     const t = await pm.post<Row>(`/projects/${heId}/work-packages/${hWps[i]!.id}/tasks`, { title, startMonth: s, endMonth: e });
+    taskIds[title] = t.id;
     if (status !== 'planned') await pm.patch(`/projects/${heId}/tasks/${t.id}`, { status });
   }
   const delivDefs: [number, string, string, string, number, string][] = [
@@ -315,11 +317,15 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     [2, 'Arhitektura podatkovne platforme', 'R', 'PU', 9, 'in_progress'], [2, 'Otvoreni skup podataka s pilot-lokacija', 'DATA', 'PU', 24, 'planned'],
     [3, 'Plan pilot-validacije', 'R', 'SEN', 14, 'planned'],
     [4, 'Web stranica i plan komunikacije', 'DEC', 'PU', 3, 'accepted'],
+    // WP1.22: isporuka tekućeg mjeseca – odgovoran je član tima Luka (vidi je u „Moj rad” i pomiče status).
+    [1, 'Izvještaj o laboratorijskom testiranju prototipa', 'R', 'SEN', curMonth, 'in_progress'],
   ];
   let d11 = '';
+  const delivIds: Record<string, string> = {};
   for (const [i, title, type, dissemination, dueMonth, status] of delivDefs) {
     const d = await pm.post<Row>(`/projects/${heId}/work-packages/${hWps[i]!.id}/deliverables`, { title, type, dissemination, dueMonth, leadPartnerId: hWps[i]!.leadPartnerId });
     if (!d11) d11 = d.id;
+    delivIds[title] = d.id;
     if (status === 'accepted') await pm.patch(`/projects/${heId}/deliverables/${d.id}`, { status: 'submitted' });
     if (status !== 'planned') await pm.patch(`/projects/${heId}/deliverables/${d.id}`, { status });
   }
@@ -355,6 +361,11 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   const ivana = (await finance.post<Row>(`/projects/${heId}/team`, { fullName: 'Ivana Marić', role: 'poslijedoktorandica', annualCost: 4_500_000 })).id;
   // Marina Šimić (ZELENI-LAB) od prošlog mjeseca pomaže i na mjerenjima BLUESENSE; bez korisničkog računa – portfelj je prepoznaje po imenu.
   const marinaHe = (await finance.post<Row>(`/projects/${heId}/team`, { fullName: 'Marina Šimić', role: 'istraživačica – terenska mjerenja', annualCost: 3_600_000 })).id;
+  // WP1.22: odgovorne osobe. Luka (clan@) – isporuka koja dospijeva ovaj mjesec i zadatak u tijeku; Ivana (bez računa) –
+  // isporuka koja kasni, pa voditeljica Petra u „Moj rad” vidi tko je drži.
+  await pm.patch(`/projects/${heId}/deliverables/${delivIds['Izvještaj o laboratorijskom testiranju prototipa']}`, { responsibleMemberId: luka });
+  await pm.patch(`/projects/${heId}/tasks/${taskIds['Izrada i laboratorijsko testiranje prototipa']}`, { responsibleMemberId: luka });
+  await pm.patch(`/projects/${heId}/deliverables/${delivIds['Arhitektura podatkovne platforme']}`, { responsibleMemberId: ivana });
   await upload(office, 'project', heId, 'BLUESENSE-grant-agreement.pdf', 'Ugovor o dodjeli (Grant Agreement)', 'contract', ['Projekt: BLUESENSE (RIA)', 'Broj ugovora: GA-DEMO-2025-0117', `Početak: ${heStart}, trajanje 36 mjeseci`], 'confidential');
   await upload(office, 'project', heId, 'BLUESENSE-sporazum-o-konzorciju.pdf', 'Sporazum o konzorciju', 'contract', ['Partneri: Pokazno sveučilište, Hochschule Nordwald, Politecnico di Valmarina, Fundación Tecnológica Montesol, Polder Analytics B.V.']);
   // Povjerljivo (WP1.14): vide ga ured, voditeljica i financije; član tima i uprava ga ne vide ni u popisu.

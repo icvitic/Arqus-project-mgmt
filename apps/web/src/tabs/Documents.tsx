@@ -26,7 +26,7 @@ export function DocumentList({ target, scope, canWrite, allowConfidential = fals
       <ErrorBox error={docs.error} />
       {!docs.data ? <Loading what="dokumente" /> : docs.data.length === 0 ? <p className="muted">Nema priloženih dokumenata.</p> : (
         <table>
-          <thead><tr><th>Dokument</th><th>Vrsta</th>{showEntity && <th>Uz</th>}<th>Datoteka</th><th>Ažurirano</th><th /></tr></thead>
+          <thead><tr><th>Dokument</th><th>Vrsta</th>{showEntity && <th>Uz</th>}<th>Datoteka</th><th>Ažurirano</th><th><span className="sr-only">Radnje</span></th></tr></thead>
           <tbody>{docs.data.map((d) => (
             <DocRow key={d.id} d={d} showEntity={!!showEntity} canWrite={canWrite} open={open === d.id} toggle={() => setOpen(open === d.id ? null : d.id)} changed={changed} />
           ))}</tbody>

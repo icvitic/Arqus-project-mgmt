@@ -40,3 +40,50 @@ jobs:
       - run: pnpm test
       - name: Validacija paketa programa (shema + semantika)
         run: node packages/domain/dist/cli.js docs/domena/paketi
+  # WP1.22: e2e u pregledniku (cijeli tok sučelja i provjera pristupačnosti axe-core) na svakom pull requestu.
+  e2e-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: arqus, POSTGRES_PASSWORD: arqus, POSTGRES_DB: arqus_test }
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U arqus" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_MIGRATE_URL: postgres://arqus:arqus@127.0.0.1:5433/arqus_test
+      DATABASE_URL: postgres://arqus_app:arqus@127.0.0.1:5433/arqus_test
+      # Dokumenti u radnom direktoriju runnera (ne izvan repozitorija); test ne ovisi o zoni poslužitelja.
+      DOCUMENTS_DIR: ${{ github.workspace }}/.e2e/documents
+      E2E_SHOTS: ${{ github.workspace }}/.e2e/shots
+      A11Y_REPORT: ${{ github.workspace }}/.e2e/a11y.json
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Chromium za Playwright (samo chromium, s ovisnostima sustava)
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+      - run: mkdir -p .e2e/documents .e2e/shots
+      - name: E2E u pregledniku (apps/web/e2e/run-local.sh – ista skripta kao lokalno)
+        run: bash apps/web/e2e/run-local.sh
+      - name: Zapisi poslužitelja pri neuspjehu
+        if: failure()
+        run: |
+          echo "::group::API"; cat /tmp/arqus-e2e-api.log || true; echo "::endgroup::"
+          echo "::group::web"; cat /tmp/arqus-e2e-web.log || true; echo "::endgroup::"
+      - name: Snimke zaslona, zapisi i nalazi pristupačnosti
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-browser
+          path: |
+            .e2e/
+            /tmp/arqus-e2e-api.log
+            /tmp/arqus-e2e-web.log
+          if-no-files-found: ignore
+          retention-days: 14

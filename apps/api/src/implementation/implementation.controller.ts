@@ -35,6 +35,16 @@ export class ImplementationController {
   @Patch('deliverables/:did') @ProjectPermission('projects:write')
   updateDeliverable(@Param('id', uuid) id: string, @Param('did', uuid) did: string, @Body() b: unknown) { const i = parseBody(S.deliverablePatch, b); return this.run((_t, u) => (tx) => this.impl.updateDeliverable(tx, id, did, i, u)); }
 
+  /**
+   * WP1.22 – napredak vlastite stavke: samo status. Oznaka je `projects:read` (projekt koji korisnik ne vidi → 404 na
+   * čuvaru); servis dopušta voditelju (`projects:write`) svaki status, a odgovornoj osobi samo radni dio životnog ciklusa
+   * (`RESPONSIBLE_TRANSITIONS` u domeni) – inače 403. Uska iznimka modela WP1.14 (docs/sigurnost/AUTORIZACIJA.md).
+   */
+  @Post('deliverables/:did/progress') @ProjectPermission('projects:read')
+  progressDeliverable(@Param('id', uuid) id: string, @Param('did', uuid) did: string, @Body() b: unknown) { const i = parseBody(S.deliverableProgress, b); return this.run((_t, u) => (tx) => this.impl.progressDeliverable(tx, id, did, i, u)); }
+  @Post('tasks/:taskId/progress') @ProjectPermission('projects:read')
+  progressTask(@Param('id', uuid) id: string, @Param('taskId', uuid) taskId: string, @Body() b: unknown) { const i = parseBody(S.taskProgress, b); return this.run((_t, u) => (tx) => this.impl.progressTask(tx, id, taskId, i, u)); }
+
   @Post('milestones') @ProjectPermission('projects:write')
   createMilestone(@Param('id', uuid) id: string, @Body() b: unknown) { const i = parseBody(S.milestoneInput, b); return this.run((t, u) => (tx) => this.impl.createMilestone(tx, t, id, i, u)); }
   @Patch('milestones/:mid') @ProjectPermission('projects:write')

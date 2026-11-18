@@ -189,7 +189,7 @@ export function ImportTab({ project: p, me, reloadProject }: TabProps) {
         <ErrorBox error={history.error} />
         {!history.data ? <Loading /> : history.data.length === 0 ? <p className="muted">Na ovom projektu još nije bilo uvoza.</p> : (
           <table className="import-history">
-            <thead><tr><th>Kada</th><th>Tko</th><th>Datoteka</th><th>Što je uvezeno</th><th>Status</th><th /></tr></thead>
+            <thead><tr><th>Kada</th><th>Tko</th><th>Datoteka</th><th>Što je uvezeno</th><th>Status</th><th><span className="sr-only">Radnje</span></th></tr></thead>
             <tbody>{history.data.map((h) => (
               <tr key={h.id}>
                 <td data-l="Kada">{dateTime(h.createdAt)}</td><td data-l="Tko">{h.createdBy ?? '–'}</td>

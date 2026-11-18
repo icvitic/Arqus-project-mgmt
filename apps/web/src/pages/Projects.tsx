@@ -22,8 +22,8 @@ export function Projects({ me }: { me: Me }) {
           <table>
             <thead><tr><th>Akronim</th><th>Paket</th><th>Ugovor</th><th>Početak</th><th className="num">Trajanje</th><th className="num">Partneri</th><th>Status</th></tr></thead>
             <tbody>{projects.data?.map((p) => (
-              <tr key={p.id} className="row" onClick={() => go(`projekti/${p.id}`)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && go(`projekti/${p.id}`)}>
-                <td><b>{p.acronym}</b><br /><span className="muted">{p.title}</span></td>
+              <tr key={p.id} className="row" onClick={() => go(`projekti/${p.id}`)}>
+                <td><a href={`#/projekti/${p.id}`} onClick={(e) => e.stopPropagation()}><b>{p.acronym}</b></a><br /><span className="muted">{p.title}</span></td>
                 <td>{p.package.id}<br /><span className="muted">v{p.package.version} · {p.actionType}</span></td>
                 <td>{p.contractNo ?? '–'}</td><td>{date(p.startDate)}</td>
                 <td className="num">{p.durationMonths ? `${p.durationMonths} mj.` : '–'}</td><td className="num">{p.partnerCount}</td>

@@ -1,7 +1,7 @@
 import { api } from '../lib/api';
 import { useLoad } from '../lib/hooks';
 import type { Me, PackageDetail, Project } from '../lib/types';
-import { Chip, ErrorBox, Loading } from '../ui';
+import { Chip, ErrorBox, Loading, TabList, TabPanel, usePageTitle } from '../ui';
 import { Overview } from '../tabs/Overview';
 import { StructureTab } from '../tabs/Structure';
 import { BudgetTab } from '../tabs/Budget';
@@ -37,21 +37,26 @@ export const can = (me: Me, p: string, projectId: string) => canOn(me, p, projec
 export function ProjectDetail({ id, tab, me, sub }: { id: string; tab: string; me: Me; sub?: string[] }) {
   const project = useLoad(() => api<Project>('GET', `/projects/${id}`), [id]);
   const pkg = useLoad(() => (project.data ? api<PackageDetail>('GET', `/programme-packages/${encodeURIComponent(project.data.package.id)}?version=${project.data.package.version}`) : Promise.resolve(null)), [project.data?.package.id, project.data?.package.version]);
-  if (project.error) return <ErrorBox error={project.error} />;
-  if (!project.data || !pkg.data) return <><ErrorBox error={pkg.error} /><Loading what="projekt" /></>;
+  const visibleTabs = project.data ? TABS.filter(([, , allowed]) => allowed(me, project.data!.id)) : [];
+  const activeTab = visibleTabs.some(([k]) => k === tab) ? tab : 'pregled';
+  usePageTitle(project.data ? `${TABS.find(([k]) => k === activeTab)?.[1] ?? 'Pregled'} – ${project.data.acronym}` : project.error ? 'Projekt' : null);
+  if (project.error) return <><h1>Projekt</h1><ErrorBox error={project.error} /></>;
+  if (!project.data || !pkg.data) return <><h1 className="sr-only">Projekt</h1><ErrorBox error={pkg.error} /><Loading what="projekt" /></>;
   const p = project.data;
   const props: TabProps = { project: p, pkg: pkg.data, me, reloadProject: project.reload, sub };
-  const tabs = TABS.filter(([, , allowed]) => allowed(me, p.id));
-  const active = tabs.some(([k]) => k === tab) ? tab : 'pregled';
+  const tabs = visibleTabs;
+  const active = activeTab;
   return (
     <>
-      <div className="crumbs"><a href="#/projekti">Projekti</a> › {p.acronym}</div>
+      <nav className="crumbs" aria-label="Putanja"><a href="#/projekti">Projekti</a> <span aria-hidden="true">›</span> {p.acronym}</nav>
       <h1>{p.acronym} <Chip s={p.status} /></h1>
       <p className="sub">{p.title} · {pkg.data.meta.programme} v{p.package.version} · {p.actionType}</p>
-      <div className="tabs" role="tablist">{tabs.map(([k, l]) => <a key={k} role="tab" aria-selected={active === k} href={`#/projekti/${id}/${k}`} className={active === k ? 'active' : ''}>{l}</a>)}</div>
+      <TabList label={`Kartice projekta ${p.acronym}`} active={active} tabs={tabs.map(([k, l]) => ({ key: k, label: l, href: `#/projekti/${id}/${k}` }))} />
+      <TabPanel active={active}>
       {active === 'struktura' ? <StructureTab {...props} /> : active === 'proracun' ? <BudgetTab {...props} /> : active === 'tim' ? <TimesheetsTab {...props} />
         : active === 'troskovi' ? <ExpensesTab {...props} /> : active === 'zns' ? <ClaimsTab {...props} /> : active === 'financije' ? <FinanceTab {...props} />
         : active === 'dokumenti' ? <DocumentsTab {...props} /> : active === 'uvoz' ? <ImportTab {...props} /> : active === 'pristup' ? <AccessTab {...props} /> : <Overview {...props} />}
+      </TabPanel>
     </>
   );
 }

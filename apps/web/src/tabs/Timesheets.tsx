@@ -110,7 +110,7 @@ function TimesheetGrid({ projectId, memberId, month, me, mine }: { projectId: st
       <h3>Timesheet {month} <Chip s={status} /> <span className="muted" style={{ fontWeight: 400 }}>ukupno {minutesToHours(total) || 0} h</span></h3>
       <div className="scroll">
         <table>
-          <thead><tr><th>Radni paket</th>{days.map((d) => <th key={d} className={`num ${weekend(month, d) ? 'weekend' : ''}`}>{d}</th>)}<th className="num">Σ h</th></tr></thead>
+          <thead><tr><th>Radni paket</th>{days.map((d) => <th key={d} className={`num ${weekend(month, d) ? 'weekend' : ''}`} title={weekend(month, d) ? 'vikend' : undefined}>{d}{weekend(month, d) && <span className="sr-only"> (vikend)</span>}</th>)}<th className="num">Σ h</th></tr></thead>
           <tbody>{rows.map((r) => {
             const sum = days.reduce((a, d) => a + (parseHours(cells[`${r.id}|${d}`] ?? '') ?? 0), 0);
             return (

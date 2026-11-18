@@ -211,6 +211,13 @@
       "when": 1794992211578,
       "tag": "0029_racuni_posta_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794996271679,
+      "tag": "0030_odgovorne_osobe",
+      "breakpoints": true
     }
   ]
 }

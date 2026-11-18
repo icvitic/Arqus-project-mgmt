@@ -52,7 +52,7 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 Paketi koje treba svaki pilot, neovisno o demonstracijama. Obrazloženje i redoslijed: `docs/strategija-razvoja-faza-1b.md`, odj. 10.
 
 - [x] **WP1.21** (v0.31.0) Računi bez dijeljenja lozinki i e-pošta: pozivnice umjesto upisane lozinke, poveznica za novu lozinku i samostalni oporavak zaboravljene lozinke (jednokratni tokeni u bazi, token u fragmentu adrese), vlastiti SMTP klijent bez novih ovisnosti, zapis isporuka, dnevni sažetak „Moj rad” e-poštom; sve radi i bez SMTP-a (poveznica koju administrator kopira)
-- [ ] **WP1.22** Pristupačnost sučelja (WCAG 2.1 AA, EN 301 549 – automatska provjera u e2e, rad tipkovnicom, izjava o pristupačnosti) i odgovorne osobe na isporukama, prekretnicama i zadacima u „Moj rad”
+- [x] **WP1.22** (v0.32.0) Pristupačnost sučelja (WCAG 2.1 AA, EN 301 549 – automatska provjera axe-core i skriptirane provjere u e2e, e2e u CI-ju, glavni tokovi tipkovnicom, izvještaj o sukladnosti kao samoprocjena i stranica „Pristupačnost”) i odgovorne osobe na isporukama, prekretnicama i zadacima u „Moj rad” (uska iznimka za promjenu statusa vlastite stavke); čeka prolaz čitačem zaslona i neovisnu reviziju (ljudski kolosijek)
 - [ ] **WP1.23** Osobni podaci u proizvodu (GDPR): izvoz podataka osobe, anonimizacija uz očuvanje financijskih zapisa, rokovi čuvanja, evidencija obrade, predložak ugovora o obradi
 
 ## Faza 2 – Komercijalna v1 (mj. 10–15)

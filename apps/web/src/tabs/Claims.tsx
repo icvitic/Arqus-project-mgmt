@@ -180,7 +180,7 @@ function EarlierPanel({ c, base, write, reload }: { c: Claim; base: string; writ
       <h3 style={{ marginTop: 0 }}>Troškovi iz ranijih razdoblja ({list.length})</h3>
       <p className="muted" style={{ marginTop: 0 }}>Evidentirani nakon što je ZNS za njihovo razdoblje već predan, pa nisu ni u jednom zahtjevu. Ulaze u ovaj zahtjev samo ako ih izričito odabereš; u zahtjevu i paketu za predaju označeni su kao „ranije razdoblje”.</p>
       <table className="claim-table">
-        <thead><tr><th /><th>Datum</th><th>Trošak</th><th className="num">Iznos</th><th>Dokaz</th></tr></thead>
+        <thead><tr><th><span className="sr-only">Radnje</span></th><th>Datum</th><th>Trošak</th><th className="num">Iznos</th><th>Dokaz</th></tr></thead>
         <tbody>{list.map((x) => (
           <tr key={x.id}>
             <td><input type="checkbox" aria-label={`Uključi: ${x.description}`} checked={chosen.has(x.id)} disabled={!write || x.selectedElsewhere !== null} onChange={() => toggle(x.id)} /></td>

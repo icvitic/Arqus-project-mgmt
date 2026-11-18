@@ -36,7 +36,7 @@ export function AccessTab({ project: p, me }: TabProps) {
       <div className="card scroll">
         <h2>Pristup na ovom projektu ({onProject.length})</h2>
         <p className="muted">Uloga dodijeljena na projektu vrijedi samo za ovaj projekt. Oduzimanje vrijedi od idućeg zahtjeva korisnika.</p>
-        <table><thead><tr><th>Korisnik</th><th>Uloga</th><th>Opseg</th><th /><th /></tr></thead>
+        <table><thead><tr><th>Korisnik</th><th>Uloga</th><th>Opseg</th><th><span className="sr-only">Radnje</span></th><th><span className="sr-only">Radnje</span></th></tr></thead>
           <tbody>{onProject.map(row)}{onProject.length === 0 && <tr><td colSpan={5} className="muted">Nitko nema ulogu dodijeljenu na ovom projektu.</td></tr>}</tbody></table>
         <h3>Novi pristup</h3>
         <ActionForm submit="Dodijeli ulogu na projektu" onSubmit={async () => {
@@ -54,7 +54,7 @@ export function AccessTab({ project: p, me }: TabProps) {
       <div className="card scroll">
         <h2>Pristup kroz ulogu institucije ({tenantWide.length})</h2>
         <p className="muted">Ovi korisnici vide sve projekte institucije; uloge institucije mijenja administrator u izborniku Korisnici.</p>
-        <table><thead><tr><th>Korisnik</th><th>Uloga</th><th>Opseg</th><th /><th /></tr></thead><tbody>{tenantWide.map(row)}</tbody></table>
+        <table><thead><tr><th>Korisnik</th><th>Uloga</th><th>Opseg</th><th><span className="sr-only">Radnje</span></th><th><span className="sr-only">Radnje</span></th></tr></thead><tbody>{tenantWide.map(row)}</tbody></table>
       </div>
     </div>
   );

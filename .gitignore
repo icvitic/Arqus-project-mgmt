@@ -10,3 +10,4 @@ infra/.env
 infra/prod/.env
 apps/api/data/
 infra/demo/.port
+.e2e/

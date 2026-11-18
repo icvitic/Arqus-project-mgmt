@@ -150,8 +150,8 @@ function Progress({ p, threshold }: { p: PortfolioProject; threshold: number }) 
   const sig = b ? SIGNAL[b.signal] : undefined;
   return (
     <div className="progress">
-      <div className="pbar" title={`Proteklo vrijeme: ${t.percent ?? 0} % (${timeText})`}><span>vrijeme</span><div className="bar time"><i style={{ width: `${t.percent ?? 0}%` }} /></div><b>{t.percent === null ? '–' : `${t.percent} %`}</b></div>
-      {b && <div className="pbar" title={`Potrošeno ${eur(b.actual)} od ${eur(b.planned)} (naš dio)`}><span>potrošnja</span><div className={`bar ${b.signal}`}><i style={{ width: `${Math.min(b.percent ?? 0, 100)}%` }} /></div><b>{b.percent === null ? '–' : `${b.percent} %`}</b></div>}
+      <div className="pbar" title={`Proteklo vrijeme: ${t.percent ?? 0} % (${timeText})`}><span>vrijeme</span><div className="bar time" aria-hidden="true"><i style={{ width: `${t.percent ?? 0}%` }} /></div><b>{t.percent === null ? '–' : `${t.percent} %`}</b></div>
+      {b && <div className="pbar" title={`Potrošeno ${eur(b.actual)} od ${eur(b.planned)} (naš dio)`}><span>potrošnja</span><div className={`bar ${b.signal}`} aria-hidden="true"><i style={{ width: `${Math.min(b.percent ?? 0, 100)}%` }} /></div><b>{b.percent === null ? '–' : `${b.percent} %`}</b></div>}
       <small className="muted">{timeText}{sig && b?.gap !== null && b ? <> · <span className={`chip ${sig[0]}`} title={`razlika veća od ${threshold} postotnih bodova`}>{sig[1]} {b.gap! > 0 ? '+' : '−'}{Math.abs(b.gap!)} p. b.</span></> : b?.percent === null ? ' · bez proračuna' : ''}</small>
     </div>
   );
@@ -183,7 +183,7 @@ function Projects({ d }: { d: Data }) {
           <table className="portfolio">
             <thead><tr><th>Projekt</th><th>Program · uloga</th><th>Status</th><th>Vrijeme i potrošnja</th><th>Sljedeći izvještaj</th><th>Traži pažnju</th></tr></thead>
             <tbody>{d.projects.map((p) => (
-              <tr key={p.id} className="row" tabIndex={0} onClick={() => go(`projekti/${p.id}`)} onKeyDown={(e) => e.key === 'Enter' && go(`projekti/${p.id}`)}>
+              <tr key={p.id} className="row" onClick={() => go(`projekti/${p.id}`)}>
                 <td><a href={`#/projekti/${p.id}`} onClick={(e) => e.stopPropagation()}><b>{p.acronym}</b></a><br /><span className="muted clamp">{p.title}</span></td>
                 <td><span className="clamp">{p.programme}</span><small className="muted">{ROLE[p.role] ?? p.role} · {p.actionType}</small></td>
                 <td><Chip s={p.status} /></td>
@@ -214,10 +214,11 @@ function Deadlines({ d, days, setDays }: { d: Data; days: number; setDays: (n: n
           <table>
             <thead><tr><th>Rok</th><th>Projekt / poziv</th><th>Što</th></tr></thead>
             <tbody>{d.deadlines.map((x, i) => (
-              <tr key={`${x.kind}-${x.link}-${x.date}-${i}`} className={`row${x.overdue ? ' overdue' : ''}`} tabIndex={0} onClick={() => go(x.link)} onKeyDown={(e) => e.key === 'Enter' && go(x.link)}>
+              <tr key={`${x.kind}-${x.link}-${x.date}-${i}`} className={`row${x.overdue ? ' overdue' : ''}`} onClick={() => go(x.link)}>
                 <td style={{ whiteSpace: 'nowrap' }}>{x.at ? dateTime(x.at) : date(x.date)}<br />{daysChip(x.days)}</td>
                 <td><b className="break">{where(x)}</b><small className="muted">{KIND[x.kind] ?? x.kind}</small></td>
-                <td>{x.title}{x.detail && <> <span className="chip">{x.detail}</span></>}</td>
+                {/* WP1.22: poveznica u retku (tipkovnica, čitač zaslona); odgovorna osoba uz isporuku i prekretnicu. */}
+                <td><a href={`#/${x.link}`} onClick={(e) => e.stopPropagation()}>{x.title}</a>{x.detail && <> <span className="chip">{x.detail}</span></>}{x.responsible && <small className="muted">odgovorna osoba: {x.responsible}</small>}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -255,7 +256,7 @@ function PersonRow({ p, limit }: { p: PortfolioPerson; limit: number }) {
       {p.months.map((m) => <td key={m.month} className="num">{m.minutes ? hours(m.minutes) : <span className="muted">–</span>}</td>)}
       <td style={{ minWidth: 130 }}>
         <span className="num-inline">{hours(p.yearMinutes)}{p.annualLimitHours ? ` / ${p.annualLimitHours}` : ''}</span>
-        {pct !== null && <div className={`bar${p.overAnnual ? ' ahead' : ''}`}><i style={{ width: `${Math.min(pct, 100)}%` }} /></div>}
+        {pct !== null && <div className={`bar${p.overAnnual ? ' ahead' : ''}`} aria-hidden="true"><i style={{ width: `${Math.min(pct, 100)}%` }} /></div>}
       </td>
       <td>
         <div className="chips">
@@ -280,8 +281,8 @@ function Pipeline({ d }: { d: Data }) {
           <table>
             <thead><tr><th>Prijava</th><th>Status</th><th>Poziv</th><th>Interni rok</th><th className="num">Traženo (naš dio)</th><th className="num">Traženo ukupno</th></tr></thead>
             <tbody>{pl.proposals.map((x) => (
-              <tr key={x.id} className="row" tabIndex={0} onClick={() => go(`prijave/${x.id}`)} onKeyDown={(e) => e.key === 'Enter' && go(`prijave/${x.id}`)}>
-                <td><b>{x.acronym}</b><br /><span className="muted clamp">{x.title}</span></td>
+              <tr key={x.id} className="row" onClick={() => go(`prijave/${x.id}`)}>
+                <td><a href={`#/prijave/${x.id}`} onClick={(e) => e.stopPropagation()}><b>{x.acronym}</b></a><br /><span className="muted clamp">{x.title}</span></td>
                 <td><Chip f s={x.status} /></td>
                 <td>{x.callCode ?? <span className="muted">–</span>}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>{x.internalDeadline ? <>{date(x.internalDeadline)} {daysChip(x.days)}</> : <span className="muted">–</span>}</td>

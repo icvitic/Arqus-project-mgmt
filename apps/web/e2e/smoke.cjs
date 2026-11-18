@@ -14,6 +14,7 @@
  *      lozinku, korisnik je postavlja i prijavljuje se novom lozinkom (MFA se i dalje traži). */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
+const a11y = require('./a11y.cjs');
 // TOTP (RFC 6238) za korak MFA u testu.
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 function totp(secretB32, offset = 0) {
@@ -44,10 +45,19 @@ const tag = Date.now().toString(36);
   page.on('dialog', (d) => d.accept());
   const step = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
-    try { await fn(); } catch (e) { if (SHOTS) await page.screenshot({ path: `${SHOTS}/greska.png`, fullPage: true }); console.error(problems.join('\n')); throw e; }
+    try { await fn(); } catch (e) { if (SHOTS) await page.screenshot({ path: `${SHOTS}/greska.png`, fullPage: true }); console.error([...problems, ...a11y.report()].join('\n')); throw e; }
     console.log('ok');
   };
   const shot = async (name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true }); };
+  /** WP1.22: nakon promjene stranice fokus je na naslovu stranice (h1) – hash ruter ne ostavlja fokus na starom mjestu. */
+  const expectFocusOnH1 = async (p, text) => {
+    for (let i = 0; i < 40; i++) {
+      const d = await p.evaluate(() => ({ tag: document.activeElement?.tagName, text: document.activeElement?.textContent ?? '' }));
+      if (d.tag === 'H1' && (!text || d.text.includes(text))) return;
+      await p.waitForTimeout(50);
+    }
+    throw new Error(`fokus nakon promjene stranice nije na naslovu h1 („${text}”)`);
+  };
   /** WP1.21: korisnik kroz API kao administrator (bez e-pošte API vraća token pozivnice jednom) i prihvaćanje pozivnice. */
   const apiInvite = (email, displayName, roleCodes, pw) => page.evaluate(async ([email, displayName, roleCodes, pw]) => {
     const created = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` }, body: JSON.stringify({ email, displayName, roleCodes }) });
@@ -91,17 +101,33 @@ const tag = Date.now().toString(36);
 
   await step('prijava', async () => {
     await page.goto(WEB);
-    await page.getByLabel('Institucija (oznaka)').fill(SLUG);
-    await page.getByLabel('E-adresa').fill(EMAIL);
-    await page.getByLabel('Lozinka').fill(PW);
-    await page.getByRole('button', { name: 'Prijava' }).click();
+    await page.getByLabel('Institucija (oznaka)').waitFor();
+    await a11y.scan(page, 'prijava');
+    // WP1.22 – samo tipkovnicom: Tab do polja, upis, Enter šalje obrazac (bez miša).
+    await a11y.tabTo(page, 'Institucija (oznaka)', { label: 'prijava' });
+    await page.keyboard.press('Control+A'); await page.keyboard.type(SLUG);
+    await a11y.tabTo(page, 'E-adresa', { label: 'prijava' }); await page.keyboard.type(EMAIL);
+    await a11y.tabTo(page, 'Lozinka', { label: 'prijava' }); await page.keyboard.type(PW);
+    await page.keyboard.press('Enter');
     await page.getByRole('heading', { name: 'Portfelj' }).waitFor(); // početna stranica uz portfolio:read (WP1.15)
+    await a11y.scan(page, 'portfelj (prazan)');
+    // „Preskoči na sadržaj” je prvi u redoslijedu tipke Tab i premješta fokus na glavni sadržaj.
+    await page.evaluate(() => (document.activeElement instanceof HTMLElement) && document.activeElement.blur());
+    const first = await a11y.tabTo(page, () => true, { max: 1, label: 'preskakanje' });
+    if (first.name !== 'Preskoči na sadržaj') throw new Error(`prvi element tipke Tab: „${first.name}”`);
+    await page.keyboard.press('Enter');
+    if ((await page.evaluate(() => document.activeElement?.id)) !== 'sadrzaj') throw new Error('„Preskoči na sadržaj” ne premješta fokus na glavni sadržaj');
+    if ((await page.title()) !== 'Portfelj – ArQus Projekti') throw new Error(`naslov dokumenta: ${await page.title()}`);
     // Drugi korisnik: voditeljica ureda za projekte (kroz API, kao administrator).
     const status = await apiInvite(officeEmail, 'Iva Ured', ['project-office'], officePw);
     if (status !== 201) throw new Error(`korisnik ureda nije stvoren (${status})`);
   });
   await step('paket po pozivu (sučelje)', async () => {
     await page.getByRole('link', { name: 'Paketi programa' }).click();
+    await page.getByRole('button', { name: 'Novi paket po pozivu' }).waitFor();
+    await expectFocusOnH1(page, 'Paketi programa');
+    if ((await page.title()) !== 'Paketi programa – ArQus Projekti') throw new Error(`naslov dokumenta: ${await page.title()}`);
+    await a11y.scan(page, 'paketi programa');
     await page.getByRole('button', { name: 'Novi paket po pozivu' }).click();
     await page.getByLabel('Programski paket (roditelj)').selectOption('npoo-2021-2026');
     await page.getByLabel('Identifikator poziva').fill(`NPOO.E2E.${tag}`);
@@ -110,10 +136,12 @@ const tag = Date.now().toString(36);
     await page.getByLabel('Izvještajno razdoblje (mj.)').fill('6');
     await page.getByRole('button', { name: 'Provjeri paket' }).click();
     await page.getByText('paket je valjan').waitFor();
+    await a11y.scan(page, 'paket: novi (obrazac)');
     await page.getByRole('button', { name: 'Spremi nacrt' }).click();
     await page.getByRole('heading', { name: new RegExp(`NPOO e2e poziv ${tag}`) }).waitFor();
     await page.getByRole('button', { name: 'Objavi' }).click();
     await page.locator('h1 .chip', { hasText: 'objavljen' }).waitFor();
+    await a11y.scan(page, 'paket: pojedinosti');
     await shot('paket');
   });
   await step('radar: novi poziv, ocjena, odluka go', async () => {
@@ -121,6 +149,8 @@ const tag = Date.now().toString(36);
     const dl = `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T17:00`;
     await page.getByRole('link', { name: 'Radar poziva' }).click();
     await page.getByRole('button', { name: 'Novi poziv' }).click();
+    await page.getByLabel('Identifikator poziva').waitFor();
+    await a11y.scan(page, 'radar: novi poziv (obrazac)');
     await page.getByLabel('Identifikator poziva').fill(`NPOO.E2E.${tag}`);
     await page.getByLabel('Naslov').fill('Zeleni promet – e2e poziv');
     await page.getByLabel('Program', { exact: true }).fill('NPOO');
@@ -135,9 +165,11 @@ const tag = Date.now().toString(36);
     await page.getByLabel('Obrazloženje').fill('Uklapa se u strategiju zelenog prometa');
     await page.getByRole('button', { name: 'Spremi odluku' }).click();
     await page.getByRole('cell', { name: /odluka: go/ }).waitFor();
+    await a11y.scan(page, 'radar: poziv');
     await page.getByRole('link', { name: 'Radar poziva' }).first().click();
     await page.getByRole('cell', { name: new RegExp(`NPOO.E2E.${tag}`) }).first().waitFor();
     await shot('radar');
+    await a11y.scan(page, 'radar');
   });
   await step('radar: globalni poziv s portala F&T', async () => {
     await page.getByLabel('Program').selectOption('Horizon Europe');
@@ -154,6 +186,7 @@ const tag = Date.now().toString(36);
     await page.getByLabel('Država (ISO)').fill('IT');
     await page.getByRole('button', { name: 'Dodaj' }).click();
     await page.getByRole('cell', { name: `Politecnico di Milano ${tag}` }).waitFor();
+    await a11y.scan(page, 'organizacije');
   });
   await step('prijava iz radara (odluka go)', async () => {
     await page.getByRole('link', { name: 'Radar poziva' }).click();
@@ -181,6 +214,7 @@ const tag = Date.now().toString(36);
     await page.locator('tfoot').getByText(/33\.000,00/).first().waitFor();
     await page.getByRole('button', { name: 'Zaključaj proračun' }).click();
     await page.getByText('spremna', { exact: true }).waitFor();
+    await a11y.scan(page, 'prijava na poziv');
     await shot('prijava');
   });
   await step('prijava: predaja, ishod, ugovaranje u projekt', async () => {
@@ -198,8 +232,10 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Ugovori u projekt' }).click();
     await page.getByRole('tab', { name: 'Pregled' }).waitFor();
     await page.getByRole('heading', { name: 'Partneri (2)' }).waitFor();
+    await a11y.scan(page, 'projekt: pregled');
     await page.getByRole('tab', { name: 'Proračun' }).click();
     await page.locator('tfoot').getByText(/33\.000,00/).first().waitFor();
+    await a11y.scan(page, 'projekt: proračun');
     await shot('proracun');
   });
   await step('proračun: istovremena izmjena – poruka o sukobu, najnovije stanje, vlastiti unos sačuvan', async () => {
@@ -218,6 +254,7 @@ const tag = Date.now().toString(36);
     const notice = page.locator('.alert.conflict');
     await notice.getByText('Tvoje izmjene nisu spremljene.').waitFor();
     await notice.getByText(/promijenio korisnik Iva Ured/).waitFor();
+    await a11y.scan(page, 'proračun: obavijest o sukobu');
     await shot('proracun-sukob');
     await notice.getByRole('button', { name: 'Učitaj najnovije stanje' }).click();
     await notice.getByText('Učitano je najnovije stanje').waitFor();
@@ -232,6 +269,18 @@ const tag = Date.now().toString(36);
     await page.locator('tfoot').getByText(/35\.150,00/).first().waitFor(); // obje izmjene: OS 21.000 (ured) + VU 11.000 (moja) + neizravni 3.150
     if (await page.locator('.alert.conflict').count()) throw new Error('obavijest o sukobu nije nestala nakon spremanja');
   });
+  await step('kartice projekta tipkovnicom (strelice, Home, End; jedna kartica u redoslijedu tipke Tab)', async () => {
+    await page.getByRole('tab', { name: 'Proračun' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await page.getByRole('tab', { name: 'Tim i timesheetovi', selected: true }).waitFor();
+    if (!/\/tim$/.test(page.url())) throw new Error(`strelica nije otvorila karticu: ${page.url()}`);
+    const d = await a11y.describeFocus(page);
+    if (d.role !== 'tab' || d.name !== 'Tim i timesheetovi') throw new Error(`fokus nakon strelice: ${d.name}`);
+    await page.keyboard.press('Home');
+    await page.getByRole('tab', { name: 'Pregled', selected: true }).waitFor();
+    if ((await page.locator('[role=tab][tabindex="0"]').count()) !== 1) throw new Error('u traci kartica točno jedna mora biti u redoslijedu tipke Tab');
+    if (!/^Pregled – E2E/.test(await page.title())) throw new Error(`naslov dokumenta kartice: ${await page.title()}`);
+  });
   await step('aktivacija', async () => {
     await page.getByRole('tab', { name: 'Pregled' }).click();
     await page.getByRole('button', { name: '→ aktivan' }).click();
@@ -244,6 +293,8 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Dodaj člana tima' }).click();
     await page.getByRole('cell', { name: 'Ivana Horvat' }).waitFor();
     await page.getByLabel('Mjesec').fill('2027-02');
+    await page.getByLabel('WP1 Istraživanje dan 1', { exact: true }).waitFor();
+    await a11y.scan(page, 'projekt: tim i timesheet');
     await page.getByLabel('WP1 Istraživanje dan 1', { exact: true }).fill('8');
     await page.getByLabel('WP1 Istraživanje dan 2', { exact: true }).fill('7,5');
     await page.getByRole('button', { name: 'Spremi', exact: true }).click();
@@ -263,6 +314,7 @@ const tag = Date.now().toString(36);
     // WP1.16b: mjesečna evidencija za ispis i potpis (isti dokument kao u paketu ZNS-a).
     await page.getByRole('button', { name: 'Evidencija za ispis i potpis' }).click();
     await page.frameLocator('iframe[title="Evidencija rada za ispis"]').getByText('Ivana Horvat').first().waitFor();
+    await a11y.scan(page, 'timesheet: evidencija za ispis (dijalog)');
     await page.getByRole('button', { name: 'Zatvori evidenciju za ispis' }).click();
   });
   await step('trošak', async () => {
@@ -274,6 +326,7 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Evidentiraj trošak' }).click();
     await page.getByRole('cell', { name: 'Anketno istraživanje' }).waitFor();
     await page.getByRole('cell', { name: /310,00/ }).waitFor(); // 15,5 h × 20 €/h
+    await a11y.scan(page, 'projekt: troškovi');
   });
   await step('dokaz uz trošak', async () => {
     await page.getByRole('button', { name: 'Dokazi (0)' }).click();
@@ -281,15 +334,23 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Priloži dokument' }).click();
     await page.getByRole('button', { name: 'Dokazi (1)' }).waitFor();
     await page.getByRole('cell', { name: /Račun 17-2027\.pdf/ }).last().waitFor();
+    await a11y.scan(page, 'trošak: dokazi');
   });
   await step('ZNS RP1: popis za provjeru, rana predaja s razlogom', async () => {
-    await page.getByRole('tab', { name: 'Zahtjevi za nadoknadu' }).click();
-    await page.getByRole('button', { name: 'Otvori zahtjev' }).click();
+    // WP1.22 – financije samo tipkovnicom: kartica ZNS strelicama, „Otvori zahtjev” i popis za provjeru (Enter).
+    await page.getByRole('tab', { name: 'Troškovi', selected: true }).focus();
+    await page.keyboard.press('ArrowRight');
+    await page.getByRole('tab', { name: 'Zahtjevi za nadoknadu', selected: true }).waitFor();
+    await a11y.tabTo(page, 'Otvori zahtjev', { label: 'ZNS' });
+    await page.keyboard.press('Enter');
     await page.getByRole('heading', { name: /ZNS za RP1/ }).waitFor();
+    await page.getByRole('cell', { name: 'dokaz (1)' }).waitFor();
+    await a11y.scan(page, 'ZNS: nacrt s popisom za provjeru');
     await page.getByText(/2\.856,50/).first().waitFor(); // 310 + 2.500 + 15 % od 310 = 2.856,50
     await page.getByRole('cell', { name: 'dokaz (1)' }).waitFor();
     // Troškovi osoblja grupirani po osobi i mjesecu; redak po radnom paketu na klik.
-    await page.getByRole('button', { name: /Rad: Ivana Horvat, velj\. 2027\./ }).click();
+    await a11y.tabTo(page, /Rad: Ivana Horvat, velj\. 2027\./, { label: 'ZNS', max: 200 });
+    await page.keyboard.press('Enter');
     await page.getByRole('cell', { name: /WP1/ }).first().waitFor();
     // Projekt počinje 2027-01-01: razdoblje još traje – predaja tek uz razlog rane predaje.
     await page.getByText(/Razdoblje još traje/).waitFor();
@@ -313,6 +374,7 @@ const tag = Date.now().toString(36);
     await page.getByText('Razlog: Priznato prema ugovoru s agencijom').waitFor();
     await page.getByRole('button', { name: 'Zabilježi isplatu' }).click();
     await page.getByText(/isplaćeno 2\.356,50/).waitFor();
+    await a11y.scan(page, 'ZNS: odlučen i isplaćen');
     await shot('zns-odluka');
   });
   await step('ZNS RP1: paket za predaju (ZIP) i mjerenje pripreme', async () => {
@@ -335,11 +397,13 @@ const tag = Date.now().toString(36);
     await page.getByLabel('Nova verzija').setInputFiles({ name: 'Ugovor potpisan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7\npotpisan\n%%EOF\n') });
     await page.getByRole('button', { name: 'Učitaj novu verziju' }).click();
     await page.getByText(/v2 · /).waitFor();
+    await a11y.scan(page, 'projekt: dokumenti');
     await shot('dokumenti');
   });
   await step('ugovoreno / ostvareno', async () => {
     await page.getByRole('tab', { name: 'Ugovoreno / ostvareno' }).click();
     await page.getByText('iskorištenost proračuna').waitFor();
+    await a11y.scan(page, 'projekt: ugovoreno / ostvareno');
     await shot('financije');
   });
   await step('uvoz iz Excela: predložak, greške po retku, pregled s upozorenjem, potvrda, podaci vidljivi, povijest', async () => {
@@ -352,6 +416,7 @@ const tag = Date.now().toString(36);
     ] });
     await page.getByRole('tab', { name: 'Uvoz' }).click();
     await page.getByRole('heading', { name: 'Uvoz postojećeg projekta iz Excela' }).waitFor();
+    await a11y.scan(page, 'projekt: uvoz');
     const [tpl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Preuzmi predložak za ovaj projekt' }).click()]);
     if (!/^Uvoz_E2E[0-9a-z_-]+_predlozak\.xlsx$/i.test(tpl.suggestedFilename())) throw new Error(`predložak: ${tpl.suggestedFilename()}`);
     const file = page.getByLabel(/Ispunjena datoteka/);
@@ -360,6 +425,7 @@ const tag = Date.now().toString(36);
     await page.getByText('Ništa još nije spremljeno.').waitFor();
     await page.getByRole('heading', { name: 'Greške', exact: true }).waitFor();
     await page.getByRole('cell', { name: /kategorija ne postoji u paketu programa/ }).waitFor();
+    await a11y.scan(page, 'uvoz: greške po retku');
     if (await page.getByRole('button', { name: 'Potvrdi uvoz' }).isEnabled()) throw new Error('uvoz s greškama ne smije se moći potvrditi');
     await shot('uvoz-greske');
     await file.setInputFiles({ name: 'projekt.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await book('VU') });
@@ -379,6 +445,7 @@ const tag = Date.now().toString(36);
     await page.getByRole('cell', { name: 'Tisak letaka (uvoz)' }).waitFor();
     await page.getByRole('tab', { name: 'Struktura rada' }).click();
     await page.getByText('Diseminacija rezultata').first().waitFor();
+    await a11y.scan(page, 'projekt: struktura rada');
   });
   await step('portfelj: projekt, potrošnja i rokovi', async () => {
     await page.getByRole('link', { name: 'Portfelj' }).click();
@@ -387,22 +454,32 @@ const tag = Date.now().toString(36);
     await row.getByText('nije počeo').waitFor(); // projekt počinje 2027-01-01
     await page.getByRole('heading', { name: 'Rokovi' }).waitFor();
     await page.getByRole('heading', { name: 'Opterećenje ljudi' }).waitFor();
+    await a11y.scan(page, 'portfelj');
     await row.getByRole('link', { name: `E2E${tag}`.slice(0, 20) }).click();
     await page.getByRole('tab', { name: 'Pregled' }).waitFor();
     await shot('portfelj');
   });
   await step('revizija: tko je što promijenio – filtri, prije/poslije, izvoz u CSV', async () => {
+    await page.getByRole('link', { name: 'Prijave' }).click();
+    await page.getByRole('heading', { name: 'Prijave' }).waitFor();
+    await a11y.scan(page, 'prijave');
+    await page.getByRole('link', { name: 'Projekti', exact: true }).click();
+    await page.getByRole('heading', { name: 'Projekti', level: 1 }).waitFor();
+    await page.getByRole('cell', { name: new RegExp(`E2E${tag}`.slice(0, 20)) }).first().waitFor();
+    await a11y.scan(page, 'projekti');
     await page.getByRole('link', { name: 'Revizija' }).click();
     await page.getByRole('heading', { name: 'Revizija' }).waitFor();
     await page.locator('table.audit-table tbody tr').first().waitFor();
-    await page.locator('label.field', { hasText: /^Vrsta zapisa/ }).locator('select').selectOption({ label: 'proračun projekta' });
-    await page.locator('label.field', { hasText: /^Korisnik/ }).locator('select').selectOption({ label: 'Iva Ured' });
+    const filters = page.getByRole('form', { name: 'Filtri revizije' });
+    await filters.getByLabel('Vrsta zapisa', { exact: true }).selectOption({ label: 'proračun projekta' });
+    await filters.getByLabel('Korisnik', { exact: true }).selectOption({ label: 'Iva Ured' });
     await page.getByRole('button', { name: 'Primijeni filtre' }).click();
     const row = page.locator('table.audit-table tbody tr', { hasText: 'izmjena proračuna' }).first();
     await row.getByText('Iva Ured').waitFor();
     await row.getByRole('button', { name: 'Prikaži prije / poslije' }).click();
     await page.locator('.audit-changes').getByText('poslije').first().waitFor();
     await page.locator('.audit-changes').getByText(/34\.150,00/).first().waitFor();
+    await a11y.scan(page, 'revizija');
     await shot('revizija');
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Izvoz u CSV' }).click()]);
     if (!/^revizija_\d{4}-\d{2}-\d{2}\.csv$/.test(dl.suggestedFilename())) throw new Error(`preuzeto: ${dl.suggestedFilename()}`);
@@ -416,20 +493,34 @@ const tag = Date.now().toString(36);
   await step('pozivnica (administrator, bez e-pošte): poveznica jednom, korisnik sam bira lozinku', async () => {
     await page.getByRole('link', { name: 'Korisnici' }).click();
     const form = page.locator('.card', { hasText: 'Pozovi korisnika' });
+    await form.waitFor();
+    await a11y.scan(page, 'korisnici');
     if (await form.getByLabel(/lozinka/i).count()) throw new Error('obrazac pozivnice ne smije imati polje lozinke');
-    await form.getByLabel('Ime i prezime').fill('Ana Novak');
-    await form.getByLabel('E-adresa').fill(newEmail);
-    await form.getByLabel(/^Projekt/).selectOption({ label: `${acronym} – Projekt iz e2e testa` }); // član tima zadano: uloga na projektu
-    await page.getByRole('button', { name: 'Pošalji pozivnicu' }).click();
+    // WP1.22 – administrator poziva korisnika samo tipkovnicom (Tab, upis, odabir projekta upisom, Enter).
+    await a11y.tabTo(page, 'Ime i prezime', { label: 'pozivnica', max: 80 }); await page.keyboard.type('Ana Novak');
+    await a11y.tabTo(page, 'E-adresa', { label: 'pozivnica' }); await page.keyboard.type(newEmail);
+    await a11y.tabTo(page, 'Projekt', { label: 'pozivnica' });
+    const projectSelect = form.getByLabel(/^Projekt/);
+    const wanted = await projectSelect.locator('option', { hasText: `${acronym} – Projekt iz e2e testa` }).getAttribute('value');
+    for (let i = 0; i < 400 && (await projectSelect.inputValue()) !== wanted; i++) await page.keyboard.press('ArrowDown'); // strelice mijenjaju odabir zatvorenog popisa
+    if ((await projectSelect.inputValue()) !== wanted) throw new Error('projekt nije odabran tipkovnicom');
+    await a11y.tabTo(page, 'Pošalji pozivnicu', { label: 'pozivnica' });
+    await page.keyboard.press('Enter');
     const dialog = page.getByRole('dialog', { name: 'Poveznica pozivnice' });
     await dialog.waitFor();
     await dialog.getByText(/pouzdanim kanalom/).waitFor();
+    // Dijalog: fokus u dijalogu pri otvaranju, Tab ne izlazi iz njega, Escape zatvara i vraća fokus na gumb koji ga je otvorio.
+    if (!(await a11y.describeFocus(page))?.inDialog) throw new Error('fokus nije u dijalogu nakon otvaranja');
+    await a11y.assertFocusInDialog(page);
+    await a11y.scan(page, 'korisnici: dijalog s poveznicom');
     const link = await dialog.getByTestId('handover-link').inputValue();
     if (!link.startsWith(`${new URL(WEB).origin}/#/pozivnica/`)) throw new Error(`poveznica: ${link}`);
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => undefined);
     await dialog.getByRole('button', { name: /Kopiraj/ }).click();
     await shot('pozivnica-poveznica');
-    await dialog.getByRole('button', { name: 'Zatvori' }).click();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    if ((await a11y.describeFocus(page))?.name !== 'Pošalji pozivnicu') throw new Error('nakon zatvaranja dijaloga fokus se nije vratio na gumb koji ga je otvorio');
     const row = page.locator('tr', { hasText: newEmail });
     await row.getByText('pozvan', { exact: true }).waitFor();
     await row.getByText(/pozivnica do .* ručno/).waitFor();
@@ -439,11 +530,13 @@ const tag = Date.now().toString(36);
     await p.goto(link);
     await p.getByText('Prihvaćanje pozivnice').waitFor();
     await p.getByText(/Dobrodošao\/la, Ana Novak/).waitFor();
+    await a11y.scan(p, 'pozivnica: prihvaćanje');
     if (SHOTS) await p.screenshot({ path: `${SHOTS}/pozivnica-prihvacanje.png`, fullPage: true });
     await p.getByLabel(/^Lozinka/).fill('kratka');
     await p.getByLabel('Ponovi lozinku').fill('kratka');
     await p.getByRole('button', { name: 'Postavi lozinku i prijavi se' }).click();
     await p.getByText('Lozinka ne zadovoljava pravila').waitFor(); // politika lozinki kao drugdje
+    await a11y.scan(p, 'pozivnica: greška u obrascu');
     await p.getByLabel(/^Lozinka/).fill(newPw);
     await p.getByLabel('Ponovi lozinku').fill(newPw);
     await p.getByRole('button', { name: 'Postavi lozinku i prijavi se' }).click();
@@ -453,6 +546,7 @@ const tag = Date.now().toString(36);
     // Iskorištena poveznica: jasna slijepa ulica.
     await p.goto(link);
     await p.getByTestId('link-invalid').waitFor();
+    await a11y.scan(p, 'poveznica nije valjana');
     if (SHOTS) await p.screenshot({ path: `${SHOTS}/poveznica-nevaljana.png`, fullPage: true });
     await ctx.close();
     await page.reload();
@@ -463,12 +557,14 @@ const tag = Date.now().toString(36);
     const ask = async (email) => {
       await p.goto(WEB);
       await p.getByRole('button', { name: 'Zaboravljena lozinka?' }).click();
+      if (email === newEmail) await a11y.scan(p, 'zaboravljena lozinka');
       await p.getByLabel('Institucija (oznaka)').fill(SLUG);
       await p.getByLabel('E-adresa').fill(email);
       await p.getByRole('button', { name: 'Pošalji poveznicu' }).click();
       return (await p.getByTestId('forgot-done').innerText()).trim();
     };
     const known = await ask(newEmail);
+    await a11y.scan(p, 'zaboravljena lozinka: odgovor');
     if (SHOTS) await p.screenshot({ path: `${SHOTS}/zaboravljena-lozinka.png`, fullPage: true });
     const unknown = await ask(`nitko.${tag}@e2e.local`);
     if (known !== unknown) throw new Error(`odgovori se razlikuju:\n${known}\n---\n${unknown}`);
@@ -480,6 +576,7 @@ const tag = Date.now().toString(36);
     await page.getByRole('cell', { name: new RegExp(acronym) }).first().click();
     await page.getByRole('tab', { name: 'Pristup' }).click();
     await page.locator('tr', { hasText: newEmail }).getByText('na ovom projektu').waitFor();
+    await a11y.scan(page, 'projekt: pristup');
     await shot('pristup');
   });
   const relogin = async (email, pw) => {
@@ -493,8 +590,11 @@ const tag = Date.now().toString(36);
   await step('prijava novog korisnika i postavljanje MFA', async () => {
     await relogin(newEmail, newPw);
     await page.getByRole('link', { name: /Ana Novak/ }).click();
+    await page.getByRole('button', { name: 'Postavi MFA' }).waitFor();
+    await a11y.scan(page, 'moj račun');
     await page.getByRole('button', { name: 'Postavi MFA' }).click();
     secret = (await page.locator('code').first().textContent()).trim();
+    await a11y.scan(page, 'moj račun: postavljanje MFA');
     await page.getByLabel('Kod iz aplikacije').fill(totp(secret));
     await page.getByRole('button', { name: 'Uključi MFA' }).click();
     await page.getByText('MFA je uključen').waitFor();
@@ -503,9 +603,12 @@ const tag = Date.now().toString(36);
   await step('prijava s MFA kodom', async () => {
     await relogin(newEmail, newPw);
     mfaStepUsed = Math.floor(Date.now() / 30000) + 1; // poslužitelj pamti zadnji iskorišteni korak (zaštita od ponovne upotrebe)
+    await a11y.scan(page, 'prijava: MFA kod');
     await page.getByLabel('Kod iz aplikacije za autentikaciju').fill(totp(secret, 1));
     await page.getByRole('button', { name: 'Potvrdi kod' }).click();
     await page.getByRole('heading', { name: 'Moj rad' }).waitFor(); // WP1.18: početna stranica člana tima
+    await page.locator('.work-group, .work-empty').first().waitFor();
+    await a11y.scan(page, 'moj rad: prazno');
   });
   await step('član tima vidi samo svoj projekt i samo dopuštene radnje', async () => {
     await page.getByRole('link', { name: 'Projekti', exact: true }).click();
@@ -524,59 +627,107 @@ const tag = Date.now().toString(36);
   // WP1.18: „Moj rad”. Projekt u tijeku (počeo prije dva mjeseca) s voditeljicom ureda kao imenovanom voditeljicom i Anom kao
   // članicom tima s računom. Ana nakon prijave vidi timesheet tekućeg mjeseca, otvara ga iz stavke i predaje; voditeljica ga
   // vidi u svojem „Moj rad”, odobrava i stavka nestaje; Ana u zvoncu dobiva obavijest da je timesheet odobren.
-  await step('Moj rad: član tima predaje timesheet iz stavke, voditeljica ga odobrava iz svog popisa, obavijest „odobren”', async () => {
+  await step('Moj rad: član tima samo tipkovnicom predaje timesheet iz stavke, voditeljica ga tipkovnicom odobrava, obavijest „odobren”', async () => {
     const zg = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zagreb', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const [y, mo] = zg.split('-').map(Number); const start = new Date(Date.UTC(y, mo - 3, 1)).toISOString().slice(0, 10);
     const o = await openOffice();
     const live = `MR${tag}`.slice(0, 20);
+    // WP1.22: isporuka trećeg mjeseca projekta (= tekući mjesec, rok kraj mjeseca – „uskoro”) s Anom kao odgovornom osobom.
     const res = await o.evaluate(async ([email, live, start]) => {
       const h = { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` };
       const me = await (await fetch('/api/me', { headers: h })).json();
       const ana = (await (await fetch('/api/users', { headers: h })).json()).find((u) => u.email === email);
       const p = await (await fetch('/api/projects', { method: 'POST', headers: h, body: JSON.stringify({ acronym: live, title: 'Projekt u tijeku (Moj rad)', packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', contractNo: `UG-${live}`, startDate: start, durationMonths: 12, managerUserId: me.user.id }) })).json();
       const a = (await fetch(`/api/projects/${p.id}/transition`, { method: 'POST', headers: h, body: JSON.stringify({ to: 'active' }) })).status;
-      const t = (await fetch(`/api/projects/${p.id}/team`, { method: 'POST', headers: h, body: JSON.stringify({ fullName: 'Ana Novak', userId: ana.id, annualCost: 3_000_000 }) })).status;
-      return `${a} ${t}`;
+      const t = await fetch(`/api/projects/${p.id}/team`, { method: 'POST', headers: h, body: JSON.stringify({ fullName: 'Ana Novak', userId: ana.id, annualCost: 3_000_000 }) });
+      const member = (await t.json()).id;
+      const wp = await (await fetch(`/api/projects/${p.id}/work-packages`, { method: 'POST', headers: h, body: JSON.stringify({ title: 'Anketa', startMonth: 1, endMonth: 12 }) })).json();
+      const d = (await fetch(`/api/projects/${p.id}/work-packages/${wp.id}/deliverables`, { method: 'POST', headers: h, body: JSON.stringify({ title: 'Izvještaj o anketi', type: 'ISP', dissemination: 'JAV', dueMonth: 3, responsibleMemberId: member }) })).status;
+      return `${a} ${t.status} ${d}`;
     }, [newEmail, live, start]);
-    if (res !== '201 201') throw new Error(`projekt za Moj rad: ${res}`);
+    if (res !== '201 201 201') throw new Error(`projekt za Moj rad: ${res}`);
     // Ana (prijavljena) – nova uloga na projektu vrijedi odmah; „Moj rad” je početna stranica.
     const t0 = Date.now();
     await page.goto(WEB);
     await page.getByRole('heading', { name: 'Moj rad' }).waitFor();
     const item = page.locator('a.work-item[data-kind="timesheet_current"]', { hasText: live });
     await item.getByText('nije započet').waitFor();
+    await page.locator('a.work-item[data-kind="deliverable_responsible"]', { hasText: live }).getByText(/ti si odgovorna osoba/).waitFor();
     // Ana je u tim upisana danas – raniji mjeseci projekta od nje se ne traže (pravilo „od kasnijeg od početka i ulaska u tim”).
     if (await page.locator('a.work-item[data-kind="timesheet_missing"]', { hasText: live }).count()) throw new Error('mjeseci prije ulaska u tim ne smiju se tražiti');
+    await a11y.scan(page, 'moj rad: član tima');
     await shot('moj-rad-clan');
-    await item.click();
-    await page.getByLabel('Bez radnog paketa dan 1', { exact: true }).fill('6');
-    await page.getByRole('button', { name: 'Spremi', exact: true }).click();
+    // Samo tipkovnicom: stavka → Enter → sati → Spremi → Predaj.
+    await a11y.tabTo(page, (d) => d.tag === 'a' && d.name.includes(live) && d.name.includes('nije započet'), { label: 'Moj rad (član tima)' });
+    await page.keyboard.press('Enter');
+    await page.getByLabel('Bez radnog paketa dan 1', { exact: true }).waitFor();
+    await a11y.tabTo(page, 'Bez radnog paketa dan 1', { label: 'timesheet', max: 200 });
+    await page.keyboard.type('6');
+    await a11y.tabTo(page, 'Spremi', { label: 'timesheet', max: 200 });
+    await page.keyboard.press('Enter');
     await page.getByText('ukupno 6 h').waitFor();
-    await page.getByRole('button', { name: 'Predaj na odobrenje' }).click();
+    await page.getByRole('button', { name: 'Predaj na odobrenje' }).waitFor(); // gumb se pojavljuje kad je nacrt spremljen; fokus ostaje na „Spremi”
+    await a11y.tabTo(page, 'Predaj na odobrenje', { label: 'timesheet', max: 20 });
+    await page.keyboard.press('Enter');
     await page.locator('h3 .chip', { hasText: 'predan' }).waitFor();
     process.stdout.write(`(predano za ${Math.round((Date.now() - t0) / 1000)} s) `);
     await page.getByRole('link', { name: /^Moj rad/ }).click();
     await page.locator('a.work-item[data-kind="timesheet_submitted"]', { hasText: live }).waitFor();
-    // Voditeljica: stavka odobrenja u „Moj rad”, odobrenje, stavka nestaje.
+    // Voditeljica: stavka odobrenja u „Moj rad” (i tko je odgovoran za isporuku), odobrenje tipkovnicom, stavka nestaje.
     await o.goto(`${WEB}/#/moj-rad`);
     const approve = o.locator('a.work-item[data-kind="timesheet_to_approve"]', { hasText: 'Ana Novak' });
     await approve.waitFor();
+    await o.locator('a.work-item[data-kind="deliverable_due"]', { hasText: live }).getByText('odgovorna osoba: Ana Novak').waitFor();
+    await a11y.scan(o, 'moj rad: voditelj');
     if (SHOTS) await o.screenshot({ path: `${SHOTS}/moj-rad-voditelj.png`, fullPage: true });
-    await approve.click();
-    await o.getByRole('button', { name: /Odobri/ }).click();
+    await a11y.tabTo(o, (d) => d.tag === 'a' && /Odobri timesheet: Ana Novak/.test(d.name) && d.name.includes(live), { label: 'Moj rad (voditelj)' });
+    await o.keyboard.press('Enter');
+    await o.getByRole('button', { name: /Odobri/ }).waitFor();
+    await a11y.tabTo(o, /^Odobri/, { label: 'odobrenje', max: 200 });
+    await o.keyboard.press('Enter');
     await o.locator('h3 .chip', { hasText: 'odobren' }).waitFor();
     await o.getByRole('link', { name: /^Moj rad/ }).click();
     await o.getByRole('heading', { name: 'Moj rad' }).waitFor();
     await o.locator('.work-group, .work-empty').first().waitFor();
     if (await o.locator('a.work-item[data-kind="timesheet_to_approve"]', { hasText: 'Ana Novak' }).count()) throw new Error('odobren timesheet mora nestati s popisa voditeljice');
-    // Ana: obavijest u zvoncu.
+    // Ana: obavijest u zvoncu – izbornik obavijesti tipkovnicom (Enter otvara, Escape zatvara i vraća fokus na zvonce).
     await page.reload();
     await page.getByRole('heading', { name: 'Moj rad' }).waitFor();
-    await page.getByRole('button', { name: /^Obavijesti – \d+ nepročitan/ }).click();
+    await a11y.tabTo(page, /^Obavijesti – \d+ nepročitan/, { label: 'obavijesti' });
+    await page.keyboard.press('Enter');
     await page.locator('.dropdown .note', { hasText: /je odobren/ }).filter({ hasText: live }).waitFor();
+    await page.locator('.dropdown .note', { hasText: /Odgovoran\/na si za isporuku/ }).filter({ hasText: live }).waitFor();
+    await a11y.scan(page, 'obavijesti (otvoren izbornik)', { widths: [1400], reflow: false });
+    await a11y.tabTo(page, (d) => d.tag === 'button' && /je odobren/.test(d.name), { label: 'obavijesti', max: 20 });
+    await page.keyboard.press('Escape');
+    if (await page.locator('.dropdown').count()) throw new Error('Escape mora zatvoriti izbornik obavijesti');
+    if (!/^Obavijesti/.test((await a11y.describeFocus(page))?.name ?? '')) throw new Error('nakon Escape fokus se mora vratiti na zvonce');
+    await page.getByRole('button', { name: /^Obavijesti/ }).click();
     await shot('obavijesti');
     await page.locator('.dropdown .note', { hasText: /je odobren/ }).filter({ hasText: live }).click();
     await page.locator('h3 .chip', { hasText: 'odobren' }).waitFor();
+  });
+  // WP1.22: odgovorna osoba otvara svoju isporuku iz „Moj rad” i pomiče je kroz radni dio statusa; vidi sebe kao odgovornu.
+  await step('Moj rad: odgovorna osoba otvara isporuku i pomiče je (u izradi → predana); voditeljica vidi tko je odgovoran', async () => {
+    const live = `MR${tag}`.slice(0, 20);
+    await page.getByRole('link', { name: /^Moj rad/ }).click();
+    const it = page.locator('a.work-item[data-kind="deliverable_responsible"]', { hasText: live });
+    await it.waitFor();
+    await it.focus(); await page.keyboard.press('Enter');
+    const row = page.locator('tr[data-deliverable]', { hasText: 'Izvještaj o anketi' });
+    await row.getByText('Ana Novak (ti)').waitFor();
+    if (await row.getByRole('combobox').count()) throw new Error('odgovorna osoba ne uređuje strukturu (odabir statusa i osobe)');
+    await a11y.scan(page, 'struktura: odgovorna osoba');
+    await row.getByRole('button', { name: /označi kao u izradi/ }).click();
+    await row.locator('.chip', { hasText: 'u izradi' }).waitFor();
+    await row.getByRole('button', { name: /označi kao predana/ }).click();
+    await row.locator('.chip', { hasText: 'predana' }).waitFor();
+    if (await row.getByRole('button', { name: /označi kao/ }).count()) throw new Error('nakon predaje odgovorna osoba nema daljnjih koraka (prihvaćanje je na voditelju)');
+    await shot('odgovorna-osoba-struktura');
+    await page.getByRole('link', { name: /^Moj rad/ }).click();
+    await page.getByRole('heading', { name: 'Moj rad' }).waitFor();
+    await page.locator('.work-group, .work-empty').first().waitFor();
+    if (await page.locator('a.work-item[data-kind="deliverable_responsible"]', { hasText: live }).count()) throw new Error('predana isporuka mora nestati iz „Moj rad”');
   });
   // WP1.19: obvezni MFA. Administrator uključi vlastiti MFA i postroži postavku institucije; voditeljica ureda (povlaštena uloga,
   // bez MFA) u otvorenoj sesiji odmah dobiva samo postavljanje MFA s objašnjenjem, nakon postavljanja radi normalno.
@@ -600,6 +751,7 @@ const tag = Date.now().toString(36);
     await o.reload();
     await o.getByRole('heading', { name: 'Postavi dvofaktorsku prijavu' }).waitFor();
     await o.getByText(/Tvoja institucija zahtijeva dvofaktorsku prijavu/).waitFor();
+    await a11y.scan(o, 'obvezni MFA');
     if (await o.locator('header nav').count()) throw new Error('u ograničenom stanju izbornik ne smije biti dostupan');
     // Poslužitelj odbija i izravne zahtjeve (ne samo sučelje).
     const blocked = await o.evaluate(async () => { const r = await fetch('/api/projects', { headers: { Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` } }); return `${r.status} ${(await r.json()).code}`; });
@@ -648,6 +800,7 @@ const tag = Date.now().toString(36);
     const { ctx, p, urls, bodies } = await freshContext('nova lozinka');
     await p.goto(link);
     await p.getByText(`Odaberi novu lozinku za račun ${newEmail}`).waitFor();
+    await a11y.scan(p, 'nova lozinka');
     const fresh = `nova-staza-${tag}-kroz-sumu`;
     await p.getByLabel('Nova lozinka').fill(fresh);
     await p.getByLabel('Ponovi lozinku').fill(fresh);
@@ -681,6 +834,7 @@ const tag = Date.now().toString(36);
     }, totp(adminSecret, 1));
     if (res !== '200 201') throw new Error(`vraćanje postavki: ${res}`);
   });
+  problems.push(...a11y.report());
   await browser.close();
   if (problems.length) { console.error('\nProblemi:\n' + problems.join('\n')); process.exit(1); }
   console.log('\nE2E: sve provjere prošle.');

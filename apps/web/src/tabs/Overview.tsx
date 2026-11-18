@@ -64,10 +64,10 @@ export function Overview({ project: p, me, reloadProject }: TabProps) {
           </>
         )}
       </div>
-      <div className="card">
+      <div className="card scroll">
         <h2>Partneri ({p.partners.length})</h2>
         <table>
-          <thead><tr><th>#</th><th>Organizacija</th><th>Uloga</th><th>Vrsta korisnika</th><th /></tr></thead>
+          <thead><tr><th>#</th><th>Organizacija</th><th>Uloga</th><th>Vrsta korisnika</th><th><span className="sr-only">Radnje</span></th></tr></thead>
           <tbody>{p.partners.map((x) => (
             <tr key={x.id}><td>{x.orderNo}</td><td>{x.name} <span className="muted">({x.country})</span></td><td>{ROLE[x.role] ?? x.role}</td><td>{x.beneficiaryType}</td>
               <td>{write && contracting && !x.isSelf && <ActionButton kind="danger" onClick={async () => { await api('DELETE', `/projects/${p.id}/partners/${x.id}`); await reloadProject(); }}>ukloni</ActionButton>}</td></tr>
