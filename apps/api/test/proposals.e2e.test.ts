@@ -5,6 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module';
+import { inviteUser } from './invite';
 import { seedDemo } from '../src/db/seed';
 
 const ADMIN_URL = process.env.TEST_DATABASE_MIGRATE_URL ?? 'postgres://arqus@127.0.0.1:5433/arqus_test';
@@ -85,7 +86,7 @@ describe('Prijave (e2e)', () => {
     d = (await http().post(`/api/proposals/${pid}/outcome`).set(auth(A)).send({ result: 'funded', score: '87/100' }).expect(201)).body;
     expect(d).toMatchObject({ status: 'funded', outcome: { result: 'funded', score: '87/100' } });
     // WP1.14: nositelj prijave bez uloge institucije ugovaranjem postaje voditelj (samo) novog projekta.
-    const lead = (await http().post('/api/users').set(auth(A)).send({ email: `nositelj@${slugA}.hr`, displayName: 'Nositelj prijave', password: 'Plava-Staza-2027-x', roleCodes: [] }).expect(201)).body.id;
+    const lead = (await inviteUser(app, A, { email: `nositelj@${slugA}.hr`, displayName: 'Nositelj prijave', roleCodes: [] }, 'Plava-Staza-2027-x')).id;
     await http().patch(`/api/proposals/${pid}`).set(auth(A)).send({ revision: d.revision, leadUserId: lead }).expect(200);
     const c = (await http().post(`/api/proposals/${pid}/contract`).set(auth(A)).send({ contractNo: `NPOO-${tag}`, startDate: '2027-01-01' }).expect(201)).body;
     expect(c.proposal).toMatchObject({ status: 'contracted', projectId: c.projectId });

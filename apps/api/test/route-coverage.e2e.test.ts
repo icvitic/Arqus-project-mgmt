@@ -84,8 +84,26 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
       .toEqual(['POST /api/proposals', 'POST /api/proposals/:id/contract', 'POST /api/proposals/:id/outcome', 'POST /api/proposals/:id/submit'].sort());
     // Rute s projektnim entitetom izvan /projects (dokumenti) razrješavaju projekt u servisu.
     expect(routes.filter((r) => r.path.startsWith('/api/documents')).every((r) => r.access.kind === 'resolves-project')).toBe(true);
-    // Javne rute: health, prijava i (WP1.18) osobni kalendar rokova po tajnom tokenu – izričit popis, nova javna ruta ruši test.
-    expect(routes.filter((r) => r.access.kind === 'public').map((r) => `${r.method} ${r.path}`).sort()).toEqual(['GET /api/calendar/:token', 'GET /api/health', 'GET /api/health/ready', 'POST /api/auth/login']);
+    // Javne rute: health, prijava, (WP1.18) osobni kalendar rokova po tajnom tokenu i (WP1.21) zaboravljena lozinka, pregled
+    // poveznice, prihvaćanje pozivnice i nova lozinka – izričit popis, nova javna ruta ruši test.
+    expect(routes.filter((r) => r.access.kind === 'public').map((r) => `${r.method} ${r.path}`).sort()).toEqual([
+      'GET /api/calendar/:token', 'GET /api/health', 'GET /api/health/ready', 'POST /api/auth/invitation/accept', 'POST /api/auth/login',
+      'POST /api/auth/password/forgot', 'POST /api/auth/password/reset', 'POST /api/auth/token/inspect',
+    ]);
+    // WP1.21: token računa nikad u putanji ili upitu (zapisi pristupa, Referer) – javne rute računa nemaju parametar putanje.
+    expect(routes.filter((r) => r.access.kind === 'public' && r.path.startsWith('/api/auth') && r.path.includes(':'))).toEqual([]);
+    // WP1.21: upravljanje pozivnicama i poveznicama za novu lozinku traži istu dozvolu kao upravljanje korisnicima; nijedna
+    // ruta više ne postavlja tuđu lozinku.
+    expect(routes.filter((r) => r.path.startsWith('/api/users')).map((r) => `${r.method} ${r.path} ${(r.access as { permission?: string }).permission}`).sort()).toEqual([
+      'DELETE /api/users/:id/invitation users:write', 'GET /api/users users:read', 'PATCH /api/users/:id users:write', 'POST /api/users users:write',
+      'POST /api/users/:id/invitation users:write', 'POST /api/users/:id/password-link users:write', 'POST /api/users/:id/reset-mfa users:write',
+    ]);
+    expect(routes.filter((r) => /password/.test(r.path)).map((r) => `${r.method} ${r.path} (${r.access.kind})`).sort()).toEqual([
+      'POST /api/auth/password/forgot (public)', 'POST /api/auth/password/reset (public)', 'POST /api/me/password (authenticated)', 'POST /api/users/:id/password-link (tenant)',
+    ]);
+    // WP1.21: postavka dnevnog sažetka – korisnik o sebi (bez id-ja drugog korisnika), nije dostupna u ograničenom stanju MFA.
+    expect(routes.filter((r) => r.path === '/api/me/digest').map((r) => `${r.method} ${r.access.kind} ${r.mfaSetup}`).sort()).toEqual(['GET authenticated false', 'PUT authenticated false']);
+    expect(routes.filter((r) => r.path.startsWith('/api/tenant/mail')).map((r) => `${r.method} ${r.path} ${(r.access as { permission?: string }).permission}`).sort()).toEqual(['GET /api/tenant/mail users:read', 'POST /api/tenant/mail/test users:write']);
     // WP1.18: rute „o meni” traže samo prijavu (korisnik o sebi) i nisu dostupne u ograničenom stanju MFA (provjera ispod).
     expect(routes.filter((r) => r.path.startsWith('/api/me/') && ['work', 'notifications', 'calendar'].some((x) => r.path.startsWith(`/api/me/${x}`))).map((r) => `${r.method} ${r.path} (${r.access.kind})`).sort()).toEqual([
       'DELETE /api/me/calendar (authenticated)', 'GET /api/me/calendar (authenticated)', 'GET /api/me/notifications (authenticated)', 'GET /api/me/work (authenticated)',

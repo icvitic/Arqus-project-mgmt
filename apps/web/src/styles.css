@@ -118,3 +118,10 @@ header.top nav{display:flex;flex-wrap:wrap;gap:2px;min-width:0;max-width:100%}na
 .copy-row{display:flex;gap:8px;flex-wrap:wrap}.copy-row input{flex:1 1 280px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
 @media(max-width:520px){.work-item{flex-direction:column;align-items:flex-start}.work-meta{flex-direction:row;align-items:center}}
 @media(max-width:620px){.dropdown{position:fixed;left:16px;right:16px;top:64px;width:auto;max-height:calc(100vh - 80px)}}
+/* WP1.21: jednokratni prikaz poveznice (pozivnica / nova lozinka), stranice poveznica, e-pošta */
+.dialog-backdrop{position:fixed;inset:0;background:rgba(10,14,20,.55);display:flex;align-items:flex-start;justify-content:center;padding:10vh 16px 16px;z-index:20;overflow:auto}
+.dialog{max-width:640px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)}.dialog:focus{outline:none}.dialog h2{margin-top:0}
+.account-link{max-width:460px}.account-link h2{font-size:17px;margin:0 0 8px}.account-link-kv{grid-template-columns:140px 1fr;margin:10px 0;font-size:13px;overflow-wrap:anywhere}
+.small-note{font-size:12px;margin:10px 0 0}.mail-table td{white-space:nowrap}.mail-table td:nth-child(2){white-space:normal}
+@media(max-width:520px){.account-link-kv{grid-template-columns:1fr}.dialog-backdrop{padding-top:16px}}
+.digest-card{max-width:860px}.switch-row{display:flex;gap:10px;align-items:flex-start;font-size:14px}.switch-row input{margin-top:4px;width:18px;height:18px;flex:none}

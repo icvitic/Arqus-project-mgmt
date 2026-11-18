@@ -82,7 +82,14 @@ export interface FinanceOverview {
 }
 export interface ProjectRole { assignmentId: string; code: string; projectId: string; acronym: string | null }
 /** `roles` – uloge na razini institucije; `projectRoles` – uloge na pojedinom projektu. */
-export interface UserRow { id: string; email: string; displayName: string; status: string; mfaEnabled: boolean; mfaRequired?: boolean; lastLoginAt: string | null; roles: string[]; projectRoles: ProjectRole[] }
+/** WP1.21: izdana poveznica (pozivnica ili nova lozinka) – kada i kako; token se nikad ne vraća u popisu. */
+export interface PendingLink { delivery: 'mail' | 'link'; createdAt: string; expiresAt: string }
+export interface UserRow { id: string; email: string; displayName: string; status: 'invited' | 'active' | 'disabled'; mfaEnabled: boolean; mfaRequired?: boolean; lastLoginAt: string | null; roles: string[]; projectRoles: ProjectRole[]; invitation?: PendingLink | null; passwordLink?: PendingLink | null }
+/** WP1.21: odgovor na izdavanje pozivnice ili poveznice za novu lozinku; `token` samo bez e-pošte (jednom). */
+export interface IssuedLink { delivery: 'mail' | 'link'; expiresAt: string; token?: string }
+export interface MailDeliveryRow { id: number; kind: 'invite' | 'reset' | 'password_changed' | 'digest' | 'test'; outcome: 'sent' | 'failed'; errorClass: string | null; attempts: number; createdAt: string; userId: string; displayName: string | null }
+export interface MailStatus { enabled: boolean; from: string | null; publicUrl: string | null; last7Days: { sent: number; failed: number }; recent: MailDeliveryRow[] }
+export interface DigestSetting { enabled: boolean; mailEnabled: boolean; hour: number }
 export interface RoleRow { code: string; name: string; scope: string; system: boolean }
 export interface AccessEntry { assignmentId: string | null; userId: string; displayName: string; email: string; status: string; roleCode: string; roleName: string; scope: 'tenant' | 'project'; revocable: boolean }
 export interface ProjectAccess { projectId: string; entries: AccessEntry[]; users: { id: string; displayName: string; email: string }[]; roles: { code: string; name: string; scope: string; grantable: boolean }[] }

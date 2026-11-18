@@ -28,12 +28,18 @@ describe('Računi, sesije i MFA (e2e)', () => {
   });
   afterAll(async () => { await app.close(); });
 
-  it('politika lozinki pri stvaranju korisnika (400 s razlozima)', async () => {
-    const r = await http().post('/api/users').set(auth(admin)).send({ email: `marija@${slug}.hr`, displayName: 'Marija Kos', password: 'Lozinka-123456', roleCodes: ['team-member'] }).expect(400);
+  it('politika lozinki pri prihvaćanju pozivnice (400 s razlozima); administrator ne zadaje lozinku (WP1.21)', async () => {
+    // Polje lozinke pri stvaranju korisnika više ne postoji (stroga shema → 400).
+    await http().post('/api/users').set(auth(admin)).send({ email: `marija@${slug}.hr`, displayName: 'Marija Kos', password: 'plavi-bicikl-uz-rijeku', roleCodes: ['team-member'] }).expect(400);
+    const created = await http().post('/api/users').set(auth(admin)).send({ email: `marija@${slug}.hr`, displayName: 'Marija Kos', roleCodes: ['team-member'] }).expect(201);
+    marija = created.body.id; expect(created.body.roles).toEqual(['team-member']); expect(created.body.status).toBe('invited');
+    const token = created.body.invitation.token as string;
+    const r = await http().post('/api/auth/invitation/accept').send({ token, password: 'Lozinka-123456' }).expect(400);
     expect(r.body.issues.join(' ')).toMatch(/prečesta/);
-    await http().post('/api/users').set(auth(admin)).send({ email: `marija@${slug}.hr`, displayName: 'Marija Kos', password: 'kratka', roleCodes: ['team-member'] }).expect(400);
-    const ok = await http().post('/api/users').set(auth(admin)).send({ email: `marija@${slug}.hr`, displayName: 'Marija Kos', password: 'plavi-bicikl-uz-rijeku', roleCodes: ['team-member'] }).expect(201);
-    marija = ok.body.id; expect(ok.body.roles).toEqual(['team-member']);
+    await http().post('/api/auth/invitation/accept').send({ token, password: 'kratka' }).expect(400);
+    await http().post('/api/auth/invitation/accept').send({ token, password: 'marija-kos-2027-x' }).expect(400); // ime u lozinci
+    // Slaba lozinka ne troši pozivnicu.
+    await http().post('/api/auth/invitation/accept').send({ token, password: 'plavi-bicikl-uz-rijeku' }).expect(201);
     marijaToken = (await login(`marija@${slug}.hr`, 'plavi-bicikl-uz-rijeku').expect(201)).body.accessToken;
   });
 
@@ -91,11 +97,15 @@ describe('Računi, sesije i MFA (e2e)', () => {
     expect(audit).toEqual(expect.arrayContaining(['mfa.enable', 'login.mfa_failed', 'password.change', 'logout']));
   });
 
-  it('administrator resetira MFA i lozinku; sve sesije korisnika opozvane', async () => {
+  it('administrator resetira MFA i izdaje poveznicu za novu lozinku (WP1.21); sve sesije korisnika opozvane', async () => {
     await http().post(`/api/users/${marija}/reset-mfa`).set(auth(admin)).expect(201);
     await http().get('/api/me').set(auth(marijaToken)).expect(401);
-    await http().post(`/api/users/${marija}/reset-password`).set(auth(admin)).send({ newPassword: 'admin' }).expect(400);
-    await http().post(`/api/users/${marija}/reset-password`).set(auth(admin)).send({ newPassword: 'nova-privremena-staza-7' }).expect(201);
+    // Upisivanje tuđe lozinke više ne postoji.
+    await http().post(`/api/users/${marija}/reset-password`).set(auth(admin)).send({ newPassword: 'nova-privremena-staza-7' }).expect(404);
+    const link = (await http().post(`/api/users/${marija}/password-link`).set(auth(admin)).expect(201)).body;
+    expect(link.delivery).toBe('link');
+    await http().post('/api/auth/password/reset').send({ token: link.token, password: 'admin' }).expect(400);
+    await http().post('/api/auth/password/reset').send({ token: link.token, password: 'nova-privremena-staza-7' }).expect(201);
     marijaToken = (await login(`marija@${slug}.hr`, 'nova-privremena-staza-7').expect(201)).body.accessToken; // bez MFA koda
   });
 

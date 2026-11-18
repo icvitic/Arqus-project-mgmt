@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { AppModule } from '../src/app.module';
+import { inviteUser } from './invite';
 import { seedDemo } from '../src/db/seed';
 import { buildXlsx, type Cell } from '../src/export/xlsx-writer';
 import { readXlsx } from '../src/import/xlsx-reader';
@@ -77,7 +78,7 @@ describe('Uvoz postojećeg projekta iz Excela (WP1.17, e2e)', () => {
     const m = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = m.createNestApplication(); app.setGlobalPrefix('api'); await app.init();
     t.admin = await login(`a@${slug}.hr`, 'Lozinka-123456');
-    const mk = async (local: string, roleCodes: string[]) => { u[local] = (await http().post('/api/users').set(auth(t.admin!)).send({ email: `${local}@${slug}.hr`, displayName: `Korisnik ${local}`, password: PW, roleCodes }).expect(201)).body.id; t[local] = await login(`${local}@${slug}.hr`); };
+    const mk = async (local: string, roleCodes: string[]) => { u[local] = (await inviteUser(app, t.admin!, { email: `${local}@${slug}.hr`, displayName: `Korisnik ${local}`, roleCodes }, PW)).id; t[local] = await login(`${local}@${slug}.hr`); };
     await mk('office', ['project-office']); await mk('fin', ['finance']); await mk('rdr', ['reader']); await mk('pm', []); await mk('tm', []); await mk('lim', ['project-office']);
     partnerOrg = (await http().post('/api/organisations').set(auth(t.admin!)).send({ name: 'Razvojna agencija Sjever', shortName: 'RAS', country: 'HR', type: 'public_body' }).expect(201)).body.id;
   }, 60_000);

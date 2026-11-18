@@ -1,4 +1,4 @@
-# „Moj rad”, obavijesti i osobni kalendar rokova (WP1.18, v0.30.0)
+# „Moj rad”, obavijesti, osobni kalendar rokova i dnevni sažetak (WP1.18, v0.30.0; sažetak WP1.21, v0.31.0)
 
 Cilj: **član tima nakon prijave vidi što danas treba napraviti** – bez traženja po projektima. Tri dijela:
 
@@ -7,6 +7,7 @@ Cilj: **član tima nakon prijave vidi što danas treba napraviti** – bez traž
 | **Moj rad** | trenutno stanje: što čeka korisnika (izvodi se iz podataka pri svakom učitavanju, ništa se ne sprema) | `GET /api/me/work`, stranica **Moj rad** (početna za sve osim uprave i ureda), značka u izborniku |
 | **Obavijesti** | događaji koji su se korisniku dogodili (odobren timesheet, vraćen ZNS…) – spremaju se | `GET /api/me/notifications`, zvonce u zaglavlju |
 | **Kalendar** | rokovi koje korisnik vidi, u Outlooku / Google Kalendaru, preko tajne poveznice | `GET /api/calendar/<token>.ics`, **Moj račun → Rokovi u mom kalendaru** |
+| **Dnevni sažetak** (v0.31.0) | jedna e-poruka radnim danom ujutro kad nešto kasni, dospijeva ili ima novih obavijesti (odj. 4) | `GET\|PUT /api/me/digest`, **Moj račun → Dnevni sažetak e-poštom** |
 
 Nigdje se ne prikazuje iznos; ništa ne otkriva projekt ili prijavu koju korisnik ne bi vidio otvaranjem sam (pristup po projektu, `docs/sigurnost/AUTORIZACIJA.md`).
 
@@ -82,7 +83,7 @@ Upisuje ih servis **u istoj transakciji** kao događaj (`apps/api/src/notificati
 | uvoz iz Excela primijenjen | voditelj projekta | `projects:read` | naziv datoteke |
 | uvoz poništen | voditelj projekta i autor uvoza | `projects:read` | naziv datoteke |
 
-**Sadržaj:** vrsta, akter, projekt/prijava i strukturirani podaci (akronim, mjesec, razdoblje, ishod, uloga, naziv datoteke); tekst se slaže pri čitanju (`notificationText` u domeni – isti za sučelje i budući sažetak e-poštom). Bez iznosa i bez slobodnog teksta drugih korisnika, osim razloga povrata ZNS-a koji primatelj vidi i na zahtjevu.
+**Sadržaj:** vrsta, akter, projekt/prijava i strukturirani podaci (akronim, mjesec, razdoblje, ishod, uloga, naziv datoteke); tekst se slaže pri čitanju (`notificationText` u domeni – isti za sučelje i dnevni sažetak e-poštom). Bez iznosa i bez slobodnog teksta drugih korisnika, osim razloga povrata ZNS-a koji primatelj vidi i na zahtjevu.
 
 **Samo vlastite.** Svaki upit filtrira po korisniku, a baza (RLS, migracija 0027) iste retke otkriva samo kad je u transakciji postavljen `app.user_id` tog korisnika: upit koji bi zaboravio filtar ili se izvršio bez postavke ne vraća ništa. Aplikacija smije mijenjati samo `read_at` (sadržaj je nepromjenjiv). **Zašto zaštita po korisniku i u bazi:** obavijesti su jedina tablica čiji su retci osobni unutar institucije; jedna postavka po čitanju je mala cijena za jamstvo koje ne ovisi o ispravnosti svakog budućeg upita.
 
@@ -100,18 +101,16 @@ Kalendarski klijenti ne šalju zaglavlje Authorization, pa se feed adresira **ta
 
 **Zaštite** (nova neprijavljena površina – `docs/sigurnost/PENTEST-OPSEG.md`): token 32 bajta iz CSPRNG-a (256 bita), u bazi samo SHA-256, prikazan jednom; novi token poništava stari; „Ukloni” ga briše; deaktivacija korisnika ga briše, a feed provjerava i da je korisnik aktivan i nije obrisan; korisnik u ograničenom stanju obveznog MFA ne dobiva feed; isti 404 (status i tijelo) za nepoznat, opozvan i neispravan token, a neispravan prolazi isti put (hash i upit); bez stanara baza otkriva samo redak čiji je hash postavljen u transakciji (RLS – tokeni se ne mogu nabrojati); ograničenje 120 zahtjeva u 10 min po IP adresi (`CALENDAR_RATE_MAX`, `CALENDAR_RATE_WINDOW_MINUTES`); samo čitanje (osim vremena zadnjeg dohvata); `Cache-Control: no-store, private`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`; Caddy u zapisu pristupa token zamjenjuje oznakom `[token]`.
 
-## 4. E-pošta – kad bude SMTP (nije napravljeno)
+## 4. Dnevni sažetak e-poštom (WP1.21, v0.31.0)
 
-SMTP još nije konfiguriran nigdje (ovisi o pružatelju). Kad bude, šalje se **jedan dnevni sažetak** po korisniku – ništa drugo (bez poruke po događaju):
+Napravljeno kad je aplikacija dobila slanje e-pošte (vlastiti SMTP klijent, `docs/PILOT-INSTALACIJA.md` odj. 3). Bez uključene pošte (`MAIL_TRANSPORT=off` – demo, NAS) sažetka nema. Uz sigurnosne poruke računa (pozivnica, nova lozinka, „lozinka je promijenjena”) sažetak je **jedina** e-pošta – nema poruke po događaju.
 
-- **Kada:** jednom dnevno u 7:00 po zoni institucije, radnim danom; samo ako postoji barem jedna stavka „kasni” ili „uskoro” u „Moj rad” **ili** barem jedna nepročitana obavijest nastala nakon prethodnog sažetka. Inače se ne šalje ništa.
-- **Kome:** aktivnim korisnicima s potvrđenom e-adresom koji se nisu isključili (postavka u Moj račun, zadano uključeno); korisnicima u ograničenom stanju obveznog MFA ne.
-- **Naslov:** `ArQus: 2 kasni, 1 uskoro, 3 nove obavijesti` (dijelovi s nulom se izostavljaju).
-- **Tijelo (tekst i jednostavan HTML):**
-  1. „Kasni” i „Uskoro” iz `GET /api/me/work` (isti `deriveWorkItems`, isti tekst `title` i `detail`, akronim, rok), najviše 15 stavki, zatim „i još N”.
-  2. Broj stavki „čeka” (bez popisa).
-  3. Nepročitane obavijesti nastale od prethodnog sažetka (`notificationText`, najviše 10).
-  4. Jedna poveznica na **Moj rad** (`https://<instalacija>/#/moj-rad`) – poveznice na pojedine stavke da (relativne putanje iz `link`), ali **bez tokena i bez ičega što prijavljuje korisnika**.
-- **Ne sadrži:** iznose (kao ni stranica), tokene, priloge, imena projekata koje korisnik ne vidi (isti izračun kao stranica, za tog korisnika).
-- **Bilježi se:** vrijeme zadnjeg sažetka po korisniku (da se obavijesti ne ponavljaju); revizija `digest.sent` bez sadržaja.
-- **Potrebno za izvedbu:** SMTP pružatelj (EU), `SMTP_*` varijable, SPF/DKIM domene instalacije, raspored (isti proces kao dnevni uvoz poziva), predložak, postavka isključivanja, test sa simuliranim SMTP-om.
+- **Kada:** radnim danom od **7:00** po zoni institucije (`DIGEST_HOUR`). Raspored u procesu aplikacije (isti mehanizam kao dnevni uvoz poziva) provjerava svakih 5 minuta (`DIGEST_TICK_MINUTES`); sažetak koji u 7:00 nije otišao (aplikacija ugašena) šalje se pri prvoj provjeri nakon toga, ali **najkasnije do 12:00** – popodne se više ne šalje. **Radni dan = ponedjeljak–petak u zoni institucije**; kalendara blagdana nema (ovisi o zemlji i instituciji) – sažetak na blagdan je bezopasan, a propušten radni dan ne bi bio.
+- **Kome:** aktivnim korisnicima s lozinkom koji ga nisu isključili (**Moj račun → Dnevni sažetak e-poštom**, zadano uključeno; promjena vrijedi od sljedeće provjere). Ne dobiva ga tko se ne može prijaviti: pozvan (pozivnica neprihvaćena), deaktiviran, obrisan, ili mu je MFA obvezan, a nije ga postavio. Potvrda e-adrese je pozivnica: račun postaje aktivan tek kad korisnik otvori poveznicu iz pretinca (ili onu koju mu je predao administrator).
+- **Uvjet:** barem jedna stavka **kasni** ili **uskoro** u „Moj rad” **ili** barem jedna nepročitana obavijest nastala nakon prethodnog poslanog sažetka (bez prethodnog: sve nepročitane). Inače ništa. Pravilo: `selectDigest` u `packages/domain/src/mail.ts`.
+- **Sadržaj:** stavke se računaju **istim** `MyWorkService` kao `GET /api/me/work`, za tog korisnika i pod njegovim dozvolama (kontekst kao njegov zahtjev, dozvole iz baze pri svakom izvođenju). Naslov `ArQus: 2 kasni, 1 uskoro, 3 nove obavijesti` (dijelovi s nulom izostavljeni). Tijelo (tekst i jednostavan HTML istog sadržaja, bez slika): „Kasni” i „Uskoro” (oznaka projekta, naslov, pojedinosti s rokom; najviše 15, zatim „… i još N”), broj stavki „čeka”, nove obavijesti **samo naslovom** (najviše 10 – pojedinosti nose ime aktera i razlog povrata, pa se vide tek u aplikaciji), jedna poveznica `<PUBLIC_URL>/#/moj-rad` i rečenica gdje se sažetak isključuje. Predložak: `digestMail` u domeni.
+- **Ne sadrži:** iznose, tokene ni ništa što prijavljuje korisnika, priloge, projekte i prijave koje korisnik ne vidi, poveznicu za odjavu (nema nove neprijavljene površine – postavka je u Moj račun).
+- **Najviše jednom po korisniku i danu – u bazi:** prije slanja servis u **zasebnoj transakciji** umeće redak u `digest_runs` (jedinstven indeks institucija + korisnik + dan institucije, `ON CONFLICT DO NOTHING`); šalje samo onaj tko je redak umetnuo. Ponovno pokretanje i druga instanca istog dana ne šalju ništa. Pad procesa između umetanja i slanja znači da sažetak tog dana izostane – nikad da ode dvaput. Ishod se upisuje u isti redak (`sent`, `empty`, `skipped`, `failed`).
+- **Otpornost:** neuspjeh jednog pretinca (ili greška u podacima jednog korisnika) ne zaustavlja ostale; izvođenje traje najviše `DIGEST_RUN_MAX_MINUTES` (20) – korisnici koji nisu stigli na red preuzimaju se pri sljedećoj provjeri istog jutra; broj istovremenih SMTP veza ograničava red e-pošte (`MAIL_MAX_CONNECTIONS`, 2). Privremene greške relaya ponavljaju se ograničeno, neuspjeli sažetak se taj dan ne ponavlja.
+- **Bilježi se:** redak `digest_runs` (dan, ishod, vrijeme) i zapis isporuke (`mail_deliveries`: primatelj-račun, vrsta `digest`, ishod, oznaka greške) – **bez sadržaja**; administrator ga vidi u **Korisnici → E-pošta**. Revizijski zapis po sažetku se ne piše (bio bi jedan redak dnevno po korisniku u nepromjenjivoj tablici; isporuka je zabilježena drugdje); revidira se promjena postavke (`digest.update`).
+- **Test:** `apps/api/test/digest.e2e.test.ts` (jednom dnevno i s dvije istovremene instance, postavka, tko se ne može prijaviti, neuspio pretinac, vikend i prije 7:00, vremensko ograničenje, bez iznosa i tuđih projekata), domena `mail.test.ts` (odabir, naslov, radni dan i sat u zoni institucije).

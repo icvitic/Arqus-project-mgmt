@@ -1,4 +1,7 @@
-import { BadRequestException, Controller, Delete, Get, Header, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
+import { z } from 'zod';
+import { parseBody } from '../common/validation';
+import { DigestService } from './digest.service';
 import type { Request, Response } from 'express';
 import { Authenticated, Public } from '../identity/auth.guard';
 import { DbService } from '../db/db.service';
@@ -19,7 +22,7 @@ const idParam = (raw: string): number => {
  */
 @Controller('me')
 export class MeController {
-  constructor(private readonly work: MyWorkService, private readonly notes: NotificationsService, private readonly calendar: CalendarService, private readonly db: DbService, private readonly ctx: TenantContext) {}
+  constructor(private readonly work: MyWorkService, private readonly notes: NotificationsService, private readonly calendar: CalendarService, private readonly digest: DigestService, private readonly db: DbService, private readonly ctx: TenantContext) {}
   private me() { return this.ctx.require().userId!; }
 
   /** „Moj rad”: što čeka korisnika (izvedeno iz trenutnih podataka, bez iznosa). */
@@ -48,6 +51,13 @@ export class MeController {
 
   @Authenticated() @Delete('calendar')
   calendarRevoke() { return this.db.tx((tx) => this.calendar.revoke(tx, this.me())); }
+
+  /** WP1.21: dnevni sažetak e-poštom – vlastita postavka (zadano uključen); vrijedi odmah. */
+  @Authenticated() @Get('digest')
+  digestSetting() { return this.db.tx((tx) => this.digest.setting(tx, this.me())); }
+
+  @Authenticated() @Put('digest')
+  digestSet(@Body() body: unknown) { const { enabled } = parseBody(z.object({ enabled: z.boolean() }).strict(), body); return this.db.tx((tx) => this.digest.setEnabled(tx, this.me(), enabled)); }
 }
 
 /**

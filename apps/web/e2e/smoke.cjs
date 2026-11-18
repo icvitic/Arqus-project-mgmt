@@ -7,7 +7,11 @@
  *      skriveni upravi bez prava na plaće (sati vidljivi).
  * WP1.17: uvoz iz Excela (predložak, greške po retku, pregled s upozorenjem, potvrda, podaci na karticama, povijest).
  * WP1.18: član tima nakon prijave stiže na „Moj rad”, iz stavke otvara timesheet tekućeg mjeseca i predaje ga; voditelj ga vidi
- *      u svojem „Moj rad”, odobrava i stavka nestaje; član tima dobiva obavijest „odobren” u zvoncu. */
+ *      u svojem „Moj rad”, odobrava i stavka nestaje; član tima dobiva obavijest „odobren” u zvoncu.
+ * WP1.21: administrator poziva korisnika bez lozinke i kopira poveznicu (instalacija bez e-pošte); pozvani je otvara, sam
+ *      bira lozinku i ulazi u aplikaciju (token samo u fragmentu adrese i tijelu zahtjeva, nikad u URL-u zahtjeva);
+ *      zaboravljena lozinka daje isti odgovor za postojeći i nepostojeći račun; administrator izdaje poveznicu za novu
+ *      lozinku, korisnik je postavlja i prijavljuje se novom lozinkom (MFA se i dalje traži). */
 const { chromium } = require('playwright');
 const { createHmac } = require('node:crypto');
 // TOTP (RFC 6238) za korak MFA u testu.
@@ -22,6 +26,7 @@ function totp(secretB32, offset = 0) {
 const WEB = process.env.WEB_URL ?? 'http://localhost:4173';
 const SLUG = process.env.E2E_TENANT ?? 'e2e'; const EMAIL = process.env.E2E_EMAIL ?? 'admin@e2e.local'; const PW = process.env.E2E_PASSWORD ?? 'E2e-lozinka-123';
 const SHOTS = process.env.E2E_SHOTS; // mapa za snimke zaslona (neobavezno)
+let mfaStepUsed = 0; // zadnji TOTP korak koji je test potrošio za novog korisnika
 const tag = Date.now().toString(36);
 
 (async () => {
@@ -43,6 +48,29 @@ const tag = Date.now().toString(36);
     console.log('ok');
   };
   const shot = async (name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true }); };
+  /** WP1.21: korisnik kroz API kao administrator (bez e-pošte API vraća token pozivnice jednom) i prihvaćanje pozivnice. */
+  const apiInvite = (email, displayName, roleCodes, pw) => page.evaluate(async ([email, displayName, roleCodes, pw]) => {
+    const created = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` }, body: JSON.stringify({ email, displayName, roleCodes }) });
+    if (created.status !== 201) return created.status;
+    const { invitation } = await created.json();
+    return (await fetch('/api/auth/invitation/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: invitation.token, password: pw }) })).status;
+  }, [email, displayName, roleCodes, pw]);
+  /** Nova sesija preglednika (drugi korisnik); bilježi URL-ove svih zahtjeva (provjera da token nije u adresi zahtjeva). */
+  const freshContext = async (label) => {
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    const p = await ctx.newPage();
+    const urls = []; const bodies = [];
+    p.on('request', (r) => { urls.push(r.url()); if (r.postData()) bodies.push(r.postData()); });
+    p.on('pageerror', (e) => problems.push(`pageerror (${label}): ${e.message}`));
+    p.on('dialog', (d) => d.accept());
+    return { ctx, p, urls, bodies };
+  };
+  /** Token iz poveznice nikad u URL-u zahtjeva (samo fragment u adresnoj traci i tijelo POST-a). */
+  const assertTokenOnlyInBody = (token, urls, bodies) => {
+    const leaked = urls.filter((u) => u.includes(token));
+    if (leaked.length) throw new Error(`token u URL-u zahtjeva: ${leaked.join(', ')}`);
+    if (!bodies.some((b) => b.includes(token))) throw new Error('token nije poslan u tijelu zahtjeva');
+  };
   // Drugi korisnik (ured za projekte) u zasebnoj sesiji preglednika – za istovremenu izmjenu i četiri oka (WP1.14b).
   const officeEmail = `ured.${tag}@e2e.local`; const officePw = `zelena-staza-${tag}-kroz-polje`;
   let office = null;
@@ -69,7 +97,7 @@ const tag = Date.now().toString(36);
     await page.getByRole('button', { name: 'Prijava' }).click();
     await page.getByRole('heading', { name: 'Portfelj' }).waitFor(); // početna stranica uz portfolio:read (WP1.15)
     // Drugi korisnik: voditeljica ureda za projekte (kroz API, kao administrator).
-    const status = await page.evaluate(async ([email, pw]) => (await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` }, body: JSON.stringify({ email, displayName: 'Iva Ured', password: pw, roleCodes: ['project-office'] }) })).status, [officeEmail, officePw]);
+    const status = await apiInvite(officeEmail, 'Iva Ured', ['project-office'], officePw);
     if (status !== 201) throw new Error(`korisnik ureda nije stvoren (${status})`);
   });
   await step('paket po pozivu (sučelje)', async () => {
@@ -385,16 +413,67 @@ const tag = Date.now().toString(36);
   });
   const newEmail = `ana.${tag}@e2e.local`; const newPw = `plava-staza-${tag}-uz-more`;
   const acronym = `E2E${tag}`.slice(0, 20);
-  await step('novi korisnik (administrator) – član tima samo na projektu', async () => {
+  await step('pozivnica (administrator, bez e-pošte): poveznica jednom, korisnik sam bira lozinku', async () => {
     await page.getByRole('link', { name: 'Korisnici' }).click();
-    const form = page.locator('.card', { hasText: 'Novi korisnik' });
+    const form = page.locator('.card', { hasText: 'Pozovi korisnika' });
+    if (await form.getByLabel(/lozinka/i).count()) throw new Error('obrazac pozivnice ne smije imati polje lozinke');
     await form.getByLabel('Ime i prezime').fill('Ana Novak');
     await form.getByLabel('E-adresa').fill(newEmail);
-    await form.getByLabel('Privremena lozinka').fill(newPw);
     await form.getByLabel(/^Projekt/).selectOption({ label: `${acronym} – Projekt iz e2e testa` }); // član tima zadano: uloga na projektu
-    await page.getByRole('button', { name: 'Dodaj korisnika' }).click();
-    await page.getByRole('cell', { name: new RegExp(newEmail.replace('.', '\\.')) }).waitFor();
+    await page.getByRole('button', { name: 'Pošalji pozivnicu' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Poveznica pozivnice' });
+    await dialog.waitFor();
+    await dialog.getByText(/pouzdanim kanalom/).waitFor();
+    const link = await dialog.getByTestId('handover-link').inputValue();
+    if (!link.startsWith(`${new URL(WEB).origin}/#/pozivnica/`)) throw new Error(`poveznica: ${link}`);
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => undefined);
+    await dialog.getByRole('button', { name: /Kopiraj/ }).click();
+    await shot('pozivnica-poveznica');
+    await dialog.getByRole('button', { name: 'Zatvori' }).click();
+    const row = page.locator('tr', { hasText: newEmail });
+    await row.getByText('pozvan', { exact: true }).waitFor();
+    await row.getByText(/pozivnica do .* ručno/).waitFor();
     await page.getByText(`Član tima · ${acronym}`).waitFor();
+    // Pozvani korisnik otvara poveznicu u svojem pregledniku.
+    const { ctx, p, urls, bodies } = await freshContext('pozvana');
+    await p.goto(link);
+    await p.getByText('Prihvaćanje pozivnice').waitFor();
+    await p.getByText(/Dobrodošao\/la, Ana Novak/).waitFor();
+    if (SHOTS) await p.screenshot({ path: `${SHOTS}/pozivnica-prihvacanje.png`, fullPage: true });
+    await p.getByLabel(/^Lozinka/).fill('kratka');
+    await p.getByLabel('Ponovi lozinku').fill('kratka');
+    await p.getByRole('button', { name: 'Postavi lozinku i prijavi se' }).click();
+    await p.getByText('Lozinka ne zadovoljava pravila').waitFor(); // politika lozinki kao drugdje
+    await p.getByLabel(/^Lozinka/).fill(newPw);
+    await p.getByLabel('Ponovi lozinku').fill(newPw);
+    await p.getByRole('button', { name: 'Postavi lozinku i prijavi se' }).click();
+    await p.getByRole('heading', { name: 'Moj rad' }).waitFor();
+    if (p.url().includes(link.split('/').pop())) throw new Error('token ostaje u adresnoj traci nakon prihvaćanja');
+    assertTokenOnlyInBody(link.split('/').pop(), urls, bodies);
+    // Iskorištena poveznica: jasna slijepa ulica.
+    await p.goto(link);
+    await p.getByTestId('link-invalid').waitFor();
+    if (SHOTS) await p.screenshot({ path: `${SHOTS}/poveznica-nevaljana.png`, fullPage: true });
+    await ctx.close();
+    await page.reload();
+    await page.locator('tr', { hasText: newEmail }).getByText('aktivan', { exact: true }).waitFor();
+  });
+  await step('zaboravljena lozinka: isti odgovor za postojeći i nepostojeći račun (bez e-pošte upućuje na administratora)', async () => {
+    const { ctx, p } = await freshContext('zaboravljena');
+    const ask = async (email) => {
+      await p.goto(WEB);
+      await p.getByRole('button', { name: 'Zaboravljena lozinka?' }).click();
+      await p.getByLabel('Institucija (oznaka)').fill(SLUG);
+      await p.getByLabel('E-adresa').fill(email);
+      await p.getByRole('button', { name: 'Pošalji poveznicu' }).click();
+      return (await p.getByTestId('forgot-done').innerText()).trim();
+    };
+    const known = await ask(newEmail);
+    if (SHOTS) await p.screenshot({ path: `${SHOTS}/zaboravljena-lozinka.png`, fullPage: true });
+    const unknown = await ask(`nitko.${tag}@e2e.local`);
+    if (known !== unknown) throw new Error(`odgovori se razlikuju:\n${known}\n---\n${unknown}`);
+    if (!/ne šalje e-poštu/.test(known)) throw new Error('bez e-pošte poruka mora uputiti na administratora');
+    await ctx.close();
   });
   await step('pristup projektu: korisnik s ulogom na projektu', async () => {
     await page.getByRole('link', { name: 'Projekti' }).click();
@@ -423,6 +502,7 @@ const tag = Date.now().toString(36);
   });
   await step('prijava s MFA kodom', async () => {
     await relogin(newEmail, newPw);
+    mfaStepUsed = Math.floor(Date.now() / 30000) + 1; // poslužitelj pamti zadnji iskorišteni korak (zaštita od ponovne upotrebe)
     await page.getByLabel('Kod iz aplikacije za autentikaciju').fill(totp(secret, 1));
     await page.getByRole('button', { name: 'Potvrdi kod' }).click();
     await page.getByRole('heading', { name: 'Moj rad' }).waitFor(); // WP1.18: početna stranica člana tima
@@ -535,7 +615,7 @@ const tag = Date.now().toString(36);
   // WP1.19: uprava (čitatelj, finance:read bez personnel:read) vidi sate, ne iznose troškova osoblja; zbroj kategorije ostaje.
   await step('troškovi osoblja: bez prava na plaće sati da, iznos ne', async () => {
     const readerEmail = `uprava.${tag}@e2e.local`; const readerPw = `crvena-staza-${tag}-uz-rijeku`;
-    const status = await page.evaluate(async ([email, pw]) => (await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` }, body: JSON.stringify({ email, displayName: 'Uprava Čitatelj', password: pw, roleCodes: ['reader'] }) })).status, [readerEmail, readerPw]);
+    const status = await apiInvite(readerEmail, 'Uprava Čitatelj', ['reader'], readerPw);
     if (status !== 201) throw new Error(`čitatelj nije stvoren (${status})`);
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
     const r = await ctx.newPage();
@@ -555,6 +635,40 @@ const tag = Date.now().toString(36);
     if (await r.getByText(/310,00/).count()) throw new Error('iznos troška osoblja ne smije biti vidljiv bez personnel:read');
     await r.getByRole('cell', { name: 'Anketno istraživanje' }).waitFor(); // ručni trošak s iznosom
     if (SHOTS) await r.screenshot({ path: `${SHOTS}/troskovi-bez-place.png`, fullPage: true });
+    await ctx.close();
+  });
+  await step('poveznica za novu lozinku (administrator): korisnik postavlja lozinku, prijava novom lozinkom i MFA kodom', async () => {
+    await page.getByRole('link', { name: 'Korisnici' }).click();
+    await page.locator('tr', { hasText: newEmail }).getByRole('button', { name: 'poveznica za novu lozinku' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Poveznica za novu lozinku' });
+    await dialog.waitFor();
+    const link = await dialog.getByTestId('handover-link').inputValue();
+    if (!link.includes('/#/lozinka/')) throw new Error(`poveznica: ${link}`);
+    await dialog.getByRole('button', { name: 'Zatvori' }).click();
+    const { ctx, p, urls, bodies } = await freshContext('nova lozinka');
+    await p.goto(link);
+    await p.getByText(`Odaberi novu lozinku za račun ${newEmail}`).waitFor();
+    const fresh = `nova-staza-${tag}-kroz-sumu`;
+    await p.getByLabel('Nova lozinka').fill(fresh);
+    await p.getByLabel('Ponovi lozinku').fill(fresh);
+    await p.getByRole('button', { name: 'Postavi novu lozinku' }).click();
+    await p.getByTestId('reset-done').waitFor();
+    if (SHOTS) await p.screenshot({ path: `${SHOTS}/nova-lozinka-gotovo.png`, fullPage: true });
+    assertTokenOnlyInBody(link.split('/').pop(), urls, bodies);
+    await p.getByRole('button', { name: 'Na prijavu' }).click();
+    await p.getByLabel('E-adresa').fill(newEmail);
+    await p.getByLabel('Lozinka').fill(newPw);
+    await p.getByRole('button', { name: 'Prijava' }).click();
+    await p.getByText('Pogrešni podaci za prijavu').waitFor(); // stara lozinka više ne vrijedi
+    await p.getByLabel('Lozinka').fill(fresh);
+    await p.getByRole('button', { name: 'Prijava' }).click();
+    // Nova lozinka ne zaobilazi MFA: traži se kod. Poslužitelj prihvaća samo korak NOVIJI od zadnjeg iskorištenog (ranija
+    // prijava ovog korisnika potrošila je korak „sada + 1”), pa se čeka da sat prijeđe u taj korak (najviše ~30 s) i šalje
+    // kod sljedećeg koraka – neovisno o tome koliko su prethodni koraci testa trajali.
+    while (Math.floor(Date.now() / 30000) < mfaStepUsed) await p.waitForTimeout(500);
+    await p.getByLabel('Kod iz aplikacije za autentikaciju').fill(totp(secret, 1));
+    await p.getByRole('button', { name: 'Potvrdi kod' }).click();
+    await p.getByRole('heading', { name: 'Moj rad' }).waitFor();
     await ctx.close();
   });
   // Testna baza se ponovno koristi: postavka natrag na „nije obvezna”, administrator bez MFA (ponovljivo pokretanje).

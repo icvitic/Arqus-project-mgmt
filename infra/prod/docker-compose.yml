@@ -28,6 +28,20 @@ services:
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?postavi MFA_ENCRYPTION_KEY}
       TRUST_PROXY: "uniquelocal"
       FT_IMPORT_INTERVAL_HOURS: ${FT_IMPORT_INTERVAL_HOURS:-24}
+      # E-pošta (WP1.21): zadano isključena (poveznice pozivnica i novih lozinki dobiva administrator); smtp = relay iz SMTP_*.
+      # Uz smtp su PUBLIC_URL (https://<domena>), SMTP_HOST i MAIL_FROM obvezni – inače se aplikacija ne pokreće.
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-off}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_TLS_CA_FILE: ${SMTP_TLS_CA_FILE:-}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-20}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ArQus Projekti}
+      DIGEST_HOUR: ${DIGEST_HOUR:-7}
       # Pohrana dokumenata (ADR-0010, WP1.20): local = volumen `documents` (zadano); s3 = bucket iz DOCUMENTS_S3_*.
       DOCUMENTS_STORAGE: ${DOCUMENTS_STORAGE:-local}
       DOCUMENTS_DIR: /data/documents

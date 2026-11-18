@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { dateTime } from '../lib/format';
 import { useLoad } from '../lib/hooks';
-import type { CalendarStatus, Me } from '../lib/types';
+import type { CalendarStatus, DigestSetting, Me } from '../lib/types';
 import { ActionButton, ActionForm, ErrorBox, Field, Loading } from '../ui';
 
 export function Account({ me, reloadMe }: { me: Me; reloadMe: () => Promise<void> }) {
@@ -28,8 +28,31 @@ export function Account({ me, reloadMe }: { me: Me; reloadMe: () => Promise<void
         </div>
         <MfaCard me={me} reloadMe={reloadMe} onDone={setDone} />
       </div>
+      <DigestCard />
       <CalendarCard />
     </>
+  );
+}
+
+/**
+ * WP1.21 – dnevni sažetak e-poštom: radnim danom ujutro, samo kad nešto kasni, dospijeva uskoro ili ima novih obavijesti.
+ * Zadano uključen; promjena vrijedi odmah (u poruci nema poveznice za odjavu – postavka je ovdje).
+ */
+function DigestCard() {
+  const st = useLoad(() => api<DigestSetting>('GET', '/me/digest'), []);
+  return (
+    <div className="card digest-card"><h2>Dnevni sažetak e-poštom</h2>
+      <ErrorBox error={st.error} />
+      {!st.data ? <Loading /> : (
+        <>
+          <label className="switch-row">
+            <input type="checkbox" checked={st.data.enabled} aria-describedby="digest-hint" onChange={async (e) => { try { st.setData(await api<DigestSetting>('PUT', '/me/digest', { enabled: e.target.checked })); } catch (err) { alert((err as Error).message); } }} />
+            <span><b>{st.data.enabled ? 'Uključen' : 'Isključen'}</b> – jedna poruka radnim danom u {st.data.hour}:00, samo kad nešto kasni, dospijeva u sljedećih 30 dana ili imaš novu obavijest.</span>
+          </label>
+          <p className="muted" id="digest-hint">Sadrži iste stavke kao „Moj rad” (naslove i rokove, bez iznosa) i poveznicu u aplikaciju.{!st.data.mailEnabled && ' Ova instalacija trenutno ne šalje e-poštu – postavka će vrijediti kad administrator uključi slanje.'}</p>
+        </>
+      )}
+    </div>
   );
 }
 

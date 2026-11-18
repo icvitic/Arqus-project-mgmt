@@ -19,6 +19,9 @@ jobs:
       TEST_S3_ENDPOINT: http://127.0.0.1:9100
       TEST_S3_ACCESS_KEY_ID: arqus-test
       TEST_S3_SECRET_ACCESS_KEY: arqus-test-secret-123
+      # WP1.21: SMTP klijent i slanje pozivnice nad stvarnim SMTP poslužiteljem (scripts/smtp-test.sh; testne vjerodajnice)
+      TEST_SMTP_PORT: "1125"
+      TEST_SMTP_API: http://127.0.0.1:8125
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -32,6 +35,8 @@ jobs:
       - run: pnpm lint
       - name: MinIO za testove S3 (ista naredba kao lokalno)
         run: sh scripts/minio-test.sh up
+      - name: Mailpit za testove SMTP-a (ista naredba kao lokalno)
+        run: sh scripts/smtp-test.sh up
       - run: pnpm test
       - name: Validacija paketa programa (shema + semantika)
         run: node packages/domain/dist/cli.js docs/domena/paketi

@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { AppModule } from '../src/app.module';
+import { inviteUser } from './invite';
 import { seedDemo } from '../src/db/seed';
 
 const ADMIN_URL = process.env.TEST_DATABASE_MIGRATE_URL ?? 'postgres://arqus@127.0.0.1:5433/arqus_test';
@@ -37,7 +38,7 @@ describe('Financije: timesheetovi, troškovi, ZNS (e2e)', () => {
     const m = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = m.createNestApplication(); app.setGlobalPrefix('api'); await app.init();
     A = await login(slugA); B = await login(slugB);
-    const u = await http().post('/api/users').set(auth(A)).send({ email: `ivana@${slugA}.hr`, displayName: 'Ivana', password: 'Radnica-123456', roleCodes: ['team-member'] }).expect(201);
+    const u = await inviteUser(app, A, { email: `ivana@${slugA}.hr`, displayName: 'Ivana', roleCodes: ['team-member'] }, 'Radnica-123456');
     workerUserId = u.body.id; worker = await login(slugA, `ivana@${slugA}.hr`, 'Radnica-123456');
     const pkg = await http().post('/api/programme-packages').set(auth(A)).send({
       meta: { id: pozivId, extends: 'npoo-2021-2026', programme: 'NPOO – poziv', version: '1.0.0', validFrom: '2026-10-01', language: 'hr' },
