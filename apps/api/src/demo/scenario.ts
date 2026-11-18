@@ -23,6 +23,11 @@ export const DEMO_USERS: DemoUser[] = [
 ];
 
 export const demoEmail = (local: string, slug: string): string => `${local}@${slug}.local`;
+/**
+ * WP1.21: račun koji ostaje POZVAN (pozivnica nije prihvaćena) – administrator u izborniku Korisnici pokazuje stanje
+ * „pozvan”, ponovno slanje i poništavanje pozivnice. Ne može se prijaviti.
+ */
+export const DEMO_INVITED = { local: 'pozvana', displayName: 'Ivana Marić', note: 'pozvana, još nije prihvatila pozivnicu – za prikaz pozivnica u izborniku Korisnici' } as const;
 export const DEMO_TENANT_NAME = 'Pokazno sveučilište';
 export const DEMO_DEFAULT_PASSWORD = 'Plavi-Jadran-2026';
 /** WP1.16b: polazna mjera (sati po ZNS-u prije ArQusa) i prijavljeni sati pripreme ZNS-a 1 ZELENI-LAB → ušteda 40 %. */
@@ -76,9 +81,15 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   userIds.admin = existing.find((u) => u.email === demoEmail('admin', slug))!.id;
   for (const u of DEMO_USERS.filter((x) => x.key !== 'admin')) {
     // Voditelji i član tima nemaju ulogu na razini institucije: pristup dobivaju na projektu (imenovanjem za voditelja, dodavanjem u tim).
-    const r = await admin.post<Row>('/users', { email: demoEmail(u.local, slug), displayName: u.displayName, password, roleCodes: u.scope === 'tenant' ? [u.role] : [] });
+    // WP1.21: stvarni tok pozivnice – seeder radi bez e-pošte, pa API administratoru vraća token jednom; korisnik ga
+    // prihvaća i bira (poznatu demo) lozinku. Administrator lozinku ne zadaje.
+    const r = await admin.post<Row & { invitation: { token?: string } }>('/users', { email: demoEmail(u.local, slug), displayName: u.displayName, roleCodes: u.scope === 'tenant' ? [u.role] : [] });
+    if (!r.invitation.token) throw new Error('Demo seeder radi samo bez e-pošte (MAIL_TRANSPORT=off) – API nije vratio token pozivnice');
+    await new DemoApi(base).post('/auth/invitation/accept', { token: r.invitation.token, password });
     userIds[u.key] = r.id;
   }
+  // Jedan račun ostaje pozvan (pozivnica neprihvaćena).
+  await admin.post('/users', { email: demoEmail(DEMO_INVITED.local, slug), displayName: DEMO_INVITED.displayName, roleCodes: [] });
   const as = async (key: string): Promise<Api> => DemoApi.login(base, slug, demoEmail(DEMO_USERS.find((u) => u.key === key)!.local, slug), password);
   const office = await as('office'); const pm = await as('pm'); const pm2 = await as('pm2'); const member = await as('member'); const finance = await as('finance');
   log(`korisnici: ${DEMO_USERS.length}`);

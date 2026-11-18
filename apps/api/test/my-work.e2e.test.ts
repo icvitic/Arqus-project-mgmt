@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client, Pool } from 'pg';
 import { AppModule } from '../src/app.module';
+import { inviteUser } from './invite';
 import { seedDemo } from '../src/db/seed';
 import { buildXlsx, type Cell } from '../src/export/xlsx-writer';
 import { readXlsx } from '../src/import/xlsx-reader';
@@ -68,7 +69,7 @@ describe('Moj rad, obavijesti i kalendar (WP1.18, e2e)', () => {
     // A: ručni trošak bez dokaza u RP2 (bez ZNS-a).
     await http().post(`/api/projects/${f.A.id}/expenses`).set(admin).send({ categoryCode: 'PUT', date: '2027-05-03', description: 'Putni trošak', amount: 20_000 }).expect(201);
     // Ured za projekte; interni rokovi prijava (vlastita prijava voditelja `lead` i tuđa); praćeni poziv bez odluke go/no-go.
-    await http().post('/api/users').set(admin).send({ email: `office@mw-${tag}.hr`, displayName: 'Ured', password: 'Plava-Staza-2027-x', roleCodes: ['project-office'] }).expect(201);
+    await inviteUser(app, f.tokens.admin, { email: `office@mw-${tag}.hr`, displayName: 'Ured', roleCodes: ['project-office'] }, 'Plava-Staza-2027-x');
     office = (await http().post('/api/auth/login').send({ tenantSlug: `mw-${tag}`, email: `office@mw-${tag}.hr`, password: 'Plava-Staza-2027-x' }).expect(201)).body.accessToken;
     for (const [id, d] of [[f.proposals.mine, '2027-07-25'], [f.proposals.other, '2027-07-20']] as const) {
       const rev = (await http().get(`/api/proposals/${id}`).set(admin).expect(200)).body.revision;

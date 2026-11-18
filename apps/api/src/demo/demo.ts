@@ -92,9 +92,12 @@ async function bootstrapTenant(db: Db, slug: string, name: string, password: str
 
 /** API u istom procesu (aplikacijska uloga), na slučajnom portu samo na loopbacku. */
 async function withInProcessApi<T>(appUrl: string, fn: (base: string) => Promise<T>): Promise<T> {
-  const saved = { db: process.env.DATABASE_URL, ft: process.env.FT_IMPORT_INTERVAL_HOURS };
+  const saved = { db: process.env.DATABASE_URL, ft: process.env.FT_IMPORT_INTERVAL_HOURS, mail: process.env.MAIL_TRANSPORT };
   process.env.DATABASE_URL = appUrl;
   process.env.FT_IMPORT_INTERVAL_HOURS = '0'; // seeder ne pokreće periodični uvoz poziva
+  // WP1.21: API seedera ne šalje e-poštu ni kad je instalacija ima (demo računi se ne pozivaju porukom, a token pozivnice
+  // seeder dobiva samo bez pošte) – postavka vrijedi samo za ovaj proces naredbe `demo`, ne za poslužitelj.
+  process.env.MAIL_TRANSPORT = 'off';
   const { AppModule } = await import('../app.module');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false, logger: ['error', 'warn'] });
   try {
@@ -105,7 +108,7 @@ async function withInProcessApi<T>(appUrl: string, fn: (base: string) => Promise
     return await fn(`http://127.0.0.1:${address.port}`);
   } finally {
     await app.close();
-    for (const [k, v] of [['DATABASE_URL', saved.db], ['FT_IMPORT_INTERVAL_HOURS', saved.ft]] as const) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    for (const [k, v] of [['DATABASE_URL', saved.db], ['FT_IMPORT_INTERVAL_HOURS', saved.ft], ['MAIL_TRANSPORT', saved.mail]] as const) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
 }
 

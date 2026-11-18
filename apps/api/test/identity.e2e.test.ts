@@ -5,6 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module';
+import { inviteUser } from './invite';
 import { seedDemo } from '../src/db/seed';
 
 const ADMIN_URL = process.env.TEST_DATABASE_MIGRATE_URL ?? 'postgres://arqus@127.0.0.1:5433/arqus_test';
@@ -47,9 +48,9 @@ describe('Identitet (e2e)', () => {
   });
 
   it('admin stvara korisnika s ulogom reader; popis korisnika sadrži samo vlastiti stanar', async () => {
-    const created = await http().post('/api/users').set('Authorization', `Bearer ${tokenA}`)
-      .send({ email: `uprava@${slugA}.hr`, displayName: 'Uprava', password: 'Citatelj-1234', roleCodes: ['reader'] }).expect(201);
-    expect(created.body.status).toBe('active');
+    // WP1.21: novi korisnik je pozvan (bez lozinke); lozinku bira sam prihvaćanjem pozivnice.
+    const created = await inviteUser(app, tokenA, { email: `uprava@${slugA}.hr`, displayName: 'Uprava', roleCodes: ['reader'] }, 'Citatelj-1234');
+    expect(created.body.status).toBe('invited');
     const list = await http().get('/api/users').set('Authorization', `Bearer ${tokenA}`).expect(200);
     const emails = list.body.map((u: { email: string }) => u.email);
     expect(emails).toContain(`uprava@${slugA}.hr`);

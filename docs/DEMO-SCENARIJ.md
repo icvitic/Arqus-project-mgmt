@@ -131,6 +131,14 @@ Rečenica: *„Vi već imate projekte u tijeku – u Excelu. Ne prepisujete ih: 
 - Kartica **Pristup**: tko vidi projekt i kroz koju ulogu – na ovom projektu (Petra, Luka) ili kroz ulogu institucije (ured, financije, uprava); Petra može dodati člana tima na svoj projekt, ali ne i ulogu s pravom na plaće.
   *„Voditelj projekta vidi svoj projekt, ne i projekte kolega – ni na popisu ni ako netko pošalje poveznicu. Plaće i povjerljive ugovore vide samo ured i financije.”*
 
+## 9b. Novi korisnik bez lozinke (1 min) – „administrator ne zna ničiju lozinku”
+
+**Klik:** odjava → prijava `admin@demo.local` → **Korisnici**.
+
+- Na popisu je **Ivana Marić** u stanju *pozvan* (pozivnica još vrijedi, „ručno”) – pozvana je, ali još nije odabrala lozinku, pa se ne može prijaviti; pokraj nje „nova poveznica pozivnice” i „poništi pozivnicu”.
+- **Pozovi korisnika**: ime, e-adresa, uloga (npr. član tima na BLUESENSE-u) → **Pošalji pozivnicu**. Demo ne šalje e-poštu, pa se poveznica prikaže **jednom** s gumbom „Kopiraj” i uputom da se preda pouzdanim kanalom. Otvori je u privatnoj kartici: korisnik sam bira lozinku i odmah je u aplikaciji („Moj rad”). U pilotu s uključenom e-poštom poveznica ide samo u njegov pretinac, a administrator ne vidi ništa tajno.
+  *„Administrator dodaje ljude, ali nikad ne zna ničiju lozinku. Tko zaboravi lozinku, na prijavi klikne ‚Zaboravljena lozinka?’ i dobije poveznicu e-poštom – bez administratora; dvofaktorska prijava pritom ostaje.”*
+
 ## 10. Zatvaranje (1 min)
 
 - Sigurnost u jednoj rečenici: podaci svake institucije odvojeni na razini baze, dvofaktorska prijava, revizijski zapis svake promjene, poslužitelj u EU.
@@ -148,6 +156,7 @@ Rečenica: *„Vi već imate projekte u tijeku – u Excelu. Ne prepisujete ih: 
 | „A ako je naša tablica drugačija?” | **Uvoz** na DIGI-ARHIV: stupci se prepoznaju po nazivu (smiju biti drugim redoslijedom, vlastiti stupci se zanemaruju), CSV po listu; upute u `docs/UVOZ-PROJEKTA.md` |
 | „Kako izgleda za voditelja NPOO projekta?” | prijava `voditelj2@demo.local` → **Moj rad**: Marinin timesheet za odobriti (unio ga je ured), isporuka i prekretnica koje kasne, odstupanje od pravila programa, ZNS za RP2 s dvije blokade; vidi samo ZELENI-LAB |
 | „A financije – što one vide ujutro?” | prijava `financije@demo.local` → **Moj rad**: ZNS za RP2 ZELENI-LAB-a čeka predaju (2 blokade), troškovi bez dokaza, nepredani trošak iz ranijeg razdoblja; za DIGI-ARHIV „RP1 je završilo, a ZNS nije otvoren” – nestaje nakon uvoza iz koraka 8b (troškovi potraživani prije ArQusa); zvonce: ZNS 1 odlučen i isplaćen |
+| „Šalje li sustav e-poštu?” | pozivnice, poveznice za novu lozinku i jedan jutarnji sažetak „Moj rad” radnim danom kad nešto kasni (isključuje se u **Moj račun**); bez SMTP-a sve radi preko poveznice koju administrator kopira. S profilom `mail` (`docs/DEMO.md`) poruke se pokazuju u lokalnom hvataču pošte |
 | „A dvofaktorska prijava?” | ime korisnika gore desno → **Moj račun** → Uključi MFA; institucija je može učiniti obveznom za povlaštene uloge ili sve (`admin@demo.local` → **Korisnici**) |
 
 **Nakon razgovora:** `demo.cmd reset` (ili `demo.cmd stop`).

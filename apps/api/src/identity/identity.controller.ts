@@ -10,11 +10,9 @@ import { parseBody } from '../common/validation';
 
 const str = (max: number) => z.string().min(1).max(max);
 const loginInput = z.object({ tenantSlug: str(100), email: str(320), password: str(500), code: z.string().max(10).optional() });
-const createUserInput = z.object({ email: z.string().email().max(320), displayName: z.string().trim().min(2).max(200), password: z.string().max(500).optional(), roleCodes: z.array(z.string().max(60)).max(20).optional() });
 const updateUserInput = z.object({ displayName: z.string().trim().min(2).max(200).optional(), status: z.enum(['active', 'disabled']).optional(), roleCodes: z.array(z.string().max(60)).max(20).optional() }).strict();
 const passwordInput = z.object({ currentPassword: str(500), newPassword: str(500) });
 const codeInput = z.object({ code: z.string().regex(/^\d{6}$/, 'kod ima 6 znamenki') });
-const resetInput = z.object({ newPassword: str(500) });
 const securityInput = z.object({ requireMfa: z.enum(MFA_POLICIES) }).strict();
 const grantInput = z.object({ userId: z.string().uuid(), roleCode: z.string().min(1).max(60) }).strict();
 
@@ -65,22 +63,10 @@ export class IdentityController {
   @Get('roles') @RequirePermission('roles:read')
   roles() { return this.db.tx((tx) => this.identity.listRoles(tx)); }
 
-  @Post('users') @RequirePermission('users:write')
-  createUser(@Body() body: unknown) {
-    const i = parseBody(createUserInput, body); const c = this.ctx.require();
-    return this.db.tx((tx) => this.identity.createUser(tx, c.tenantId, i, c.userId));
-  }
-
   @Patch('users/:id') @RequirePermission('users:write')
   updateUser(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const i = parseBody(updateUserInput, body); const c = this.ctx.require();
     return this.db.tx((tx) => this.identity.updateUser(tx, c.tenantId, id, i, c.userId!));
-  }
-
-  @Post('users/:id/reset-password') @RequirePermission('users:write')
-  resetPassword(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
-    const { newPassword } = parseBody(resetInput, body); const c = this.ctx.require();
-    return this.db.tx((tx) => this.identity.resetPassword(tx, c.tenantId, id, newPassword, c.userId!));
   }
 
   @Post('users/:id/reset-mfa') @RequirePermission('users:write')

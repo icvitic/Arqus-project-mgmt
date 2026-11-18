@@ -3,7 +3,7 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { createHmac, randomUUID } from 'node:crypto';
 import { passwordIssues, timeZoneOr } from '@arqus/domain';
 import { DbService, type Tx } from '../db/db.service';
-import { calendarTokens, projects, proposals, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
+import { accountTokens, calendarTokens, projects, proposals, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
 import { hashPassword, verifyPassword, verifyPasswordOrBurn } from './password';
 import { TokenService } from './token.service';
 import { AuditService } from '../audit/audit.service';
@@ -20,7 +20,8 @@ import { ttlSeconds } from './ttl';
 import { MFA_POLICIES, mfaPolicyOf, mfaRequiredFor, PRIVILEGED_PERMISSIONS, type MfaPolicy } from './mfa-policy';
 
 export interface LoginInput { tenantSlug: string; email: string; password: string; code?: string }
-export interface CreateUserInput { email: string; displayName: string; password?: string; roleCodes?: string[] }
+/** WP1.21: bez lozinke – korisnik je pozvan (`invited`) i sam bira lozinku na poveznici pozivnice. */
+export interface CreateUserInput { email: string; displayName: string; roleCodes?: string[] }
 export interface UpdateUserInput { displayName?: string; status?: 'active' | 'disabled'; roleCodes?: string[] }
 interface ClientInfo { ip?: string; userAgent?: string }
 /** Dozvole korisnika (WP1.14): na razini institucije i po projektu (id projekta → dozvole); WP1.14b: prijave kojima je voditelj. */
@@ -69,7 +70,7 @@ export class IdentityService {
     return (await this.accessOf(tx, tenantId, userId)).tenant;
   }
 
-  private checkPolicy(password: string, ctx: { email?: string; displayName?: string; tenantSlug?: string }): void {
+  checkPolicy(password: string, ctx: { email?: string; displayName?: string; tenantSlug?: string }): void {
     const issues = passwordIssues(password, ctx);
     if (issues.length) throw new BadRequestException({ message: 'Lozinka ne zadovoljava pravila', issues });
   }
@@ -189,7 +190,7 @@ export class IdentityService {
     return { ok: true };
   }
 
-  private async revokeSessions(tx: Tx, userId: string, exceptSid?: string): Promise<void> {
+  async revokeSessions(tx: Tx, userId: string, exceptSid?: string): Promise<void> {
     await tx.update(sessions).set({ revokedAt: new Date() }).where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt), exceptSid ? ne(sessions.id, exceptSid) : undefined));
   }
 
@@ -208,7 +209,7 @@ export class IdentityService {
     return u;
   }
 
-  private async tenantSlug(tx: Tx, tenantId: string): Promise<string | undefined> {
+  async tenantSlug(tx: Tx, tenantId: string): Promise<string | undefined> {
     return (await tx.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)))[0]?.slug;
   }
 
@@ -263,8 +264,19 @@ export class IdentityService {
     const assigned = await tx.select({ id: roleAssignments.id, userId: roleAssignments.userId, code: roles.code, projectId: roleAssignments.projectId, acronym: projects.acronym, permissions: roles.permissions })
       .from(roleAssignments).innerJoin(roles, eq(roles.id, roleAssignments.roleId)).leftJoin(projects, eq(projects.id, roleAssignments.projectId)).orderBy(projects.acronym);
     const policy = mfaPolicyOf((await tx.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, sql`app_current_tenant()`)))[0]?.settings);
+    // WP1.21: neiskorištene pozivnice i poveznice za novu lozinku (samo kada i kako su izdane – token nikad).
+    const pending = await tx.select({ userId: accountTokens.userId, kind: accountTokens.kind, delivery: accountTokens.delivery, expiresAt: accountTokens.expiresAt, createdAt: accountTokens.createdAt })
+      .from(accountTokens).where(sql`${accountTokens.expiresAt} > now()`);
+    const pendingOf = (id: string, kind: 'invite' | 'reset') => {
+      const t = pending.find((p) => p.userId === id && p.kind === kind);
+      return t ? { delivery: t.delivery, createdAt: t.createdAt, expiresAt: t.expiresAt } : null;
+    };
     return list.map((u) => ({
       ...publicUser(u),
+      /** WP1.21: pozivnica koja još vrijedi (samo za pozvane korisnike). */
+      invitation: u.status === 'invited' ? pendingOf(u.id, 'invite') : null,
+      /** WP1.21: poveznica za novu lozinku koja još vrijedi. */
+      passwordLink: u.status === 'active' ? pendingOf(u.id, 'reset') : null,
       /** WP1.19: je li korisniku MFA obvezan prema postavci institucije (bez MFA je u ograničenom stanju). */
       mfaRequired: mfaRequiredFor(policy, assigned.filter((a) => a.userId === u.id && !a.projectId).flatMap((a) => a.permissions)),
       /** Uloge na razini institucije (vrijede za sve projekte). */
@@ -278,16 +290,15 @@ export class IdentityService {
     return (await tx.select().from(roles).where(isNull(roles.deletedAt)).orderBy(roles.name)).map((r) => ({ code: r.code, name: r.name, scope: r.scope, permissions: r.permissions, system: r.tenantId === null }));
   }
 
+  /**
+   * Novi korisnik je uvijek POZVAN (`invited`, bez lozinke) – WP1.21: administrator nikad ne zna ni ne postavlja lozinku.
+   * Pozivnicu (jednokratni token) izdaje `AccountService` u istoj transakciji.
+   */
   async createUser(tx: Tx, tenantId: string, input: CreateUserInput, actorId?: string) {
     const email = input.email.toLowerCase();
-    if (input.password) this.checkPolicy(input.password, { email, displayName: input.displayName, tenantSlug: await this.tenantSlug(tx, tenantId) });
     const exists = await tx.select({ id: users.id }).from(users).where(eq(users.email, email));
     if (exists.length) throw new ConflictException('Korisnik s tom e-adresom već postoji');
-    const [user] = await tx.insert(users).values({
-      tenantId, email, displayName: input.displayName,
-      passwordHash: input.password ? await hashPassword(input.password) : null, passwordChangedAt: input.password ? new Date() : null,
-      status: input.password ? 'active' : 'invited', createdBy: actorId, updatedBy: actorId,
-    }).returning();
+    const [user] = await tx.insert(users).values({ tenantId, email, displayName: input.displayName, passwordHash: null, passwordChangedAt: null, status: 'invited', createdBy: actorId, updatedBy: actorId }).returning();
     if (!user) throw new Error('Unos korisnika nije uspio');
     if (input.roleCodes?.length) await this.assignRoles(tx, tenantId, user.id, input.roleCodes, actorId);
     await this.audit.record(tx, { tenantId, entity: 'user', entityId: user.id, action: 'create', diff: { after: publicUser(user), meta: { roles: input.roleCodes ?? [] } } });
@@ -310,26 +321,24 @@ export class IdentityService {
       await this.assertNotLastAdmin(tx, id);
     }
     if (input.roleCodes && current.includes('tenant-admin') && !input.roleCodes.includes('tenant-admin')) await this.assertNotLastAdmin(tx, id);
-    if (input.status === 'active' && !before.passwordHash) throw new ConflictException('Korisnik nema lozinku – postavi je prije aktivacije');
-    await tx.update(users).set({ ...(input.displayName ? { displayName: input.displayName } : {}), ...(input.status ? { status: input.status } : {}), updatedAt: new Date(), updatedBy: actorId }).where(eq(users.id, id));
+    // WP1.21: ponovno aktiviran korisnik koji nikad nije prihvatio pozivnicu vraća se u stanje „pozvan” (bez lozinke se ne
+    // prijavljuje) – administrator mu zatim šalje novu pozivnicu. Lozinku i dalje nitko ne postavlja umjesto njega.
+    const status = input.status === 'active' && !before.passwordHash ? 'invited' as const : input.status;
+    await tx.update(users).set({ ...(input.displayName ? { displayName: input.displayName } : {}), ...(status ? { status } : {}), updatedAt: new Date(), updatedBy: actorId }).where(eq(users.id, id));
     if (input.roleCodes) {
       const tenantRoleIds = (await tx.select({ id: roleAssignments.id }).from(roleAssignments).where(and(eq(roleAssignments.userId, id), isNull(roleAssignments.projectId)))).map((r) => r.id);
       if (tenantRoleIds.length) await tx.delete(roleAssignments).where(inArray(roleAssignments.id, tenantRoleIds));
       if (input.roleCodes.length) await this.assignRoles(tx, tenantId, id, input.roleCodes, actorId);
     }
     // WP1.18: deaktivacija gasi i tajnu poveznicu osobnog kalendara (ponovna aktivacija je ne vraća – korisnik stvara novu).
-    if (input.status === 'disabled') { await this.revokeSessions(tx, id); await tx.delete(calendarTokens).where(eq(calendarTokens.userId, id)); }
+    // WP1.21: i neiskorištene pozivnice i poveznice za novu lozinku.
+    if (input.status === 'disabled') {
+      await this.revokeSessions(tx, id);
+      await tx.delete(calendarTokens).where(eq(calendarTokens.userId, id));
+      await tx.delete(accountTokens).where(eq(accountTokens.userId, id));
+    }
     await this.audit.record(tx, { entity: 'user', entityId: id, action: 'update', diff: { before: { displayName: before.displayName, status: before.status, roles: current }, after: input } });
     return (await this.listUsers(tx)).find((u) => u.id === id)!;
-  }
-
-  async resetPassword(tx: Tx, tenantId: string, id: string, newPassword: string, actorId: string) {
-    const u = await this.userRow(tx, id);
-    this.checkPolicy(newPassword, { email: u.email, displayName: u.displayName, tenantSlug: await this.tenantSlug(tx, tenantId) });
-    await tx.update(users).set({ passwordHash: await hashPassword(newPassword), passwordChangedAt: new Date(), status: u.status === 'invited' ? 'active' : u.status, updatedAt: new Date(), updatedBy: actorId }).where(eq(users.id, id));
-    await this.revokeSessions(tx, id);
-    await this.audit.record(tx, { entity: 'user', entityId: id, action: 'password.reset' });
-    return { ok: true };
   }
 
   async resetMfa(tx: Tx, id: string, actorId: string) {

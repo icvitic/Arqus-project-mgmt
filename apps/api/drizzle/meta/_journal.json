@@ -197,6 +197,20 @@
       "when": 1794955316389,
       "tag": "0027_obavijesti_kalendar_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794992208116,
+      "tag": "0028_racuni_posta",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794992211578,
+      "tag": "0029_racuni_posta_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,7 @@ import * as schema from './schema';
 import { runMigrations } from './migrate';
 import { IdentityService } from '../identity/identity.service';
 import { importGlobalPackages, seedDemo } from './seed';
+import { DEMO_INVITED } from '../demo/scenario';
 import { readFileSync } from 'node:fs';
 import { fetchFtResults, importFtCalls } from '../calls/ft-import';
 import type { FtResult } from '@arqus/domain';
@@ -92,6 +93,7 @@ async function demo(ownerUrl: string, args: string[]): Promise<void> {
   if (r.summary) console.log(`  projekti: ${r.summary.projects.join(', ')}; prijave: ${r.summary.proposals.join(', ')}; pozivi: ${r.summary.calls}; timesheetovi: ${r.summary.timesheets}; troškovi: ${r.summary.expenses}; dokumenti: ${r.summary.documents}; ZNS: ${r.summary.claims}`);
   console.log(`Prijava: oznaka institucije "${r.slug}", lozinka za sve račune: ${r.password}`);
   for (const u of r.users) console.log(`  ${u.email.padEnd(28)} ${u.roleLabel} – ${u.note}`);
+  console.log(`  ${`${DEMO_INVITED.local}@${r.slug}.local`.padEnd(28)} ${DEMO_INVITED.displayName} – ${DEMO_INVITED.note} (bez lozinke)`);
 }
 const flag = (args: string[], name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 

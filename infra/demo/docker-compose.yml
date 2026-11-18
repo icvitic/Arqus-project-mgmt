@@ -29,9 +29,23 @@ services:
       DOCUMENTS_DIR: /data/documents
       FT_IMPORT_INTERVAL_HOURS: "0"   # demo ne ovisi o mreži; stvarni pozivi: docker compose exec app node dist/db/cli.js import-calls
       ARQUS_DEMO: "1"                 # dopušta naredbu `demo` u produkcijskom načinu slike
+      # WP1.21: e-pošta zadano isključena (poveznice pozivnica dobiva administrator). S profilom `mail` (docs/DEMO.md):
+      # ARQUS_DEMO_MAIL=smtp COMPOSE_PROFILES=mail – poruke idu u lokalni hvatač pošte (Mailpit, http://localhost:8025).
+      MAIL_TRANSPORT: ${ARQUS_DEMO_MAIL:-off}
+      PUBLIC_URL: http://localhost:${ARQUS_DEMO_PORT:-8080}
+      SMTP_HOST: mail
+      SMTP_PORT: "1025"
+      SMTP_SECURITY: none            # DEMO – lokalni hvatač pošte unutar Docker mreže, bez vjerodajnica
+      MAIL_FROM: projekti@pokazno-sveuciliste.local
     # Pri svakom pokretanju: migracije + paketi, zatim demo podaci (idempotentno – postojeći demo se ne dira), pa poslužitelj.
     command: ["sh", "-c", "node dist/db/cli.js init && node dist/db/cli.js demo && exec node dist/main.js"]
     volumes: ["documents:/data/documents"]
     # samo s ovog računala; port bira demo.cmd / scripts/demo.sh (prvi slobodan od 8080, 8081, 8088, 18080, 28080) ili ARQUS_DEMO_PORT
     ports: ["127.0.0.1:${ARQUS_DEMO_PORT:-8080}:3000"]
+  # Lokalni hvatač pošte za demonstraciju pozivnica i dnevnog sažetka (ništa ne odlazi van). Samo uz profil `mail`.
+  mail:
+    image: ghcr.io/axllent/mailpit:v1.27.11
+    profiles: ["mail"]
+    restart: unless-stopped
+    ports: ["127.0.0.1:${ARQUS_DEMO_MAIL_PORT:-8025}:8025"]
 volumes: { pgdata: {}, documents: {} }

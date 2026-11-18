@@ -38,6 +38,8 @@ export const users = pgTable('users', {
   mfaLastStep: bigint('mfa_last_step', { mode: 'number' }),
   passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  /** WP1.21: dnevni sažetak e-poštom (zadano uključen; korisnik ga isključuje u Moj račun). */
+  digestEnabled: boolean('digest_enabled').notNull().default(true),
   ...audited,
 }, (t) => [uniqueIndex('users_tenant_email_uq').on(t.tenantId, t.email), unique('users_tenant_id_uq').on(t.tenantId, t.id)]);
 
@@ -767,4 +769,69 @@ export const calendarTokens = pgTable('calendar_tokens', {
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
 }, (t) => [
   foreignKey({ name: 'calendar_tokens_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }).onDelete('cascade'),
+]);
+
+/**
+ * WP1.21 – jednokratni tokeni računa: pozivnica (`invite`) i poveznica za novu lozinku (`reset`). U bazi je samo SHA-256
+ * tokena; jednokratnost osigurava brisanje retka (`DELETE … RETURNING`) u transakciji prihvaćanja. Novi token korisnika
+ * briše njegove dosadašnje, deaktivacija i brisanje korisnika također (FK s kaskadom). Neprijavljeni zahtjev traži redak
+ * po hashu bez stanara – RLS tada otkriva samo redak čiji je hash postavljen u transakciji (`app.account_token_hash`).
+ */
+export type AccountTokenKind = 'invite' | 'reset';
+export type MailDelivery = 'mail' | 'link';
+export const accountTokens = pgTable('account_tokens', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  kind: text('kind').$type<AccountTokenKind>().notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  /** Kako je poveznica predana: e-poštom korisniku (`mail`) ili administratoru za ručnu predaju (`link`, bez e-pošte). */
+  delivery: text('delivery').$type<MailDelivery>().notNull(),
+  /** Tko je izdao: administrator (pozivnica, poveznica za novu lozinku) ili NULL (korisnik sam – zaboravljena lozinka). */
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+}, (t) => [
+  index('account_tokens_user_idx').on(t.tenantId, t.userId),
+  foreignKey({ name: 'account_tokens_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }).onDelete('cascade'),
+  check('account_tokens_kind_chk', sql`${t.kind} in ('invite', 'reset')`),
+  check('account_tokens_delivery_chk', sql`${t.delivery} in ('mail', 'link')`),
+]);
+
+/**
+ * WP1.21 – zapis isporuke e-pošte BEZ sadržaja (tijela nose tokene): primatelj (račun), vrsta, ishod, vrijeme i kratka
+ * oznaka greške. Administrator iz njega vidi da pošta ne prolazi.
+ */
+export type MailKind = 'invite' | 'reset' | 'password_changed' | 'digest' | 'test';
+export type MailOutcome = 'sent' | 'failed';
+export const mailDeliveries = pgTable('mail_deliveries', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  kind: text('kind').$type<MailKind>().notNull(),
+  outcome: text('outcome').$type<MailOutcome>().notNull(),
+  /** Kratka oznaka greške (`timeout`, `tls`, `auth`, `rejected`, `temporary`, `connection`…), nikad tekst poruke. */
+  errorClass: text('error_class'),
+  attempts: integer('attempts').notNull().default(1),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('mail_deliveries_tenant_idx').on(t.tenantId, t.id),
+  foreignKey({ name: 'mail_deliveries_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }).onDelete('cascade'),
+]);
+
+/**
+ * WP1.21 – dnevni sažetak: jedan redak po korisniku i danu institucije. Primarni ključ jamči da se sažetak istog dana
+ * ne pošalje dvaput – ni nakon ponovnog pokretanja ni s više instanci (tko prvi umetne redak, taj šalje).
+ */
+export type DigestOutcome = 'claimed' | 'sent' | 'empty' | 'failed' | 'skipped';
+export const digestRuns = pgTable('digest_runs', {
+  tenantId: uuid('tenant_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  day: date('day').notNull(),
+  outcome: text('outcome').$type<DigestOutcome>().notNull().default('claimed'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+}, (t) => [
+  uniqueIndex('digest_runs_pk').on(t.tenantId, t.userId, t.day),
+  foreignKey({ name: 'digest_runs_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }).onDelete('cascade'),
 ]);

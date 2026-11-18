@@ -21,7 +21,7 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 
 - [x] **WP1.1** Temelji platforme: pnpm monorepo (api, web, domain), CI, Docker Compose, validator i izračun iz paketa programa, ADR-0008 (v0.6.0); IaC i stage okruženje → WP1.9
 - [x] **WP1.2** Stanari, identitet (lozinka + JWT), uloge i dozvole, revizijski zapis, RLS s automatskim testovima izolacije (v0.7.0)
-- [~] **WP1.2b** Politika lozinki, sesije s opozivom, MFA (TOTP), upravljanje korisnicima i ulogama u sučelju, `pnpm audit` u CI-ju (v0.14.0); OIDC/SAML (AAI@EduHr, Microsoft Entra) i pozivnice e-poštom čekaju pilot-instituciju
+- [~] **WP1.2b** Politika lozinki, sesije s opozivom, MFA (TOTP), upravljanje korisnicima i ulogama u sučelju, `pnpm audit` u CI-ju (v0.14.0); pozivnice e-poštom → WP1.21 (v0.31.0); OIDC/SAML (AAI@EduHr, Microsoft Entra) čeka pilot-instituciju
 - [x] **WP1.3b** Sučelje za pakete po pozivu: popis, pregled razriješenih pravila, obrazac nasljeđivanja (stope, neizravni, osoblje, razdoblja, dodatne kategorije), JSON način, provjera, objava, nove verzije (v0.15.0)
 - [x] **WP1.3** Paketi programa u bazi: globalni + stanarski, verzije i status, uvoz iz `docs/domena/paketi`, validacija, nasljeđivanje (`extends`) za paket po pozivu, objava; ESLint (v0.8.0)
 - [x] **WP1.4** Radar poziva i go/no-go: pozivi (globalni i vlastiti) s rokovima i automatskim statusom, ocjena prikladnosti, odluka s obrazloženjem, interni rok i odgovorna osoba, povijest, nadolazeći rokovi (v0.16.0); uvoz s Funding & Tenders portala (v0.19.0)
@@ -47,6 +47,13 @@ Redoslijed promijenjen prema WP0.7: provedba i troškovi/ZNS prije radara i prij
 - [x] **WP1.20** (v0.28.0) S3 pohrana dokumenata i kopije izvan poslužitelja, mjerenje vremena obnove: S3 izvedba pohrane bez novih ovisnosti (vlastiti SigV4), `documents verify` i `documents migrate`, šifrirane kopije izvan poslužitelja (servis `offsite`), skriptirana i izmjerena obnova (ADR-0012)
 - [x] **WP1.17** (v0.29.0) Uvoz postojećeg projekta iz Excela: predložak za projekt, vlastiti čitač XLSX/CSV, pregled s greškama po listu, retku i stupcu, potvrda istih bajtova, sve ili ništa, troškovi potraživani prije ArQusa, povijest i poništavanje (`docs/UVOZ-PROJEKTA.md`)
 - [x] **WP1.18** (v0.30.0) Rokovi i „Moj rad”: početna stranica s onim što čeka korisnika (timesheetovi, odobrenja, ZNS, isporuke, prijave, pozivi), obavijesti u aplikaciji (zvonce), osobni kalendar rokova (iCalendar po tajnoj poveznici); e-pošta opisana i čeka SMTP (`docs/domena/moj-rad-i-obavijesti.md`). **Faza 1b (WP1.13–WP1.20) je gotova.**
+
+### Nastavak bez bilješki s demonstracija (od v0.30.1)
+Paketi koje treba svaki pilot, neovisno o demonstracijama. Obrazloženje i redoslijed: `docs/strategija-razvoja-faza-1b.md`, odj. 10.
+
+- [x] **WP1.21** (v0.31.0) Računi bez dijeljenja lozinki i e-pošta: pozivnice umjesto upisane lozinke, poveznica za novu lozinku i samostalni oporavak zaboravljene lozinke (jednokratni tokeni u bazi, token u fragmentu adrese), vlastiti SMTP klijent bez novih ovisnosti, zapis isporuka, dnevni sažetak „Moj rad” e-poštom; sve radi i bez SMTP-a (poveznica koju administrator kopira)
+- [ ] **WP1.22** Pristupačnost sučelja (WCAG 2.1 AA, EN 301 549 – automatska provjera u e2e, rad tipkovnicom, izjava o pristupačnosti) i odgovorne osobe na isporukama, prekretnicama i zadacima u „Moj rad”
+- [ ] **WP1.23** Osobni podaci u proizvodu (GDPR): izvoz podataka osobe, anonimizacija uz očuvanje financijskih zapisa, rokovi čuvanja, evidencija obrade, predložak ugovora o obradi
 
 ## Faza 2 – Komercijalna v1 (mj. 10–15)
 Uvjet za fazu 3: 10 kupaca koji plaćaju, 60.000 € ARR.

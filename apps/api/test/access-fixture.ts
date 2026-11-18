@@ -1,6 +1,7 @@
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
 import { seedDemo } from '../src/db/seed';
+import { inviteUser } from './invite';
 
 /**
  * Zajednička postava za testove pristupa po projektu (WP1.14): jedan stanar, dva projekta (A i B) s punim sadržajem
@@ -33,7 +34,7 @@ export async function buildAccessFixture(app: INestApplication, slug: string, op
   const login = async (email: string, pw = PW) => (await http().post('/api/auth/login').send({ tenantSlug: slug, email, password: pw }).expect(201)).body.accessToken as string;
   await seedDemo({ url: ADMIN_URL, tenantSlug: slug, adminEmail: `a@${slug}.hr`, adminPassword: 'Lozinka-123456' });
   const admin = await login(`a@${slug}.hr`, 'Lozinka-123456');
-  const mk = async (local: string, roleCodes: string[]) => (await http().post('/api/users').set(auth(admin)).send({ email: `${local}@${slug}.hr`, displayName: `Korisnik ${local}`, password: PW, roleCodes }).expect(201)).body.id as string;
+  const mk = async (local: string, roleCodes: string[]) => (await inviteUser(app, admin, { email: `${local}@${slug}.hr`, displayName: `Korisnik ${local}`, roleCodes }, PW)).id;
   const users = { pm: await mk('pm', []), tm: await mk('tm', []), fin: await mk('fin', ['finance']), rdr: await mk('rdr', ['reader']), extra: await mk('extra', []), lead: await mk('lead', []) };
   const month = '2027-02';
 

@@ -36,7 +36,10 @@ Prijava: **Institucija (oznaka)** `demo`, lozinka za sve račune **`Plavi-Jadran
 | `clan@demo.local` | Luka Novak | član tima | **samo BLUESENSE** | nakon prijave **Moj rad**: timesheet tekućeg mjeseca (u nacrtu), prošli mjesec čeka odobrenje, rizik kojem je nositelj; vlastiti timesheetovi; ne vidi plaće ni povjerljive dokumente |
 | `financije@demo.local` | Maja Jurić | financije / računovodstvo | institucija | troškovi i dokazi na svim projektima, tim s godišnjim troškom, ZNS – i iznosi troškova osoblja po osobi |
 | `uprava@demo.local` | prof. dr. sc. Tomislav Perić | uprava (samo čitanje) | institucija | nakon prijave **Portfelj** (svi projekti, novac, rokovi, ljudi, prijave); pregled projekata i financija – troškovi osoblja u satima, bez iznosa po osobi |
-| `admin@demo.local` | Nikola Radić | administrator stanara | institucija | korisnici i uloge (institucija i projekti), **Revizija** |
+| `admin@demo.local` | Nikola Radić | administrator stanara | institucija | korisnici i uloge (institucija i projekti), pozivnice i poveznice za novu lozinku, **Revizija** |
+| `pozvana@demo.local` | Ivana Marić | – | – | **pozvana, nije prihvatila pozivnicu** – ne može se prijaviti; za prikaz pozivnica u **Korisnici** (WP1.21) |
+
+**Računi bez dijeljenja lozinki (WP1.21):** demo računi nastaju kroz stvarni tok pozivnice (seeder bez e-pošte dobiva poveznicu i prihvaća je s demo lozinkom). Administrator u **Korisnici** poziva nove korisnike bez lozinke; poveznicu pozivnice ili nove lozinke dobiva jednom i predaje je. „Zaboravljena lozinka?” na prijavi bez e-pošte upućuje na administratora.
 
 Uloge „na projektu” vrijede samo za taj projekt (WP1.14, `docs/sigurnost/AUTORIZACIJA.md`): voditelj BLUESENSE-a ne vidi ZELENI-LAB ni na popisu ni izravnom poveznicom. Voditelj prijave (WP1.14b) radi na vlastitoj prijavi i bez uloge institucije: Petra Horvat sama je unijela proračun AQUAREST-a, priložila nacrt Part B i pokrenula pripremu; predaju, ishod i ugovaranje evidentira ured.
 
@@ -58,6 +61,15 @@ Uloge „na projektu” vrijede samo za taj projekt (WP1.14, `docs/sigurnost/AUT
 | `admin@`, `uprava@` | „Nema ničega na čekanju” | – |
 
 Starije obavijesti su označene pročitanima, nepročitane su najnovije tri. **Osobni kalendar:** u **Moj račun → Rokovi u mom kalendaru** svaki korisnik stvara tajnu poveznicu (prikazuje se jednom) za Outlook ili Google Kalendar – vidi rokove koje i inače vidi.
+
+## E-pošta u demonstraciji (neobavezno, profil `mail`)
+
+Da bi sugovornik vidio poruke (pozivnica, nova lozinka, obavijest o promjeni lozinke, dnevni sažetak), demo se može pokrenuti s lokalnim hvatačem pošte (Mailpit) – ništa ne odlazi na internet:
+
+```bash
+ARQUS_DEMO_MAIL=smtp COMPOSE_PROFILES=mail scripts/demo.sh
+```
+Windows: `set ARQUS_DEMO_MAIL=smtp`, `set COMPOSE_PROFILES=mail`, zatim `demo.cmd`. Poruke se čitaju na **http://localhost:8025**. Tada „Pozovi korisnika” šalje pozivnicu e-poštom (administrator ne vidi poveznicu), „Zaboravljena lozinka?” šalje poveznicu, a radnim danom između 7 i 12 sati aplikacija nekoliko minuta nakon pokretanja pošalje dnevni sažetak demo korisnicima kojima nešto kasni (jednom dnevno). Za povratak na demo bez pošte pokreni ponovno bez tih varijabli.
 
 ## Što je u demo instituciji
 

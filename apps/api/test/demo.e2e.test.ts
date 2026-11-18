@@ -11,7 +11,7 @@ import { Pool } from 'pg';
 import { AppModule } from '../src/app.module';
 import { seedDemo } from '../src/db/seed';
 import { runDemo } from '../src/demo/demo';
-import { DEMO_DEFAULT_PASSWORD, DEMO_USERS } from '../src/demo/scenario';
+import { DEMO_DEFAULT_PASSWORD, DEMO_INVITED, DEMO_USERS } from '../src/demo/scenario';
 import { DEMO_IMPORT_FILE, demoImportWorkbook } from '../src/demo/import-example';
 
 const ADMIN_URL = process.env.TEST_DATABASE_MIGRATE_URL ?? 'postgres://arqus@127.0.0.1:5433/arqus_test';
@@ -63,6 +63,12 @@ describe('Demo okruženje (WP1.13)', () => {
     expect(scoped('voditelj').roles).toEqual([]); expect(scoped('voditelj').projectRoles.map((r) => `${r.code}@${r.acronym}`)).toEqual(['project-manager@BLUESENSE']);
     expect(scoped('voditelj2').projectRoles.map((r) => `${r.code}@${r.acronym}`)).toEqual(['project-manager@ZELENI-LAB']);
     expect(scoped('clan').projectRoles.map((r) => `${r.code}@${r.acronym}`)).toEqual(['team-member@BLUESENSE']);
+    // WP1.21: računi su nastali kroz pozivnice (prihvaćene s demo lozinkom); jedan račun ostaje pozvan i ne može se prijaviti.
+    const invited = users.find((u) => u.email === `${DEMO_INVITED.local}@${slug}.local`) as unknown as { status: string; invitation: { delivery: string } | null };
+    expect(invited.status).toBe('invited'); expect(invited.invitation?.delivery).toBe('link');
+    await http().post('/api/auth/login').send({ tenantSlug: slug, email: `${DEMO_INVITED.local}@${slug}.local`, password: pw }).expect(401);
+    const accepted = (await http().get('/api/audit?action=invite.accept&limit=50').set(as('admin')).expect(200)).body as unknown[];
+    expect(accepted).toHaveLength(DEMO_USERS.length - 1);
 
     // Organizacije: vlastita + 6 partnera iz različitih država.
     const orgs = (await http().get('/api/organisations').set(as('office')).expect(200)).body as { country: string; isSelf: boolean; name: string }[];

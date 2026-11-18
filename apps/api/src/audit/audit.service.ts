@@ -9,6 +9,8 @@ export interface AuditInput {
   tenantId?: string; entity: string; entityId?: string | null; action: string;
   diff?: { before?: unknown; after?: unknown; meta?: Record<string, unknown> };
   actorType?: 'user' | 'system' | 'ai'; actorId?: string | null;
+  /** WP1.21: IP zahtjeva bez prijave (javne rute računa) – u prijavljenom zahtjevu dolazi iz konteksta. */
+  ip?: string | null;
 }
 
 /** Zapis u reviziju unutar iste transakcije kao poslovna promjena (ADR-0003). */
@@ -24,7 +26,7 @@ export class AuditService {
       // WP1.14b: tajne (lozinke, hashevi, MFA tajne, tokeni) nikad ne ulaze u revizijski zapis, ni greškom pozivatelja.
       diff: input.diff ? scrubSecrets(input.diff) : null,
       actorType: input.actorType ?? (c?.userId ? 'user' : 'system'), actorId: input.actorId ?? c?.userId ?? null,
-      ip: c?.ip ?? null, sessionId: c?.sessionId ?? null,
+      ip: input.ip ?? c?.ip ?? null, sessionId: c?.sessionId ?? null,
     });
   }
 

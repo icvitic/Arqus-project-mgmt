@@ -46,6 +46,14 @@ sh scripts/minio-test.sh up
 TEST_S3_ENDPOINT=http://127.0.0.1:9100 TEST_S3_ACCESS_KEY_ID=arqus-test TEST_S3_SECRET_ACCESS_KEY=arqus-test-secret-123 pnpm test
 sh scripts/minio-test.sh down
 ```
+**Testovi nad stvarnim SMTP poslužiteljem (WP1.21).** SMTP klijent i slanje pozivnice provjeravaju se i nad Mailpitom u Dockeru (STARTTLS s testnim certifikatom iz `apps/api/test/fixtures/smtp-test.*`, obvezna prijava) – ista naredba kao u CI-ju:
+```bash
+sh scripts/smtp-test.sh up
+TEST_SMTP_PORT=1125 TEST_SMTP_API=http://127.0.0.1:8125 pnpm test
+sh scripts/smtp-test.sh down
+```
+Bez `TEST_SMTP_PORT` preskaču se uz poruku `[WP1.21] … PRESKAČU`; testovi klijenta nad lažnim poslužiteljem u procesu (`smtp-client.test.ts`) rade uvijek.
+
 Bez `TEST_S3_ENDPOINT` ti se testovi preskaču uz poruku `[WP1.20] … PRESKAČU` (ostali rade bez Dockera); ako je postavljen, a MinIO ne radi, padaju. Aplikacija lokalno s S3: `DOCUMENTS_STORAGE=s3` i `DOCUMENTS_S3_*` (vidi `infra/prod/.env.example`).
 
 ## Web sučelje
@@ -80,6 +88,7 @@ Izgradi sve, primijeni migracije i seed, digne API i `vite preview` te Playwrigh
 - Skup izvoz (velik rezultat ili ZIP) koristi `ExportRateLimit.take(vrsta, korisnik)` i struji rezultat (`StreamableFile` s generatorom), bez cijelog sadržaja u memoriji.
 - HTTP postavke (zaglavlja, parser tijela, prefiks) samo kroz `configureHttp` (`common/http-setup.ts`) – isto u `main.ts` i testovima.
 - Događaj koji se tiče drugog korisnika (odobren ili vraćen timesheet, odluka o ZNS-u, pristup, imenovanje, uvoz) upisuje obavijest `notify()` (`apps/api/src/notifications/notify.ts`) u istoj transakciji: nikad akteru, uz `requires` (dozvola koju primatelj mora imati na projektu), bez iznosa i bez slobodnog teksta osim razloga koji primatelj vidi na entitetu. Tekst obavijesti je u domeni (`notificationText`). Pravila: `docs/domena/moj-rad-i-obavijesti.md`.
+- Korisnik s lozinkom u testu nastaje samo kroz pozivnicu (`apps/api/test/invite.ts` – API bez e-pošte vraća token, test ga prihvaća); API nema prečac za postavljanje tuđe lozinke. Javna ruta s tokenom prima token u tijelu, nikad u putanji ili upitu; poveznica s tokenom u sučelju ima token u fragmentu (`#/…`). E-pošta se šalje samo kroz `MailService.enqueue` (izvan zahtjeva, sadržaj se ne sprema, poveznice samo iz `PUBLIC_URL` – `appLink`); predložak poruke je čista funkcija u `packages/domain/src/mail.ts`.
 - Brojka koja se pokazuje na portfelju i u „Moj rad” (troškovi bez dokaza, visoki rizici, razdoblje predano…) definira se jednom u `apps/api/src/portfolio/facts.ts`; nova vrsta stavke „Moj rad” ide u `deriveWorkItems` (`packages/domain/src/my-work.ts`) s testom, činjenice se skupljaju jednim upitom za sve projekte (bez upita po projektu).
 - „Danas” se uvijek računa u zoni institucije: `tenantToday()` / `tenantTimeZone()` (`common/tenant-context.ts`), u domeni `todayIn()`; nikad `toISOString().slice(0, 10)`.
 - Tablica koja pokazuje na drugi redak stanara ima kompozitni strani ključ `(tenant_id, <fk>)` → `(tenant_id, id)`; sam RLS ne štiti strane ključeve.

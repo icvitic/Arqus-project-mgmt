@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { notificationText, type NotificationData, type NotificationKind } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
 import { notifications, users } from '../db/schema';
@@ -36,6 +36,18 @@ export class NotificationsService {
       unread: await this.unread(tx, userId),
       next: rows.length > limit ? page[page.length - 1]!.n.id : null,
     };
+  }
+
+  /**
+   * WP1.21 – nepročitane obavijesti nastale nakon `since` (za dnevni sažetak): samo naslov (bez pojedinosti, koje nose ime
+   * aktera i razlog) i vrijeme. Isti RLS po korisniku.
+   */
+  async unreadSince(tx: Tx, userId: string, since: Date | null, limit = 50): Promise<{ title: string; createdAt: Date; read: boolean }[]> {
+    await this.asOwner(tx, userId);
+    const rows = await tx.select({ n: notifications, actor: users.displayName }).from(notifications).leftJoin(users, eq(users.id, notifications.actorId))
+      .where(and(eq(notifications.userId, userId), isNull(notifications.readAt), since ? gt(notifications.createdAt, since) : undefined))
+      .orderBy(desc(notifications.id)).limit(limit);
+    return rows.map(({ n, actor }) => ({ title: notificationText(n.kind as NotificationKind, n.data as NotificationData, actor).title, createdAt: n.createdAt, read: false }));
   }
 
   async unread(tx: Tx, userId: string): Promise<number> {

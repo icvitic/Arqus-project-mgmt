@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { AppModule } from '../src/app.module';
+import { inviteUser } from './invite';
 import { seedDemo } from '../src/db/seed';
 import { readSheet, readZip } from './zip-reader';
 
@@ -57,7 +58,7 @@ describe('Paket ZNS-a za predaju i mjerenje pripreme (WP1.16b, e2e)', () => {
     app = m.createNestApplication(); app.setGlobalPrefix('api'); await app.init();
     t.admin = await login(slug, `a@${slug}.hr`, 'Lozinka-123456');
     tenantId = (await owner.query<{ id: string }>('select id from tenants where slug = $1', [slug])).rows[0]!.id;
-    const mk = async (local: string, roleCodes: string[]) => (await http().post('/api/users').set(auth(t.admin!)).send({ email: `${local}@${slug}.hr`, displayName: `Korisnik ${local}`, password: PW, roleCodes }).expect(201)).body.id as string;
+    const mk = async (local: string, roleCodes: string[]) => (await inviteUser(app, t.admin!, { email: `${local}@${slug}.hr`, displayName: `Korisnik ${local}`, roleCodes }, PW)).id;
     const pmUser = await mk('pm', []); await mk('rdr', ['reader']); await mk('ured', ['project-office']); await mk('fin', ['finance']); const pm2User = await mk('pm2', []);
 
     const p = (await http().post('/api/projects').set(auth(t.admin!)).send({ acronym: 'ŽITO-LAB', title: 'Žitarice & „klima” – laboratorij', packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', contractNo: 'UG-2025/č-01', startDate: '2025-01-01', durationMonths: 24, managerUserId: pmUser }).expect(201)).body;

@@ -169,3 +169,50 @@ describe('RLS: obavijesti po korisniku i tokeni kalendara (WP1.18)', () => {
     expect(await run(async (q) => (await q(`delete from calendar_tokens where token_hash = $1 returning user_id`, [`hash-b-${tag}`])).rows.length, { 'app.calendar_token_hash': `hash-b-${tag}` })).toBe(0);
   });
 });
+
+describe('RLS: tokeni računa, isporuke e-pošte i dnevni sažetak (WP1.21)', () => {
+  const admin = new Pool({ connectionString: ADMIN_URL, max: 1 });
+  const app = new Pool({ connectionString: APP_URL, max: 1 });
+  const A = randomUUID(), B = randomUUID(), tag = randomUUID().slice(0, 8);
+  let ua = '', ub = '';
+  beforeAll(async () => {
+    await admin.query(`insert into tenants (id, slug, name) values ($1, $2, 'A'), ($3, $4, 'B')`, [A, `at-a-${tag}`, B, `at-b-${tag}`]);
+    ua = (await admin.query(`insert into users (tenant_id, email, display_name) values ($1, 'ua@a', 'UA') returning id`, [A])).rows[0].id;
+    ub = (await admin.query(`insert into users (tenant_id, email, display_name) values ($1, 'ub@b', 'UB') returning id`, [B])).rows[0].id;
+    await admin.query(`insert into account_tokens (tenant_id, user_id, kind, token_hash, delivery, expires_at) values ($1, $2, 'invite', $3, 'link', now() + interval '1 day'), ($4, $5, 'reset', $6, 'mail', now() + interval '1 hour')`, [A, ua, `acc-a-${tag}`, B, ub, `acc-b-${tag}`]);
+    await admin.query(`insert into mail_deliveries (tenant_id, user_id, kind, outcome) values ($1, $2, 'invite', 'sent'), ($3, $4, 'reset', 'failed')`, [A, ua, B, ub]);
+    await admin.query(`insert into digest_runs (tenant_id, user_id, day) values ($1, $2, '2026-11-18'), ($3, $4, '2026-11-18')`, [A, ua, B, ub]);
+  });
+  afterAll(async () => { await app.end(); await admin.end(); });
+  const run = async <T>(fn: (q: (sql: string, p?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>, settings: Record<string, string>): Promise<T> => {
+    const c = await app.connect();
+    try {
+      await c.query('begin');
+      for (const [k, v] of Object.entries(settings)) await c.query(`select set_config($1, $2, true)`, [k, v]);
+      return await fn((sql, p) => c.query(sql, p));
+    } finally { await c.query('rollback'); c.release(); }
+  };
+
+  it('token računa: bez stanara vidljiv samo redak čiji je hash postavljen; bez stanara se ne briše; stanar vidi samo svoje', async () => {
+    const rows = (s: Record<string, string>) => run(async (q) => (await q(`select token_hash from account_tokens where token_hash like $1 order by 1`, [`acc-%-${tag}`])).rows.map((r) => r.token_hash), s);
+    expect(await rows({})).toEqual([]);
+    expect(await rows({ 'app.account_token_hash': `acc-b-${tag}` })).toEqual([`acc-b-${tag}`]);
+    expect(await rows({ 'app.tenant_id': A })).toEqual([`acc-a-${tag}`]);
+    expect(await rows({ 'app.tenant_id': A, 'app.account_token_hash': `acc-b-${tag}` })).toEqual([`acc-a-${tag}`]);
+    expect(await run(async (q) => (await q(`delete from account_tokens where token_hash = $1 returning user_id`, [`acc-b-${tag}`])).rows.length, { 'app.account_token_hash': `acc-b-${tag}` })).toBe(0);
+    expect(await run(async (q) => (await q(`delete from account_tokens where token_hash = $1 returning user_id`, [`acc-b-${tag}`])).rows.length, { 'app.tenant_id': A })).toBe(0);
+    // Aplikacija tokene ne mijenja (samo stvara i briše).
+    await expect(run((q) => q(`update account_tokens set expires_at = now() + interval '10 years' where token_hash = $1`, [`acc-a-${tag}`]), { 'app.tenant_id': A })).rejects.toThrow(/permission denied/);
+    await expect(run((q) => q(`insert into account_tokens (tenant_id, user_id, kind, token_hash, delivery, expires_at) values ($1, $2, 'reset', 'x', 'link', now())`, [B, ub]), { 'app.tenant_id': A })).rejects.toThrow(/row-level security/);
+  });
+
+  it('isporuke i sažetak: samo vlastiti stanar; isporuke se ne mijenjaju; sažetku se mijenja samo ishod', async () => {
+    expect(await run(async (q) => (await q(`select kind from mail_deliveries where user_id in ($1, $2)`, [ua, ub])).rows.map((r) => r.kind), { 'app.tenant_id': A })).toEqual(['invite']);
+    expect(await run(async (q) => (await q(`select count(*)::int as n from mail_deliveries where user_id in ($1, $2)`, [ua, ub])).rows[0]!.n, {})).toBe(0);
+    await expect(run((q) => q(`update mail_deliveries set outcome = 'sent' where user_id = $1`, [ua]), { 'app.tenant_id': A })).rejects.toThrow(/permission denied/);
+    expect(await run(async (q) => (await q(`select count(*)::int as n from digest_runs where user_id in ($1, $2)`, [ua, ub])).rows[0]!.n, { 'app.tenant_id': A })).toBe(1);
+    // Isti korisnik i dan drugi put: jedinstven indeks (temelj jednokratnosti sažetka).
+    expect(await run(async (q) => (await q(`insert into digest_runs (tenant_id, user_id, day) values ($1, $2, '2026-11-18') on conflict do nothing returning day`, [A, ua])).rows.length, { 'app.tenant_id': A })).toBe(0);
+    await expect(run((q) => q(`update digest_runs set day = '2026-11-19' where user_id = $1`, [ua]), { 'app.tenant_id': A })).rejects.toThrow(/permission denied/);
+  });
+});

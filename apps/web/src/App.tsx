@@ -4,6 +4,7 @@ import { go, useRoute } from './lib/hooks';
 import { setInstitutionTimeZone } from './lib/claims';
 import type { Me, MyWork as WorkData, WorkSummary } from './lib/types';
 import { Login } from './pages/Login';
+import { AccountLink } from './pages/AccountLink';
 import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { Organisations } from './pages/Organisations';
@@ -50,6 +51,10 @@ export function App() {
     return () => { window.clearInterval(t); window.removeEventListener('hashchange', onHash); };
   }, [ready]);
 
+  // WP1.21: javne stranice s jednokratnim tokenom u fragmentu adrese (pozivnica, nova lozinka) – i bez prijave.
+  if (route[0] === 'pozivnica' || route[0] === 'lozinka') {
+    return <AccountLink key={route[1] ?? ''} kind={route[0] === 'pozivnica' ? 'invite' : 'reset'} token={route[1] ?? ''} onLoggedIn={async () => { await loadMe(); window.dispatchEvent(new HashChangeEvent('hashchange')); }} />;
+  }
   if (checking) return <main><Loading /></main>;
   if (!me) return <Login onLogin={async () => { go(''); await loadMe(); }} />;
 

@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { AppModule } from '../src/app.module';
+import { inviteUser } from './invite';
 import { seedDemo } from '../src/db/seed';
 import { PDF } from './access-fixture';
 
@@ -39,7 +40,7 @@ describe('Dorade prije pilota (WP1.14b, e2e)', () => {
     t.admin = await login(`a@${slug}.hr`, 'Lozinka-123456');
     tenantId = (await owner.query<{ id: string }>('select id from tenants where slug = $1', [slug])).rows[0]!.id;
     const mk = async (key: string, displayName: string, roleCodes: string[]) => {
-      u[key] = (await http().post('/api/users').set(auth(t.admin!)).send({ email: `${key}@${slug}.hr`, displayName, password: PW, roleCodes }).expect(201)).body.id;
+      u[key] = (await inviteUser(app, t.admin!, { email: `${key}@${slug}.hr`, displayName, roleCodes }, PW)).id;
     };
     await mk('ured', 'Ana Ured', ['project-office']); await mk('ured2', 'Iva Ured', ['project-office']); await mk('pm', 'Petra Voditeljica', []);
     await mk('fin', 'Maja Financije', ['finance']); await mk('lead', 'Luka Nositelj', []); await mk('lead2', 'Nina Nositeljica', []); await mk('auditor', 'Rea Revizorica', []);
@@ -247,7 +248,7 @@ describe('Dorade prije pilota (WP1.14b, e2e)', () => {
 
   describe('7. jedinstvenost dodjela uloga', () => {
     it('ista uloga istom korisniku u istom opsegu samo jednom – i u bazi (institucija i projekt)', async () => {
-      const dup = await http().post('/api/users').set(auth(t.admin!)).send({ email: `dvostruki@${slug}.hr`, displayName: 'Dvostruki', password: PW, roleCodes: ['finance', 'finance'] }).expect(201);
+      const dup = { body: (await inviteUser(app, t.admin!, { email: `dvostruki@${slug}.hr`, displayName: 'Dvostruki', roleCodes: ['finance', 'finance'] }, PW)).body };
       expect(dup.body.id).toBeTruthy();
       const { rows } = await owner.query<{ n: number }>('select count(*)::int as n from role_assignments where user_id = $1', [dup.body.id]);
       expect(rows[0]!.n).toBe(1);
@@ -305,10 +306,13 @@ describe('Dorade prije pilota (WP1.14b, e2e)', () => {
     });
 
     it('tajne se nikad ne upisuju ni ne prikazuju (lozinke, MFA, tokeni)', async () => {
-      await http().post(`/api/users/${u.lead2}/reset-password`).set(auth(t.admin!)).send({ newPassword: 'Zuta-Lampa-Na-Stolu-9' }).expect(201);
+      // WP1.21: nova lozinka kroz poveznicu (administrator je ne zadaje) – ni lozinka ni token poveznice nisu u reviziji.
+      const link = (await http().post(`/api/users/${u.lead2}/password-link`).set(auth(t.admin!)).expect(201)).body.token as string;
+      await http().post('/api/auth/password/reset').send({ token: link, password: 'Zuta-Lampa-Na-Stolu-9' }).expect(201);
       const { rows } = await owner.query<{ diff: unknown }>(`select diff from audit_entries where tenant_id = $1`, [tenantId]);
       const all = JSON.stringify(rows);
       expect(all).not.toMatch(/scrypt|Zuta-Lampa|Plava-Staza|mfa_secret|passwordHash|"password"/i);
+      expect(all).not.toContain(link);
       const users = (await http().get('/api/audit?entity=user&limit=500').set(auth(t.admin!)).expect(200)).body;
       expect(JSON.stringify(users)).not.toMatch(/scrypt|passwordHash|mfaSecret/i);
     });

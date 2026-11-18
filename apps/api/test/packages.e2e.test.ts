@@ -5,6 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module';
+import { inviteUser } from './invite';
 import { seedDemo } from '../src/db/seed';
 
 const ADMIN_URL = process.env.TEST_DATABASE_MIGRATE_URL ?? 'postgres://arqus@127.0.0.1:5433/arqus_test';
@@ -75,7 +76,7 @@ describe('Paketi programa u bazi (e2e)', () => {
     await http().get(`/api/programme-packages/rows/${v2.body.id}`).set(auth(tokenB)).expect(404);
     await http().delete(`/api/programme-packages/rows/${v2.body.id}`).set(auth(tokenB)).expect(404);
     await http().delete(`/api/programme-packages/rows/${v2.body.id}`).set(auth(tokenA)).expect(200);
-    const office = await http().post('/api/users').set(auth(tokenA)).send({ email: `ured@${slugA}.hr`, displayName: 'Ured za projekte', password: 'zelena-kava-u-podne-27', roleCodes: ['project-office'] }).expect(201);
+    const office = await inviteUser(app, tokenA, { email: `ured@${slugA}.hr`, displayName: 'Ured za projekte', roleCodes: ['project-office'] }, 'zelena-kava-u-podne-27');
     const t = (await http().post('/api/auth/login').send({ tenantSlug: slugA, email: `ured@${slugA}.hr`, password: 'zelena-kava-u-podne-27' }).expect(201)).body.accessToken;
     await http().post('/api/programme-packages').set(auth(t)).send({ ...poziv, meta: { ...poziv.meta, version: '1.2.0' } }).expect(201);
     expect(office.body.roles).toEqual(['project-office']);
