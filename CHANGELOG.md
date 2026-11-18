@@ -4,6 +4,10 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-11-18
+### Ispravljeno
+- **Objava slike (GHCR)**: izgradnja slike za v0.30.0 zaglavila je na `pnpm install` za arm64 pod emulacijom (QEMU) i prekinuta je nakon 6 sati, pa je `latest` ostao na v0.29.0. Faza izgradnje sada radi na arhitekturi stroja koji gradi (`--platform=$BUILDPLATFORM`; produkcijske ovisnosti su čisti JavaScript, a izgradnja staje ako se među njima pojavi izvorni modul), završna faza nema nijedan `RUN` (direktoriji podataka kopiraju se s vlasništvom i pravima), pa emulacija više nije potrebna. Posao objave ima vremensko ograničenje od 30 minuta. Provjereno lokalnom izgradnjom za arm64 i amd64.
+
 ## [0.30.0] - 2026-11-17
 ### Dodano
 - WP1.18 **„Moj rad”** (`docs/domena/moj-rad-i-obavijesti.md`): `GET /api/me/work` i stranica **Moj rad** – što čeka korisnika, izvedeno iz trenutnih podataka (ništa se ne sprema), sa stavkom po vrsti, projektu (ili prijavi/pozivu), roku, hitnosti (kasni / uskoro / čeka / za informaciju) i poveznicom na zaslon na kojem se rješava; bez iznosa. Uloga se određuje po projektu: član tima (timesheet tekućeg mjeseca, nepredani raniji mjeseci od ulaska u tim, vraćen timesheet, predan timesheet čeka, rizik kojem je nositelj), odobravatelj (timesheetovi koje smije odobriti – četiri oka), financije (troškovi bez dokaza, nacrt ZNS-a završenog razdoblja s brojem blokada, vraćen ZNS, razdoblje bez ZNS-a, nepredani troškovi iz ranijih razdoblja, odlučen neisplaćen ZNS), voditelj (isporuke i prekretnice koje kasne ili dospijevaju u 30 dana, visoki rizici, odstupanja od pravila programa, rok izvještaja), prijave (interni rok s brojem neispunjenih stavki spremnosti), radar (praćeni poziv bez odluke go/no-go), administrator (računi bez obveznog MFA). Čista funkcija `deriveWorkItems` u domeni; zajedničke definicije s portfeljem u `apps/api/src/portfolio/facts.ts` (portfelj ih sada koristi), blokade ZNS-a istom funkcijom kao popis za provjeru, spremnost istom kao prijava. Ograničen broj upita neovisno o broju projekata.
