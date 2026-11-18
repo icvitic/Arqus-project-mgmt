@@ -91,7 +91,7 @@ async function bootstrapTenant(db: Db, slug: string, name: string, password: str
 }
 
 /** API u istom procesu (aplikacijska uloga), na slučajnom portu samo na loopbacku. */
-async function withInProcessApi<T>(appUrl: string, fn: (base: string) => Promise<T>): Promise<T> {
+async function withInProcessApi<T>(appUrl: string, fn: (base: string, app: NestExpressApplication) => Promise<T>): Promise<T> {
   const saved = { db: process.env.DATABASE_URL, ft: process.env.FT_IMPORT_INTERVAL_HOURS, mail: process.env.MAIL_TRANSPORT };
   process.env.DATABASE_URL = appUrl;
   process.env.FT_IMPORT_INTERVAL_HOURS = '0'; // seeder ne pokreće periodični uvoz poziva
@@ -105,11 +105,28 @@ async function withInProcessApi<T>(appUrl: string, fn: (base: string) => Promise
     app.setGlobalPrefix('api');
     await app.listen(0, '127.0.0.1');
     const address = app.getHttpServer().address() as { port: number };
-    return await fn(`http://127.0.0.1:${address.port}`);
+    return await fn(`http://127.0.0.1:${address.port}`, app);
   } finally {
     await app.close();
     for (const [k, v] of [['DATABASE_URL', saved.db], ['FT_IMPORT_INTERVAL_HOURS', saved.ft], ['MAIL_TRANSPORT', saved.mail]] as const) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
+}
+
+/**
+ * WP1.23 – zaslon „Rokovi čuvanja” sa stvarnim brojevima: sesije nastale punjenjem (prijave demo korisnika, sve odjavljene)
+ * pomiču se (samo u OVOM demo stanaru, vlasničkom vezom) 45 dana u prošlost, pa im je rok (30 dana) istekao; zakazano
+ * izvođenje posla čuvanja – isti kod kao u produkciji, ograničen na demo stanara – stvarno ih ukloni i zapiše što je uklonilo.
+ * Obavijesti se ne diraju (demo pokazuje nepročitane i pročitane obavijesti).
+ */
+async function demoRetentionRun(db: Db, app: NestExpressApplication, tenantId: string, log: (m: string) => void): Promise<void> {
+  if (!UUID.test(tenantId)) throw new Error('Neispravan id stanara');
+  const demo = (await db.select({ settings: schema.tenants.settings }).from(schema.tenants).where(eq(schema.tenants.id, tenantId)))[0];
+  if (demo?.settings?.demo !== true) throw new Error('Posao čuvanja u demo naredbi radi samo nad demo stanarom');
+  await db.execute(sql`update sessions set created_at = created_at - interval '45 days', expires_at = expires_at - interval '45 days',
+    revoked_at = revoked_at - interval '45 days' where tenant_id = ${tenantId}`);
+  const { RetentionService } = await import('../privacy/retention.service');
+  const r = await app.get(RetentionService).runTenant(tenantId, { dryRun: false, mode: 'scheduled' });
+  log(`rokovi čuvanja: zakazano izvođenje uklonilo ${r.categories.reduce((a, c) => a + c.removed, 0)} zapisa (odjavljene sesije iz punjenja)`);
 }
 
 export async function runDemo(opts: DemoOptions): Promise<DemoResult> {
@@ -139,7 +156,11 @@ export async function runDemo(opts: DemoOptions): Promise<DemoResult> {
     }
     const tenantId = await bootstrapTenant(db, slug, opts.tenantName ?? DEMO_TENANT_NAME, password);
     log(`Stanar "${slug}" stvoren; punim podatke kroz API…`);
-    const summary = await withInProcessApi(opts.appUrl, (base) => buildDemo({ base, slug, password, today: opts.today ?? new Date(), log }));
+    const summary = await withInProcessApi(opts.appUrl, async (base, app) => {
+      const s = await buildDemo({ base, slug, password, today: opts.today ?? new Date(), log });
+      await demoRetentionRun(db, app, tenantId, log);
+      return s;
+    });
     await db.execute(sql`update tenants set settings = settings || ${JSON.stringify({ demo: true, complete: true, seededAt: new Date().toISOString() })}::jsonb where id = ${tenantId}`);
     return { status: 'created', tenantId, slug, password, users, summary };
   } finally {

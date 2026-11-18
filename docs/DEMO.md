@@ -38,6 +38,9 @@ Prijava: **Institucija (oznaka)** `demo`, lozinka za sve račune **`Plavi-Jadran
 | `uprava@demo.local` | prof. dr. sc. Tomislav Perić | uprava (samo čitanje) | institucija | nakon prijave **Portfelj** (svi projekti, novac, rokovi, ljudi, prijave); pregled projekata i financija – troškovi osoblja u satima, bez iznosa po osobi |
 | `admin@demo.local` | Nikola Radić | administrator stanara | institucija | korisnici i uloge (institucija i projekti), pozivnice i poveznice za novu lozinku, **Revizija** |
 | `pozvana@demo.local` | Ivana Marić | – | – | **pozvana, nije prihvatila pozivnicu** – ne može se prijaviti; za prikaz pozivnica u **Korisnici** (WP1.21) |
+| `istrazivacica@demo.local` | dr. sc. Lea Babić | članica tima | **samo ZELENI-LAB** | istraživačica koja odlazi s instituta (WP1.23): njezini timesheetovi (mj. 1–3) su u odlučenom ZNS-u 1; sama preuzima svoje podatke u **Moj račun → Moji podaci**; `admin@` u **Osobni podaci** izvozi njezine podatke i zatvara račun (scenarij, korak 9c) |
+
+**Osobni podaci (WP1.23):** izbornik **Osobni podaci** vidi samo `admin@` (dozvola `privacy:manage`): izvoz podataka osobe, zatvaranje računa, pregled anonimizacije, **Rokovi čuvanja**. Pri punjenju demo podataka sesije demo korisnika pomaknute su 45 dana u prošlost i zakazano izvođenje posla čuvanja ih je stvarno uklonilo (samo u demo instituciji), pa zaslon pokazuje stvarne brojeve; zabilježeno je i jedno probno izvođenje. Zatvaranje računa je nepovratno – nakon demonstracije `demo.cmd reset`.
 
 **Računi bez dijeljenja lozinki (WP1.21):** demo računi nastaju kroz stvarni tok pozivnice (seeder bez e-pošte dobiva poveznicu i prihvaća je s demo lozinkom). Administrator u **Korisnici** poziva nove korisnike bez lozinke; poveznicu pozivnice ili nove lozinke dobiva jednom i predaje je. „Zaboravljena lozinka?” na prijavi bez e-pošte upućuje na administratora.
 

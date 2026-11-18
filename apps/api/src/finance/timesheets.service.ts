@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { daysInMonth, minutesByWorkPackage, personnelCostCents, timesheetIssues } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
@@ -55,7 +55,7 @@ export class TimesheetsService {
     if (input.annualCost !== undefined && !this.seesCost(projectId)) throw new ForbiddenException(COST_DENIED);
     const partnerId = input.partnerId ?? (await selfPartner(tx, projectId)).id;
     await assertPartnerOnProject(tx, projectId, partnerId);
-    if (input.userId && !(await tx.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), isNull(users.deletedAt)))).length) throw new NotFoundException(`Korisnik ${input.userId} ne postoji`);
+    if (input.userId && !(await tx.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), isNull(users.deletedAt), ne(users.status, 'closed')))).length) throw new NotFoundException(`Korisnik ${input.userId} ne postoji`);
     const [row] = await tx.insert(teamMembers).values({ tenantId, projectId, partnerId, userId: input.userId ?? null, fullName: input.fullName, role: input.role ?? null, annualCostCents: input.annualCost ?? null, createdBy: actorId, updatedBy: actorId }).returning();
     // Član tima s korisničkim računom dobiva pristup projektu (uloga člana tima), da može voditi vlastite timesheetove.
     if (input.userId) await ensureTeamMemberAccess(tx, this.audit, tenantId, projectId, input.userId, actorId);
@@ -68,6 +68,8 @@ export class TimesheetsService {
     await loadProject(tx, projectId, { editable: true });
     if (patch.annualCost !== undefined && !this.seesCost(projectId)) throw new ForbiddenException(COST_DENIED);
     const before = await this.member(tx, projectId, memberId);
+    // WP1.23: anonimiziran zapis se više ne mijenja (ime = pseudonim provodi i baza, team_members_anonymised_ck).
+    if (before.anonymisedAt) throw new ConflictException('Zapis člana tima je anonimiziran i ne mijenja se');
     const { annualCost, ...rest } = patch;
     const [row] = await tx.update(teamMembers).set({ ...rest, ...(annualCost !== undefined ? { annualCostCents: annualCost } : {}), updatedAt: new Date(), updatedBy: actorId }).where(eq(teamMembers.id, before.id)).returning();
     await this.audit.record(tx, { entity: 'team_member', entityId: memberId, action: 'update', diff: {

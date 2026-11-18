@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import { createHmac, randomUUID } from 'node:crypto';
 import { passwordIssues, timeZoneOr } from '@arqus/domain';
 import { DbService, type Tx } from '../db/db.service';
@@ -315,6 +315,8 @@ export class IdentityService {
 
   async updateUser(tx: Tx, tenantId: string, id: string, input: UpdateUserInput, actorId: string) {
     const before = await this.userRow(tx, id);
+    // WP1.23: zatvoren račun je konačan – ne aktivira se, ne preimenuje i ne dobiva uloge.
+    if (before.status === 'closed') throw new ConflictException('Račun je zatvoren i više se ne mijenja');
     const current = (await this.listUsers(tx)).find((u) => u.id === id)!.roles;
     if (input.status === 'disabled') {
       if (id === actorId) throw new ForbiddenException('Ne možeš deaktivirati vlastiti račun');
@@ -342,7 +344,7 @@ export class IdentityService {
   }
 
   async resetMfa(tx: Tx, id: string, actorId: string) {
-    await this.userRow(tx, id);
+    if ((await this.userRow(tx, id)).status === 'closed') throw new ConflictException('Račun je zatvoren');
     await tx.update(users).set({ mfaEnabled: false, mfaSecretEnc: null, mfaPendingEnc: null, mfaLastStep: null, updatedAt: new Date(), updatedBy: actorId }).where(eq(users.id, id));
     await this.revokeSessions(tx, id);
     await this.audit.record(tx, { entity: 'user', entityId: id, action: 'mfa.reset' });
@@ -388,7 +390,7 @@ export class IdentityService {
       roleCode: r.code, roleName: r.name, scope: r.projectId ? 'project' as const : 'tenant' as const,
       revocable: !!r.projectId && this.missingRights(c, projectId, r.permissions).length === 0,
     }));
-    const people = await tx.select({ id: users.id, displayName: users.displayName, email: users.email }).from(users).where(and(isNull(users.deletedAt), ne(users.status, 'disabled'))).orderBy(users.displayName);
+    const people = await tx.select({ id: users.id, displayName: users.displayName, email: users.email }).from(users).where(and(isNull(users.deletedAt), notInArray(users.status, ['disabled', 'closed']))).orderBy(users.displayName);
     const roleList = (await this.listRoles(tx)).map((r) => ({ code: r.code, name: r.name, scope: r.scope, grantable: this.missingRights(c, projectId, r.permissions).length === 0 }));
     return { projectId, entries, users: people, roles: roleList };
   }

@@ -18,10 +18,11 @@ import { PortfolioModule } from './portfolio/portfolio.module';
 import { ProjectImportModule } from './import/project-import.module';
 import { MeModule } from './me/me.module';
 import { MailModule } from './mail/mail.module';
+import { PrivacyModule } from './privacy/privacy.module';
 
 /**
  * Korijenski modul. Svaki domenski modul (ADR-0002, domenski model odj. 1) živi u vlastitoj mapi
  * s vlastitim javnim sučeljem; međusobno komuniciraju samo kroz servise/događaje, ne kroz tuđe tablice.
  */
-@Module({ imports: [DbModule, AuditModule, MailModule, IdentityModule, HealthModule, ProgrammesModule, OrganisationsModule, ProjectsModule, ImplementationModule, BudgetModule, FinanceModule, CallsModule, ProposalsModule, DocumentsModule, PortfolioModule, ProjectImportModule, MeModule], providers: [{ provide: APP_FILTER, useClass: PgErrorFilter }] })
+@Module({ imports: [DbModule, AuditModule, MailModule, IdentityModule, HealthModule, ProgrammesModule, OrganisationsModule, ProjectsModule, ImplementationModule, BudgetModule, FinanceModule, CallsModule, ProposalsModule, DocumentsModule, PortfolioModule, ProjectImportModule, MeModule, PrivacyModule], providers: [{ provide: APP_FILTER, useClass: PgErrorFilter }] })
 export class AppModule {}

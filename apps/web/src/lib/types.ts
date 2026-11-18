@@ -89,7 +89,7 @@ export interface ProjectRole { assignmentId: string; code: string; projectId: st
 /** `roles` – uloge na razini institucije; `projectRoles` – uloge na pojedinom projektu. */
 /** WP1.21: izdana poveznica (pozivnica ili nova lozinka) – kada i kako; token se nikad ne vraća u popisu. */
 export interface PendingLink { delivery: 'mail' | 'link'; createdAt: string; expiresAt: string }
-export interface UserRow { id: string; email: string; displayName: string; status: 'invited' | 'active' | 'disabled'; mfaEnabled: boolean; mfaRequired?: boolean; lastLoginAt: string | null; roles: string[]; projectRoles: ProjectRole[]; invitation?: PendingLink | null; passwordLink?: PendingLink | null }
+export interface UserRow { id: string; email: string; displayName: string; status: 'invited' | 'active' | 'disabled' | 'closed'; mfaEnabled: boolean; mfaRequired?: boolean; lastLoginAt: string | null; roles: string[]; projectRoles: ProjectRole[]; invitation?: PendingLink | null; passwordLink?: PendingLink | null }
 /** WP1.21: odgovor na izdavanje pozivnice ili poveznice za novu lozinku; `token` samo bez e-pošte (jednom). */
 export interface IssuedLink { delivery: 'mail' | 'link'; expiresAt: string; token?: string }
 export interface MailDeliveryRow { id: number; kind: 'invite' | 'reset' | 'password_changed' | 'digest' | 'test'; outcome: 'sent' | 'failed'; errorClass: string | null; attempts: number; createdAt: string; userId: string; displayName: string | null }
@@ -187,3 +187,30 @@ export interface MyWork { today: string; items: WorkItem[]; summary: WorkSummary
 export interface AppNotification { id: number; kind: string; title: string; detail: string | null; link: string | null; projectId: string | null; proposalId: string | null; actor: string | null; createdAt: string; read: boolean }
 export interface NotificationPage { items: AppNotification[]; unread: number; next: number | null }
 export interface CalendarStatus { active: boolean; createdAt: string | null; lastUsedAt: string | null; token?: string; path?: string }
+
+/** WP1.23 – osobni podaci: pretraga osobe, pregled, anonimizacija, rokovi čuvanja. */
+export interface PrivacyMember { id: string; fullName: string; project: string; projectId: string; projectStatus: string; partner: string; role: string | null; userId: string | null; active: boolean; anonymised: boolean; annualCostCents: number | null; linked?: boolean; retentionEnd?: string | null; retentionRunning?: boolean }
+export interface PrivacyPeople { users: { id: string; email: string; displayName: string; status: string; closedAt: string | null }[]; members: (PrivacyMember & { acronym: string })[] }
+export interface PrivacySubject {
+  user: { id: string; email: string; displayName: string; status: string; closedAt: string | null } | null; withAmounts: boolean;
+  members: PrivacyMember[]; candidates: PrivacyMember[]; counts: Record<string, number>;
+  documents: { title: string; fileName: string; project: string | null; uploadedAt: string; deleted: boolean; version: number }[];
+}
+export interface AnonymisePreview {
+  member: { id: string; fullName: string; project: string; projectId: string; projectStatus: string; partner: string; linkedToAccount: boolean; anonymised: boolean };
+  pseudonym: string; retention: { end: string | null; running: boolean; reason: string };
+  changes: { teamMember: { field: string; before: string | null; after: string | null }[]; expenses: { id: string; date: string; status: string; before: string; after: string }[] };
+  unchanged: { timesheets: number; minutes: number; personnelExpenses: number; responsibilities: number };
+  flagged: { where: string; ref: string; text: string }[]; documents: { id: string; title: string; fileName: string; uploadedAt: string | null }[]; fingerprint: string;
+}
+export interface RetentionCategory { key: string; label: string; unit: string; days: number; defaultDays: number; floorDays: number; configurable: boolean; setByInstitution: boolean; basis: string; held: number; eligible: number; keptForEvidence: number }
+export interface RetentionRun { id: number; day: string; mode: 'scheduled' | 'dry'; outcome: string; startedAt: string | null; finishedAt: string | null; result: { categories?: { key: string; removed: number; eligible: number; keptForEvidence: number; days: number; stoppedEarly?: boolean }[]; stoppedEarly?: boolean } | null }
+export interface RetentionOverview {
+  categories: RetentionCategory[];
+  projectYears: { defaultYears: number; floorYears: number; institutionYears: number | null; programmes: { packageId: string; years: number; source: 'programme' | 'institution' | 'default'; set: number | null }[] };
+  projects: { id: string; acronym: string; status: string; packageId: string; years: number; retentionEnd: string | null; state: 'not_started' | 'running' | 'ended' }[];
+  kept: { closedAccounts: number; closedAccountMembers: number; anonymisedMembers: number };
+  confirmed: { at: string | null; by: string | null };
+  lastRun: RetentionRun | null; lastDryRun: RetentionRun | null;
+  scheduler: { enabled: boolean; hour: number };
+}

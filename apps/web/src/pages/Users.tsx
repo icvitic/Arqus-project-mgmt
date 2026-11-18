@@ -69,7 +69,7 @@ function UsersInner({ me }: { me: Me }) {
             <p className="muted">Postojećem korisniku dodijeli ulogu koja vrijedi samo na odabranom projektu. Isto se može i u kartici „Pristup” na projektu.</p>
             <ActionForm submit="Dodijeli na projektu" onSubmit={async () => { await projectGrant(g.projectId, g.userId, g.role); setG({ ...g, userId: '' }); await users.reload(); }}>
               <Field label="Korisnik"><select value={g.userId} onChange={(e) => setG({ ...g, userId: e.target.value })} required>
-                <option value="">– odaberi –</option>{users.data?.filter((u) => u.status !== 'disabled').map((u) => <option key={u.id} value={u.id}>{u.displayName} ({u.email})</option>)}
+                <option value="">– odaberi –</option>{users.data?.filter((u) => u.status !== 'disabled' && u.status !== 'closed').map((u) => <option key={u.id} value={u.id}>{u.displayName} ({u.email})</option>)}
               </select></Field>
               <Field label="Uloga na projektu"><select value={g.role} onChange={(e) => setG({ ...g, role: e.target.value })}>{roles.data?.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}</select></Field>
               {projectSelect(g.projectId, (v) => setG({ ...g, projectId: v }))}
@@ -99,7 +99,7 @@ function UsersInner({ me }: { me: Me }) {
                 <td><StateCell u={u} /></td>
                 <td>{u.mfaEnabled ? <span className="chip ok">uključen</span> : u.mfaRequired ? <span className="chip bad" title="Institucija zahtijeva MFA za ovu ulogu; do postavljanja korisnik ima pristup samo vlastitom računu">obvezan – nije postavljen</span> : <span className="chip">isključen</span>}</td>
                 <td>{u.lastLoginAt ? date(u.lastLoginAt) : '–'}</td>
-                {write && <td><div className="actions" style={{ marginTop: 0 }}>{u.id !== me.user.id && <>
+                {write && <td><div className="actions" style={{ marginTop: 0 }}>{u.id !== me.user.id && u.status !== 'closed' && <>
                   {u.status === 'invited' && <ActionButton kind={u.invitation ? undefined : 'primary'} confirm={u.invitation ? 'Nova pozivnica odmah poništava dosadašnju poveznicu. Nastaviti?' : undefined} onClick={async () => handOver('invite', u, await api<IssuedLink>('POST', `/users/${u.id}/invitation`))}>{mail.data?.enabled ? 'pošalji pozivnicu ponovno' : 'nova poveznica pozivnice'}</ActionButton>}
                   {u.status === 'invited' && u.invitation && <ActionButton confirm={`Poništiti pozivnicu za ${u.email}? Poveznica odmah prestaje vrijediti; korisnik ostaje na popisu kao pozvan.`} onClick={async () => { await api('DELETE', `/users/${u.id}/invitation`); await users.reload(); }}>poništi pozivnicu</ActionButton>}
                   {u.status === 'active' && <ActionButton confirm={`Izdati poveznicu za novu lozinku za ${u.email}? Poveznica vrijedi 1 h; dosadašnja lozinka vrijedi dok korisnik ne odabere novu, a dvofaktorska prijava ostaje.`} onClick={async () => handOver('reset', u, await api<IssuedLink>('POST', `/users/${u.id}/password-link`))}>poveznica za novu lozinku</ActionButton>}
@@ -168,6 +168,8 @@ function StateCell({ u }: { u: UserRow }) {
     </>
   );
   if (u.status === 'disabled') return <span className="chip bad">deaktiviran</span>;
+  // WP1.23: zatvoren račun (osoba je otišla) – konačno; ime ostaje zbog dokaza, ostalo se vidi u „Osobni podaci”.
+  if (u.status === 'closed') return <><span className="chip">zatvoren</span><small className="muted">račun zatvoren – <a href="#/osobni-podaci">Osobni podaci</a></small></>;
   return (
     <>
       <span className="chip ok">aktivan</span>
