@@ -42,6 +42,8 @@ services:
       MAIL_FROM: ${MAIL_FROM:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ArQus Projekti}
       DIGEST_HOUR: ${DIGEST_HOUR:-7}
+      # WP1.22: kontakt za prijavu prepreka pristupačnosti (stranica „Pristupačnost”, javna)
+      ACCESSIBILITY_CONTACT: ${ACCESSIBILITY_CONTACT:-}
       # Pohrana dokumenata (ADR-0010, WP1.20): local = volumen `documents` (zadano); s3 = bucket iz DOCUMENTS_S3_*.
       DOCUMENTS_STORAGE: ${DOCUMENTS_STORAGE:-local}
       DOCUMENTS_DIR: /data/documents

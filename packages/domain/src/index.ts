@@ -18,3 +18,4 @@ export * from './project-import.js';
 export * from './my-work.js';
 export * from './ical.js';
 export * from './mail.js';
+export * from './responsible.js';

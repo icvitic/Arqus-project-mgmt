@@ -64,7 +64,15 @@ Pakete po pozivu ured za projekte stvara u izborniku **Paketi programa → Novi 
 ```bash
 DATABASE_MIGRATE_URL=postgres://arqus@127.0.0.1:5433/arqus_e2e DATABASE_URL=postgres://arqus_app:arqus@127.0.0.1:5433/arqus_e2e apps/web/e2e/run-local.sh
 ```
-Izgradi sve, primijeni migracije i seed, digne API i `vite preview` te Playwrightom prođe tok prijava → projekt → proračun → aktivacija → timesheet → trošak → ZNS. `E2E_SHOTS=<mapa>` sprema snimke zaslona. Nije u CI-ju (traži preglednik); pokrenuti prije spajanja promjena u sučelju.
+Izgradi sve, primijeni migracije i seed, digne API i `vite preview` te Playwrightom prođe cijeli tok sučelja (prijava → paket → radar → prijava na poziv → projekt → proračun → aktivacija → timesheet → trošak → ZNS → dokumenti → uvoz → portfelj → revizija → pozivnica → MFA → „Moj rad” s odgovornom osobom). `E2E_SHOTS=<mapa>` sprema snimke zaslona. Playwright i axe-core su razvojne ovisnosti `apps/web` (točne verzije); lokalno koristi već instaliran Chromium (`PLAYWRIGHT_BROWSERS_PATH`), inače jednom `pnpm --filter @arqus/web exec playwright install chromium`.
+
+**Od v0.32.0 (WP1.22) i u CI-ju** – zaseban posao `e2e-browser` u `.github/workflows/ci.yml` na svakom pull requestu: PostgreSQL 16 kao servis, `playwright install --with-deps chromium`, zatim ista skripta `run-local.sh`. Pri neuspjehu ispisuje zapise API-ja i weba; snimke, zapisi i nalazi pristupačnosti (`a11y.json`) uvijek su artefakt posla `e2e-browser`.
+
+### Provjera pristupačnosti (WCAG 2.1 AA)
+Dio iste e2e skripte (`apps/web/e2e/a11y.cjs`, `docs/PRISTUPACNOST.md`):
+- **axe-core** na svakom stanju zaslona koje tok dosegne (≈ 50: prijava, javne stranice pozivnice i nove lozinke, Moj rad, portfelj, radar, prijave, sve kartice projekta, korisnici, račun, revizija, paketi, organizacije, otvoreni dijalozi i izbornik obavijesti, obrazac s greškom, prazno stanje), u svijetloj i tamnoj temi (`prefers-color-scheme`) te na 1400 i 390 px. Nalaz utjecaja *serious* ili *critical* uz oznake `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` **ruši e2e**; manji se ispisuju. Na kraju zbroj po pravilu.
+- **Skriptirane provjere** (isto ruše e2e): točno jedan `h1` i razine naslova bez preskoka, `lang="hr"`, naslov dokumenta po ruti (dva zaslona ne dijele naslov), orijentiri (zaglavlje, izbornik s nazivom, jedan `main`), „Preskoči na sadržaj” prvi u redoslijedu tipke Tab, područje `aria-live`, preljev na 320 px bez vodoravnog pomicanja stranice, vidljiv fokus na svakom zaustavljanju tipke Tab, fokus zarobljen u dijalogu i vraćen nakon zatvaranja, fokus na naslov nakon promjene stranice; glavni tokovi samo tipkovnicom (prijava, član tima iz „Moj rad” upisuje i predaje timesheet, voditelj odobrava, financije otvaraju ZNS i popis za provjeru, administrator poziva korisnika, kartice strelicama, izbornik obavijesti).
+- `A11Y_REPORT=<datoteka.json>` zapisuje sve nalaze; `A11Y_ONLY_LIGHT=1` samo svjetla tema (brže lokalno).
 
 ## Struktura
 | Putanja | Sadržaj |

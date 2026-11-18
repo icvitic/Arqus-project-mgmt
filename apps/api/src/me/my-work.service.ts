@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import {
   addDays, callStatus, claimChecklist, dateIn, deriveWorkItems, packageDeviations, projectEndDate, proposalReadiness, monthEndDate,
-  type CallDeadline, type ClaimFact, type FinanceFacts, type ManagerFacts, type MemberFacts, type PeriodFact, type ProgrammePackage, type WorkFacts,
+  type CallDeadline, type ClaimFact, type FinanceFacts, type ManagerFacts, type MemberFacts, type PeriodFact, type ProgrammePackage, type ResponsibleFact, type WorkFacts,
 } from '@arqus/domain';
 import type { Tx } from '../db/db.service';
 import {
@@ -15,7 +15,7 @@ import { TenantContext, tenantTimeZone, tenantToday } from '../common/tenant-con
 import { canInTenant, canOnProject, projectGrants, projectsWith } from '../common/access';
 import { hasPermission, type Permission } from '../identity/permissions';
 import {
-  highRisksCount, OPEN_DELIVERABLE_STATUSES, OPEN_MILESTONE_STATUSES, OPEN_PROJECT_STATUSES, OPEN_PROPOSAL_STATUSES, periodSubmitted, RUNNING_PROJECT_STATUSES,
+  highRisksCount, OPEN_DELIVERABLE_STATUSES, OPEN_MILESTONE_STATUSES, OPEN_PROJECT_STATUSES, OPEN_TASK_STATUSES, OPEN_PROPOSAL_STATUSES, periodSubmitted, RUNNING_PROJECT_STATUSES,
   strandedCount, withoutEvidenceCount,
 } from '../portfolio/facts';
 import { SUBMISSION_KINDS } from '../portfolio/portfolio.service';
@@ -117,11 +117,13 @@ export class MyWorkService {
 
     // 6) Voditelj: isporuke i prekretnice (otvorene), odstupanja od pravila programa (zadnja verzija proračuna).
     const mProjects = projRows.filter((p) => managerIds.includes(p.id));
-    const delivs = managerIds.length ? await tx.select({ id: deliverables.id, projectId: deliverables.projectId, wp: workPackages.number, number: deliverables.number, title: deliverables.title, dueMonth: deliverables.dueMonth })
-      .from(deliverables).innerJoin(workPackages, eq(workPackages.id, deliverables.workPackageId))
+    // WP1.22: uz svaku stavku i odgovorna osoba (ime, račun, aktivan) – voditelj vidi tko je drži; spoj, ne dodatni upit.
+    const who = { rName: teamMembers.fullName, rUser: teamMembers.userId, rActive: teamMembers.active, rId: teamMembers.id };
+    const delivs = managerIds.length ? await tx.select({ id: deliverables.id, projectId: deliverables.projectId, wp: workPackages.number, number: deliverables.number, title: deliverables.title, dueMonth: deliverables.dueMonth, ...who })
+      .from(deliverables).innerJoin(workPackages, eq(workPackages.id, deliverables.workPackageId)).leftJoin(teamMembers, eq(teamMembers.id, deliverables.responsibleMemberId))
       .where(and(inArray(deliverables.projectId, managerIds), isNull(deliverables.deletedAt), inArray(deliverables.status, [...OPEN_DELIVERABLE_STATUSES]))) : [];
-    const mss = managerIds.length ? await tx.select({ id: milestones.id, projectId: milestones.projectId, number: milestones.number, title: milestones.title, dueMonth: milestones.dueMonth })
-      .from(milestones).where(and(inArray(milestones.projectId, managerIds), isNull(milestones.deletedAt), inArray(milestones.status, [...OPEN_MILESTONE_STATUSES]))) : [];
+    const mss = managerIds.length ? await tx.select({ id: milestones.id, projectId: milestones.projectId, number: milestones.number, title: milestones.title, dueMonth: milestones.dueMonth, ...who })
+      .from(milestones).leftJoin(teamMembers, eq(teamMembers.id, milestones.responsibleMemberId)).where(and(inArray(milestones.projectId, managerIds), isNull(milestones.deletedAt), inArray(milestones.status, [...OPEN_MILESTONE_STATUSES]))) : [];
     const lines = managerIds.length ? await tx.select({ projectId: projectBudgets.projectId, categoryCode: budgetLines.categoryCode, amount: budgetLines.amountCents })
       .from(budgetLines).innerJoin(projectBudgets, eq(projectBudgets.id, budgetLines.budgetId))
       .where(and(inArray(projectBudgets.projectId, managerIds), sql`${projectBudgets.version} = (select max(b2.version) from project_budgets b2 where b2.project_id = ${projectBudgets.projectId})`)) : [];
@@ -131,14 +133,15 @@ export class MyWorkService {
       if (!pkgCache.has(k)) pkgCache.set(k, await this.packages.get(tx, id, version));
       return pkgCache.get(k)!;
     };
+    const person = (r: { rId: string | null; rName: string | null; rUser: string | null; rActive: boolean | null }) => (r.rId ? { name: r.rName ?? '', userId: r.rUser, active: !!r.rActive } : null);
     const managers: ManagerFacts[] = [];
     for (const p of mProjects) {
       const end = projectEndDate(p.startDate, p.durationMonths);
       const deviations = packageDeviations(await pkg(p.packageId, p.packageVersion), { today, kind: 'project', startDate: p.startDate, endDate: end, budget: lines.filter((l) => l.projectId === p.id) });
       managers.push({
         projectId: p.id, financeLink: canOnProject(ctx, 'finance:read', p.id), highRisks: counters.find((x) => x.id === p.id)?.highRisks ?? 0, deviations: deviations.length,
-        deliverables: p.startDate ? delivs.filter((d) => d.projectId === p.id).map((d) => ({ id: d.id, code: `D${d.wp}.${d.number}`, title: d.title, due: monthEndDate(p.startDate!, d.dueMonth) })) : [],
-        milestones: p.startDate ? mss.filter((m) => m.projectId === p.id).map((m) => ({ id: m.id, code: `MS${m.number}`, title: m.title, due: monthEndDate(p.startDate!, m.dueMonth) })) : [],
+        deliverables: p.startDate ? delivs.filter((d) => d.projectId === p.id).map((d) => ({ id: d.id, code: `D${d.wp}.${d.number}`, title: d.title, due: monthEndDate(p.startDate!, d.dueMonth), responsible: person(d) })) : [],
+        milestones: p.startDate ? mss.filter((m) => m.projectId === p.id).map((m) => ({ id: m.id, code: `MS${m.number}`, title: m.title, due: monthEndDate(p.startDate!, m.dueMonth), responsible: person(m) })) : [],
         periods: periodsOf(p.id),
       });
     }
@@ -146,6 +149,23 @@ export class MyWorkService {
     // 7) Rizici kojima je korisnik nositelj (na projektima koje vidi).
     const ownRisks = projRows.length ? await tx.select({ projectId: risks.projectId, riskId: risks.id, number: risks.number, description: risks.description }).from(risks)
       .where(and(eq(risks.ownerUserId, userId), isNull(risks.deletedAt), inArray(risks.status, ['open', 'occurred']), inArray(risks.projectId, projRows.map((p) => p.id)))) : [];
+
+    // 7b) WP1.22: stavke kojima je korisnik odgovorna osoba – isporuke, prekretnice i zadaci (otvoreni statusi istih definicija
+    // kao portfelj, `portfolio/facts.ts`) na otvorenim projektima koje vidi, preko AKTIVNOG člana tima povezanog s korisnikom.
+    // Jedan upit za sve projekte i sve tri vrste; rok = kraj mjeseca roka (zadatak: završnog mjeseca), hitnost u domeni.
+    const projIds = projRows.map((p) => p.id);
+    const respRows = projIds.length ? (await tx.execute<{ kind: 'deliverable' | 'milestone' | 'task'; id: string; project_id: string; code: string; title: string; month: number; status: string }>(sql`
+      with mine as (select id from team_members where user_id = ${userId} and active and project_id = any(${`{${projIds.join(',')}}`}::uuid[]))
+      select 'deliverable' as kind, d.id, d.project_id, 'D' || w.number || '.' || d.number as code, d.title, d.due_month as month, d.status from deliverables d join work_packages w on w.id = d.work_package_id
+        where d.responsible_member_id in (select id from mine) and d.deleted_at is null and d.status = any(${`{${OPEN_DELIVERABLE_STATUSES.join(',')}}`}::text[])
+      union all select 'milestone', m.id, m.project_id, 'MS' || m.number, m.title, m.due_month, m.status from milestones m
+        where m.responsible_member_id in (select id from mine) and m.deleted_at is null and m.status = any(${`{${OPEN_MILESTONE_STATUSES.join(',')}}`}::text[])
+      union all select 'task', t.id, t.project_id, 'T' || w.number || '.' || t.number, t.title, t.end_month, t.status from tasks t join work_packages w on w.id = t.work_package_id
+        where t.responsible_member_id in (select id from mine) and t.deleted_at is null and t.status = any(${`{${OPEN_TASK_STATUSES.join(',')}}`}::text[])`)).rows : [];
+    const startOf = new Map(projRows.map((p) => [p.id, p.startDate]));
+    const responsible: ResponsibleFact[] = respRows.filter((r) => startOf.get(r.project_id)).map((r) => ({
+      projectId: r.project_id, kind: r.kind, id: r.id, code: r.code, title: r.title, due: monthEndDate(startOf.get(r.project_id)!, Number(r.month)), status: r.status,
+    }));
 
     // 8) Prijave s internim rokom do 30 dana unaprijed (i prošlim): vlastite (voditelj) ili sve uz izričitu proposals:write institucije.
     const allProposals = ctx.permissions.has('proposals:write');
@@ -190,7 +210,7 @@ export class MyWorkService {
     return {
       today, userId,
       projects: projRows.map((p) => ({ id: p.id, acronym: p.acronym, startDate: p.startDate, endDate: projectEndDate(p.startDate, p.durationMonths) })),
-      members, approvals, finance, managers, ownRisks, proposals: proposalFacts, calls: callFacts, mfaMissing,
+      members, approvals, finance, managers, ownRisks, responsible, proposals: proposalFacts, calls: callFacts, mfaMissing,
     };
   }
 

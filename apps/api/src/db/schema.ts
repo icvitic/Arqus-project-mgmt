@@ -241,6 +241,12 @@ export const workPackages = pgTable('work_packages', {
 
 const wpFk = (name: string, t: { tenantId: unknown; workPackageId: unknown }) =>
   foreignKey({ name, columns: [t.tenantId as never, t.workPackageId as never], foreignColumns: [workPackages.tenantId, workPackages.id] });
+/**
+ * WP1.22: odgovorna osoba isporuke, prekretnice ili zadatka – član tima ISTOG projekta (stanar + projekt + član u jednom
+ * stranom ključu, pa baza odbija člana drugog projekta ili stanara). Član tima se ne briše dok je odgovoran (NO ACTION).
+ */
+const responsibleFk = (name: string, t: { tenantId: unknown; projectId: unknown; responsibleMemberId: unknown }) =>
+  foreignKey({ name, columns: [t.tenantId as never, t.projectId as never, t.responsibleMemberId as never], foreignColumns: [teamMembers.tenantId, teamMembers.projectId, teamMembers.id] });
 
 export type TaskStatus = 'planned' | 'in_progress' | 'done' | 'cancelled';
 export const tasks = pgTable('tasks', {
@@ -254,10 +260,12 @@ export const tasks = pgTable('tasks', {
   startMonth: integer('start_month').notNull(),
   endMonth: integer('end_month').notNull(),
   status: text('status').$type<TaskStatus>().notNull().default('planned'),
+  responsibleMemberId: uuid('responsible_member_id'),
   ...audited,
 }, (t) => [
   uniqueIndex('tasks_number_uq').on(t.workPackageId, t.number),
   projectFk('tasks_project_fk', t), wpFk('tasks_wp_fk', t), partnerFk('tasks_lead_fk', t),
+  responsibleFk('tasks_responsible_fk', t), index('tasks_responsible_idx').on(t.tenantId, t.responsibleMemberId),
   check('tasks_months_ck', sql`start_month >= 1 and end_month >= start_month`),
 ]);
 
@@ -275,9 +283,11 @@ export const deliverables = pgTable('deliverables', {
   leadPartnerId: uuid('lead_partner_id'),
   status: text('status').$type<DeliverableStatus>().notNull().default('planned'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  responsibleMemberId: uuid('responsible_member_id'),
   ...audited,
 }, (t) => [
   uniqueIndex('deliverables_number_uq').on(t.workPackageId, t.number),
+  responsibleFk('deliverables_responsible_fk', t), index('deliverables_responsible_idx').on(t.tenantId, t.responsibleMemberId),
   index('deliverables_due_idx').on(t.tenantId, t.dueMonth),
   projectFk('deliverables_project_fk', t), wpFk('deliverables_wp_fk', t), partnerFk('deliverables_lead_fk', t),
   check('deliverables_month_ck', sql`due_month >= 1`),
@@ -293,8 +303,12 @@ export const milestones = pgTable('milestones', {
   dueMonth: integer('due_month').notNull(),
   verification: text('verification'),
   status: text('status').$type<MilestoneStatus>().notNull().default('planned'),
+  responsibleMemberId: uuid('responsible_member_id'),
   ...audited,
-}, (t) => [uniqueIndex('milestones_number_uq').on(t.projectId, t.number), projectFk('milestones_project_fk', t), check('milestones_month_ck', sql`due_month >= 1`)]);
+}, (t) => [
+  uniqueIndex('milestones_number_uq').on(t.projectId, t.number), projectFk('milestones_project_fk', t), check('milestones_month_ck', sql`due_month >= 1`),
+  responsibleFk('milestones_responsible_fk', t), index('milestones_responsible_idx').on(t.tenantId, t.responsibleMemberId),
+]);
 
 export type RiskStatus = 'open' | 'mitigated' | 'occurred' | 'closed';
 export const risks = pgTable('risks', {
@@ -363,6 +377,8 @@ export const teamMembers = pgTable('team_members', {
   ...audited,
 }, (t) => [
   unique('team_members_tenant_id_uq').on(t.tenantId, t.id),
+  /** WP1.22: cilj stranog ključa odgovorne osobe (član tima istog projekta). */
+  unique('team_members_project_id_uq').on(t.tenantId, t.projectId, t.id),
   uniqueIndex('team_members_user_uq').on(t.projectId, t.userId).where(sql`user_id is not null`),
   projectFk('team_members_project_fk', t),
   foreignKey({ name: 'team_members_partner_fk', columns: [t.tenantId, t.partnerId], foreignColumns: [projectPartners.tenantId, projectPartners.id] }),

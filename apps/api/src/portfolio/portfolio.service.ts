@@ -23,7 +23,7 @@ const STATUS_ORDER = ['active', 'suspended', 'closing', 'contracting', 'closed',
 export const SUBMISSION_KINDS = ['submission', 'stage1', 'stage2'];
 
 /** Rok portfelja; `key` – stabilan identifikator roka (WP1.18: UID događaja u osobnom kalendaru). */
-export type Deadline = DeadlineInput & { key: string; link: string; projectId?: string; acronym?: string; callId?: string; proposalId?: string; at?: string; detail?: string };
+export type Deadline = DeadlineInput & { key: string; link: string; projectId?: string; acronym?: string; callId?: string; proposalId?: string; at?: string; detail?: string; /** WP1.22: odgovorna osoba (isporuka, prekretnica). */ responsible?: string };
 type Lines = { partnerId: string; categoryCode: string; amount: number }[];
 
 /**
@@ -143,11 +143,12 @@ export class PortfolioService {
       // potraživanim izvan sustava (ZNS predan prije ArQusa, uvezen iz Excela) također je predano – nije „razdoblje bez ZNS-a”.
       submitted: periodSubmitted,
     }).from(reportingPeriods).where(inArray(reportingPeriods.projectId, ids)).orderBy(asc(reportingPeriods.projectId), asc(reportingPeriods.number)) : [];
-    const delivs = ids.length ? await tx.select({ id: deliverables.id, projectId: deliverables.projectId, wp: workPackages.number, number: deliverables.number, title: deliverables.title, dueMonth: deliverables.dueMonth })
-      .from(deliverables).innerJoin(workPackages, eq(workPackages.id, deliverables.workPackageId))
+    // WP1.22: ime odgovorne osobe uz rok isporuke i prekretnice (spoj; kalendar ga ne prenosi – bez imena osoba).
+    const delivs = ids.length ? await tx.select({ id: deliverables.id, projectId: deliverables.projectId, wp: workPackages.number, number: deliverables.number, title: deliverables.title, dueMonth: deliverables.dueMonth, responsible: teamMembers.fullName })
+      .from(deliverables).innerJoin(workPackages, eq(workPackages.id, deliverables.workPackageId)).leftJoin(teamMembers, eq(teamMembers.id, deliverables.responsibleMemberId))
       .where(and(inArray(deliverables.projectId, ids), isNull(deliverables.deletedAt), inArray(deliverables.status, [...OPEN_DELIVERABLE_STATUSES]))) : [];
-    const mss = ids.length ? await tx.select({ id: milestones.id, projectId: milestones.projectId, number: milestones.number, title: milestones.title, dueMonth: milestones.dueMonth })
-      .from(milestones).where(and(inArray(milestones.projectId, ids), isNull(milestones.deletedAt), inArray(milestones.status, [...OPEN_MILESTONE_STATUSES]))) : [];
+    const mss = ids.length ? await tx.select({ id: milestones.id, projectId: milestones.projectId, number: milestones.number, title: milestones.title, dueMonth: milestones.dueMonth, responsible: teamMembers.fullName })
+      .from(milestones).leftJoin(teamMembers, eq(teamMembers.id, milestones.responsibleMemberId)).where(and(inArray(milestones.projectId, ids), isNull(milestones.deletedAt), inArray(milestones.status, [...OPEN_MILESTONE_STATUSES]))) : [];
     const counters = ids.length && !opts.deadlinesOnly ? await tx.select({
       id: projects.id,
       highRisks: highRisksCount,
@@ -202,8 +203,8 @@ export class PortfolioService {
           deadlines.push({ key: `rp-${r.id}-due`, kind: 'claim_due', date: r.dueDate, overdueRelevant: true, title: `RP${r.number} – rok za zahtjev za nadoknadu i izvještaj`, link: reportLink, projectId: p.id, acronym: p.acronym, scope: p.acronym });
         }
         if (p.startDate) {
-          for (const d of delivs.filter((x) => x.projectId === p.id)) deadlines.push({ key: `deliverable-${d.id}`, kind: 'deliverable', date: monthEndDate(p.startDate, d.dueMonth), overdueRelevant: true, title: `D${d.wp}.${d.number} ${d.title}`, link: tab('struktura'), projectId: p.id, acronym: p.acronym, scope: p.acronym });
-          for (const m of mss.filter((x) => x.projectId === p.id)) deadlines.push({ key: `milestone-${m.id}`, kind: 'milestone', date: monthEndDate(p.startDate, m.dueMonth), overdueRelevant: true, title: `MS${m.number} ${m.title}`, link: tab('struktura'), projectId: p.id, acronym: p.acronym, scope: p.acronym });
+          for (const d of delivs.filter((x) => x.projectId === p.id)) deadlines.push({ key: `deliverable-${d.id}`, kind: 'deliverable', date: monthEndDate(p.startDate, d.dueMonth), overdueRelevant: true, title: `D${d.wp}.${d.number} ${d.title}`, link: tab('struktura'), projectId: p.id, acronym: p.acronym, scope: p.acronym, ...(d.responsible ? { responsible: d.responsible } : {}) });
+          for (const m of mss.filter((x) => x.projectId === p.id)) deadlines.push({ key: `milestone-${m.id}`, kind: 'milestone', date: monthEndDate(p.startDate, m.dueMonth), overdueRelevant: true, title: `MS${m.number} ${m.title}`, link: tab('struktura'), projectId: p.id, acronym: p.acronym, scope: p.acronym, ...(m.responsible ? { responsible: m.responsible } : {}) });
         }
       }
       return {

@@ -218,7 +218,11 @@ describe('Demo okruženje (WP1.13)', () => {
     const memberW = await mw('member');
     expect(kinds(memberW)).toEqual(expect.arrayContaining(['timesheet_current', 'timesheet_submitted', 'risk_owned']));
     expect(memberW.items.every((i) => i.acronym === 'BLUESENSE')).toBe(true);
+    // WP1.22: Luka je odgovorna osoba za isporuku tekućeg mjeseca (uskoro); voditeljica vidi isporuku koja kasni i tko je drži.
+    expect(memberW.items.filter((i) => i.kind === 'deliverable_responsible').map((i) => `${i.title}|${i.urgency}`)).toEqual([expect.stringMatching(/Izvještaj o laboratorijskom testiranju prototipa\|due_soon$/)]);
     const pmW = await mw('pm');
+    expect(pmW.items.find((i) => i.kind === 'deliverable_due' && /Arhitektura podatkovne platforme/.test(i.title))).toMatchObject({ urgency: 'overdue', detail: expect.stringMatching(/odgovorna osoba: Ivana Marić \(bez korisničkog računa\)$/) });
+    expect(pmW.items.find((i) => i.kind === 'deliverable_due' && /laboratorijskom testiranju/.test(i.title))!.detail).toMatch(/odgovorna osoba: Luka Novak$/);
     expect(kinds(pmW)).toEqual(expect.arrayContaining(['timesheet_to_approve', 'deliverable_due', 'risks_high', 'proposal_deadline', 'expenses_without_evidence', 'risk_owned']));
     expect(pmW.items.filter((i) => i.kind === 'timesheet_to_approve').map((i) => i.title)).toEqual([expect.stringMatching(/^Odobri timesheet: Luka Novak/)]);
     expect(pmW.items.some((i) => i.acronym === 'ZELENI-LAB')).toBe(false);
@@ -237,7 +241,7 @@ describe('Demo okruženje (WP1.13)', () => {
     type N = { items: { kind: string; read: boolean }[]; unread: number };
     const nt = async (k: string) => (await http().get('/api/me/notifications?limit=100').set(as(k)).expect(200)).body as N;
     const memberN = await nt('member');
-    expect(new Set(memberN.items.map((n) => n.kind))).toEqual(new Set(['timesheet_approved', 'access_granted']));
+    expect(new Set(memberN.items.map((n) => n.kind))).toEqual(new Set(['timesheet_approved', 'access_granted', 'responsible_assigned'])); // WP1.22: isporuka i zadatak
     expect(memberN.unread).toBe(3);
     expect((await nt('pm')).items.map((n) => n.kind)).toEqual(expect.arrayContaining(['project_manager', 'proposal_lead', 'timesheet_approved']));
     expect((await nt('pm2')).items.map((n) => n.kind)).toEqual(expect.arrayContaining(['project_manager', 'proposal_lead', 'timesheet_approved']));

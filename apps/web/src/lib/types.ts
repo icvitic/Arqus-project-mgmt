@@ -24,11 +24,16 @@ export interface ProjectSummary { id: string; acronym: string; title: string; st
 export interface Partner { id: string; organisationId: string; name: string; country: string; isSelf: boolean; role: string; beneficiaryType: string; orderNo: number }
 export interface Period { number: number; startDate: string; endDate: string; dueDate: string }
 export interface Project extends Omit<ProjectSummary, 'partnerCount'> { partners: Partner[]; reportingPeriods: Period[]; revision: number; deviations: Deviation[] }
-export interface Task { id: string; code: string; title: string; startMonth: number; endMonth: number; status: string }
-export interface Deliverable { id: string; code: string; title: string; type: string; dissemination: string; dueMonth: number; dueDate: string | null; status: string }
+/** WP1.22: odgovorna osoba stavke – član tima projekta; `mine` = povezan je s prijavljenim korisnikom. */
+export interface Responsible { memberId: string; name: string; active: boolean; mine: boolean }
+export interface Task { id: string; code: string; title: string; startMonth: number; endMonth: number; endDate: string | null; status: string; responsibleMemberId: string | null; responsible: Responsible | null }
+export interface Deliverable { id: string; code: string; title: string; type: string; dissemination: string; dueMonth: number; dueDate: string | null; status: string; responsibleMemberId: string | null; responsible: Responsible | null }
+export interface Milestone { id: string; code: string; title: string; dueMonth: number; dueDate: string | null; status: string; responsibleMemberId: string | null; responsible: Responsible | null }
 export interface WorkPackage { id: string; code: string; number: number; title: string; startMonth: number; endMonth: number; leadPartnerId: string | null; tasks: Task[]; deliverables: Deliverable[] }
 export interface Structure {
-  workPackages: WorkPackage[]; milestones: { id: string; code: string; title: string; dueMonth: number; dueDate: string | null; status: string }[];
+  workPackages: WorkPackage[]; milestones: Milestone[];
+  /** WP1.22: članovi tima za odabir odgovorne osobe – samo onome tko smije uređivati strukturu. */
+  team?: { id: string; name: string; active: boolean }[];
   risks: { id: string; number: number; description: string; likelihood: number; impact: number; mitigation: string | null; status: string; score: number; level: string }[];
 }
 export interface PartnerBudget { partnerId: string; name?: string; directTotal: number; indirectTotal: number; total: number; ratePercent: number; requested: number }
@@ -146,7 +151,7 @@ export interface PortfolioProject {
   nextReport: { period: number; endDate: string; dueDate: string; days: number; overdue: boolean } | null;
   attention: PortfolioAttention | null;
 }
-export interface PortfolioDeadline { kind: string; date: string; at?: string; days: number; overdue: boolean; title: string; detail?: string; link: string; scope?: string; projectId?: string; callId?: string; proposalId?: string }
+export interface PortfolioDeadline { kind: string; date: string; at?: string; days: number; overdue: boolean; title: string; detail?: string; link: string; scope?: string; projectId?: string; callId?: string; proposalId?: string; responsible?: string }
 export interface PortfolioPerson { key: string; name: string; userId: string | null; projects: { id: string; acronym: string }[]; months: { month: string; minutes: number }[]; yearMinutes: number; annualLimitHours: number | null; overAnnual: boolean; overDays: { date: string; minutes: number; projects: number }[] }
 export interface PortfolioStatusRow { status: string; count: number; requested: number; requestedOwn: number }
 export interface PortfolioProposal { id: string; acronym: string; title: string; status: string; callCode: string | null; internalDeadline: string | null; days: number | null; requested: number; requestedOwn: number }

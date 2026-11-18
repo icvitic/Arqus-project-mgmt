@@ -50,7 +50,7 @@ export function ExpensesTab({ project: p, pkg, me }: TabProps) {
         <ErrorBox error={ex.error} />
         {!ex.data ? <Loading /> : (
           <table className="expense-table">
-            <thead><tr><th>Datum</th><th>Kategorija</th><th>Opis</th><th>Dobavljač / dokaz</th><th className="num">Iznos</th><th className="num">Priznato</th><th>Izvor</th><th>Status</th><th /></tr></thead>
+            <thead><tr><th>Datum</th><th>Kategorija</th><th>Opis</th><th>Dobavljač / dokaz</th><th className="num">Iznos</th><th className="num">Priznato</th><th>Izvor</th><th>Status</th><th><span className="sr-only">Radnje</span></th></tr></thead>
             <tbody>{groups.map((g) => g.kind === 'personnel' ? (
               <Fragment key={g.key}>
                 <tr><td>{date(g.date)}</td><td title={catName(g.rows[0]!.categoryCode)}>{g.rows[0]!.categoryCode}</td>

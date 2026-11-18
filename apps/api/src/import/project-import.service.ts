@@ -707,6 +707,11 @@ export class ProjectImportService {
       if (ts) out.push(`uvezeni članovi tima imaju ${ts} ${pl(ts, 'timesheet', 'timesheeta', 'timesheetova')}`);
       const e = (await tx.select({ n: sql<number>`count(*)::int` }).from(expenses).where(and(inArray(expenses.teamMemberId, cr.teamMembers), sql`(${expenses.importId} is distinct from ${imp.id})`)))[0]!.n;
       if (e) out.push('na uvezene članove tima vezani su troškovi osoblja iz drugog uvoza');
+      // WP1.22: uvezeni član tima je u međuvremenu određen kao odgovorna osoba – brisanje bi tiho ostavilo stavku bez odgovornog.
+      const resp = (await tx.select({ n: sql<number>`((select count(*) from deliverables where responsible_member_id = any(${`{${cr.teamMembers.join(',')}}`}::uuid[]))
+        + (select count(*) from milestones where responsible_member_id = any(${`{${cr.teamMembers.join(',')}}`}::uuid[]))
+        + (select count(*) from tasks where responsible_member_id = any(${`{${cr.teamMembers.join(',')}}`}::uuid[])))::int` }).from(sql`(select 1) x`))[0]!.n;
+      if (resp) out.push(`uvezeni član tima odgovorna je osoba za ${resp} ${pl(resp, 'stavku', 'stavke', 'stavki')} strukture (isporuke, prekretnice, zadatke)`);
     }
     if (cr.budget) {
       const b = (await tx.select({ status: projectBudgets.status, revision: projectBudgets.revision }).from(projectBudgets).where(eq(projectBudgets.id, cr.budget.budgetId)))[0];

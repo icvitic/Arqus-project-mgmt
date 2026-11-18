@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../lib/api';
 import { date, dateTime } from '../lib/format';
 import { useLoad } from '../lib/hooks';
 import type { IssuedLink, MailStatus, Me, MfaPolicy, ProjectSummary, RoleRow, SecuritySettings, UserRow } from '../lib/types';
-import { ActionButton, ActionForm, Chip, ErrorBox, Field, Loading } from '../ui';
+import { ActionButton, ActionForm, Chip, Dialog, ErrorBox, Field, Loading, announce } from '../ui';
 import { can } from '../lib/access';
 
 export function Users({ me }: { me: Me }) {
@@ -81,7 +81,7 @@ function UsersInner({ me }: { me: Me }) {
         <ErrorBox error={users.error} />
         {!users.data ? <Loading /> : (
           <table>
-            <thead><tr><th>Korisnik</th><th>Uloga institucije</th><th>Uloge na projektima</th><th>Stanje</th><th>MFA</th><th>Zadnja prijava</th>{write && <th />}</tr></thead>
+            <thead><tr><th>Korisnik</th><th>Uloga institucije</th><th>Uloge na projektima</th><th>Stanje</th><th>MFA</th><th>Zadnja prijava</th>{write && <th><span className="sr-only">Radnje</span></th>}</tr></thead>
             <tbody>{users.data.map((u) => (
               <tr key={u.id}>
                 <td><b>{u.displayName}</b><br /><span className="muted">{u.email}</span></td>
@@ -93,7 +93,7 @@ function UsersInner({ me }: { me: Me }) {
                 <td>{u.projectRoles.length === 0 ? <span className="muted">–</span> : u.projectRoles.map((r) => (
                   <span key={r.assignmentId} style={{ whiteSpace: 'nowrap', marginRight: 6 }}>
                     <Chip s={`${roleName(r.code)} · ${r.acronym ?? 'projekt'}`} tone="acc" />
-                    {write && <ActionButton confirm={`Oduzeti ulogu „${roleName(r.code)}” na projektu ${r.acronym ?? ''}?`} onClick={async () => { await api('DELETE', `/projects/${r.projectId}/access/${r.assignmentId}`); await users.reload(); }}>×</ActionButton>}
+                    {write && <ActionButton label={`Oduzmi ulogu ${roleName(r.code)} na projektu ${r.acronym ?? ''}`} confirm={`Oduzeti ulogu „${roleName(r.code)}” na projektu ${r.acronym ?? ''}?`} onClick={async () => { await api('DELETE', `/projects/${r.projectId}/access/${r.assignmentId}`); await users.reload(); }}>×</ActionButton>}
                   </span>
                 ))}</td>
                 <td><StateCell u={u} /></td>
@@ -182,13 +182,9 @@ function StateCell({ u }: { u: UserRow }) {
  */
 function LinkDialog({ kind, user, link, expiresAt, onClose }: { kind: 'invite' | 'reset'; user: string; link: string; expiresAt: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { ref.current?.focus(); }, []);
-  const copy = async () => { try { await navigator.clipboard.writeText(link); setCopied(true); } catch { setCopied(false); } };
+  const copy = async () => { try { await navigator.clipboard.writeText(link); setCopied(true); announce('Poveznica je kopirana.'); } catch { setCopied(false); announce('Kopiranje nije uspjelo – označi poveznicu i kopiraj je ručno.'); } };
   return (
-    <div className="dialog-backdrop" onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
-      <div className="dialog card" role="dialog" aria-modal="true" aria-labelledby="link-dialog-title" tabIndex={-1} ref={ref}>
-        <h2 id="link-dialog-title">{kind === 'invite' ? 'Poveznica pozivnice' : 'Poveznica za novu lozinku'}</h2>
+    <Dialog title={kind === 'invite' ? 'Poveznica pozivnice' : 'Poveznica za novu lozinku'} onClose={onClose} initialFocus="[data-testid=handover-link]">
         <p>Za: <b>{user}</b> · vrijedi do {dateTime(expiresAt)} · može se upotrijebiti samo jednom.</p>
         <div className="copy-row">
           <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} aria-label="Poveznica" data-testid="handover-link" />
@@ -196,8 +192,7 @@ function LinkDialog({ kind, user, link, expiresAt, onClose }: { kind: 'invite' |
         </div>
         <p className="warnbox"><b>Predaj poveznicu osobno ili pouzdanim kanalom</b> (uživo, telefonom, službenim chatom institucije) – ne javnim kanalom ni na zajedničkom zaslonu. Tko ima poveznicu, može postaviti lozinku tog računa. Ova poveznica prikazuje se samo sada; ako se izgubi, izdaj novu.</p>
         <div className="actions"><button onClick={onClose}>Zatvori</button></div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

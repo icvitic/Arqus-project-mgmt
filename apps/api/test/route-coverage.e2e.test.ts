@@ -85,9 +85,10 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
     // Rute s projektnim entitetom izvan /projects (dokumenti) razrješavaju projekt u servisu.
     expect(routes.filter((r) => r.path.startsWith('/api/documents')).every((r) => r.access.kind === 'resolves-project')).toBe(true);
     // Javne rute: health, prijava, (WP1.18) osobni kalendar rokova po tajnom tokenu i (WP1.21) zaboravljena lozinka, pregled
-    // poveznice, prihvaćanje pozivnice i nova lozinka – izričit popis, nova javna ruta ruši test.
+    // poveznice, prihvaćanje pozivnice i nova lozinka, (WP1.22) kontakt za stranicu „Pristupačnost” – izričit popis, nova javna
+    // ruta ruši test.
     expect(routes.filter((r) => r.access.kind === 'public').map((r) => `${r.method} ${r.path}`).sort()).toEqual([
-      'GET /api/calendar/:token', 'GET /api/health', 'GET /api/health/ready', 'POST /api/auth/invitation/accept', 'POST /api/auth/login',
+      'GET /api/calendar/:token', 'GET /api/health', 'GET /api/health/ready', 'GET /api/public/accessibility', 'POST /api/auth/invitation/accept', 'POST /api/auth/login',
       'POST /api/auth/password/forgot', 'POST /api/auth/password/reset', 'POST /api/auth/token/inspect',
     ]);
     // WP1.21: token računa nikad u putanji ili upitu (zapisi pristupa, Referer) – javne rute računa nemaju parametar putanje.
@@ -113,6 +114,14 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
     expect(routes.filter((r) => r.mfaSetup).map((r) => `${r.method} ${r.path} (${r.access.kind})`).sort()).toEqual([
       'GET /api/me (authenticated)', 'POST /api/auth/logout (authenticated)', 'POST /api/me/mfa/enable (authenticated)', 'POST /api/me/mfa/setup (authenticated)', 'POST /api/me/password (authenticated)',
     ].sort());
+    // Rute projekta koje mijenjaju podatke uz oznaku samo `projects:read` – servis provjerava užu dozvolu: upravljanje
+    // pristupom (WP1.14, users:write ili projects:write), uvoz iz Excela (WP1.17, dozvole po listu) i (WP1.22) „napredak”
+    // vlastite stavke (voditelj ili odgovorna osoba u radnom dijelu životnog ciklusa – test/responsible.e2e.test.ts).
+    // Nova takva ruta ruši test.
+    expect(routes.filter((r) => r.access.kind === 'project' && r.method !== 'GET' && (r.access as { permission: string }).permission === 'projects:read').map((r) => `${r.method} ${r.path}`).sort()).toEqual([
+      'DELETE /api/projects/:id/access/:assignmentId', 'POST /api/projects/:id/access', 'POST /api/projects/:id/deliverables/:did/progress',
+      'POST /api/projects/:id/import/confirm', 'POST /api/projects/:id/import/preview', 'POST /api/projects/:id/imports/:importId/undo', 'POST /api/projects/:id/tasks/:taskId/progress',
+    ]);
     // Sigurnosne postavke institucije (WP1.19): čitanje uz users:read, izmjena samo uz users:write (administrator).
     expect(routes.filter((r) => r.path === '/api/tenant/security').map((r) => `${r.method} ${(r.access as { permission?: string }).permission}`).sort()).toEqual(['GET users:read', 'PUT users:write']);
   });

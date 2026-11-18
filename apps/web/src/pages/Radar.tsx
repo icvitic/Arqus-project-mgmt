@@ -38,11 +38,11 @@ function RadarList({ me }: { me: Me }) {
     <>
       <h1>Radar poziva</h1>
       <p className="sub">Pozivi koje institucija prati: rokovi, ocjena prikladnosti i odluka go/no-go. Globalne pozive održava ArQus; vlastite unosi ured za projekte.</p>
-      <div className="card"><h2>Nadolazeći rokovi (60 dana)</h2>
+      <div className="card scroll"><h2>Nadolazeći rokovi (60 dana)</h2>
         <ErrorBox error={upcoming.error} />
         {!upcoming.data ? <Loading /> : upcoming.data.length === 0 ? <p className="muted">Nema rokova za pozive s odlukom go ili „pratimo”.</p> : (
           <table><tbody>{upcoming.data.map((d) => (
-            <tr key={`${d.callId}-${d.kind}-${d.at}`} className="row" onClick={() => go(`radar/${d.callId}`)}><td style={{ whiteSpace: 'nowrap' }}>{d.kind === 'internal' ? date(d.at) : dateTime(d.at)}</td><td>{daysChip(d.days)}</td><td>{KIND[d.kind] ?? d.label}</td><td><b>{d.code}</b> {d.title}</td><td>{d.decision && <Chip s={d.decision} tone={d.decision === 'go' ? 'acc' : ''} />}</td></tr>
+            <tr key={`${d.callId}-${d.kind}-${d.at}`} className="row" onClick={() => go(`radar/${d.callId}`)}><td style={{ whiteSpace: 'nowrap' }}>{d.kind === 'internal' ? date(d.at) : dateTime(d.at)}</td><td>{daysChip(d.days)}</td><td>{KIND[d.kind] ?? d.label}</td><td><a href={`#/radar/${d.callId}`} onClick={(e) => e.stopPropagation()}><b>{d.code}</b></a> {d.title}</td><td>{d.decision && <Chip s={d.decision} tone={d.decision === 'go' ? 'acc' : ''} />}</td></tr>
           ))}</tbody></table>
         )}
       </div>
@@ -61,8 +61,8 @@ function RadarList({ me }: { me: Me }) {
           <table>
             <thead><tr><th>Poziv</th><th>Program</th><th>Sljedeći rok</th><th className="num">Proračun</th><th>Status</th><th className="num">Prikladnost</th><th>Odluka</th></tr></thead>
             <tbody>{calls.data.slice(0, limit).map((c) => (
-              <tr key={c.id} className="row" tabIndex={0} onClick={() => go(`radar/${c.id}`)} onKeyDown={(e) => e.key === 'Enter' && go(`radar/${c.id}`)}>
-                <td><b>{c.code}</b><br /><span className="muted">{c.title}</span></td>
+              <tr key={c.id} className="row" onClick={() => go(`radar/${c.id}`)}>
+                <td><a href={`#/radar/${c.id}`} onClick={(e) => e.stopPropagation()}><b>{c.code}</b></a><br /><span className="muted">{c.title}</span></td>
                 <td>{c.programme}{c.scope === 'global' && <> <span className="chip" title={c.source === 'ft' ? 'uvezen s portala EU Funding & Tenders' : 'održava ArQus'}>{c.source === 'ft' ? 'F&T' : 'globalni'}</span></>}</td>
                 <td>{c.nextDeadline ? <>{dateTime(c.nextDeadline.at)} {daysChip(c.daysToNextDeadline)}<br /><span className="muted">{KIND[c.nextDeadline.kind]}</span></> : '–'}</td>
                 <td className="num">{c.budget !== null ? eur(c.budget) : '–'}{c.expectedGrants ? <><br /><span className="muted">~{c.expectedGrants} projekata</span></> : null}</td>

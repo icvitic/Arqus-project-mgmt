@@ -1,4 +1,4 @@
-# „Moj rad”, obavijesti, osobni kalendar rokova i dnevni sažetak (WP1.18, v0.30.0; sažetak WP1.21, v0.31.0)
+# „Moj rad”, obavijesti, osobni kalendar rokova i dnevni sažetak (WP1.18, v0.30.0; sažetak WP1.21, v0.31.0; odgovorne osobe WP1.22, v0.32.0)
 
 Cilj: **član tima nakon prijave vidi što danas treba napraviti** – bez traženja po projektima. Tri dijela:
 
@@ -24,6 +24,7 @@ Osoba može biti član tima na jednom projektu, a voditelj na drugom – uloga s
 | Uloga | Uvjet |
 | --- | --- |
 | član tima | povezan s aktivnim članom tima (`team_members.user_id`) projekta u provedbi i smije voditi timesheet (`timesheets:write`) |
+| odgovorna osoba (v0.32.0) | povezan s aktivnim članom tima koji je određen kao odgovoran za isporuku, prekretnicu ili zadatak (projekt otvoren i vidljiv) |
 | odobravatelj / voditelj / financije | dozvola (`timesheets:approve` / `projects:write` / `finance:write`) **dodijeljena na tom projektu** ili je korisnik **imenovani voditelj** projekta (i dozvolu ima) |
 | financijski ured | `finance:write` na razini institucije **bez** `projects:write` institucije → stavke financija na svim projektima |
 | prijave | voditelj prijave (vlastite) ili izričita `proposals:write` institucije |
@@ -41,6 +42,9 @@ Osoba može biti član tima na jednom projektu, a voditelj na drugom – uloga s
 | `timesheet_reopened` | član | timesheet u nacrtu koji je bio vraćen (revizija `reopen`) | čeka / uskoro / kasni po kraju mjeseca | timesheet |
 | `timesheet_submitted` | član | vlastiti predan timesheet čeka odobrenje | čeka | timesheet |
 | `risk_owned` | nositelj | otvoren ili nastupio rizik kojem je korisnik nositelj (`risks.owner_user_id`) | čeka | struktura |
+| `deliverable_responsible` | odgovorna osoba | (v0.32.0) otvorena isporuka (planirana, u izradi, odbijena) kojoj je odgovorna osoba aktivni član tima povezan s korisnikom, a kasni ili dospijeva u 30 dana | kasni / uskoro | struktura |
+| `milestone_responsible` | odgovorna osoba | (v0.32.0) planirana prekretnica, isto pravilo; postignuće potvrđuje voditelj | kasni / uskoro | struktura |
+| `task_responsible` | odgovorna osoba | (v0.32.0) otvoren zadatak (planiran, u tijeku) čiji završni mjesec je prošao ili završava u 30 dana | kasni / uskoro | struktura |
 | `timesheet_to_approve` | odobravatelj | predan timesheet koji korisnik smije odobriti: **nije njegov i nije ga on predao** (četiri oka), predavatelj je poznat | čeka | timesheet |
 | `expenses_without_evidence` | financije | broj ručno unesenih troškova bez (vidljivog) dokaza | čeka | troškovi |
 | `claim_draft` | financije | nacrt ZNS-a za razdoblje koje je završilo, s brojem otvorenih blokada popisa za provjeru | po roku ZNS-a | ZNS |
@@ -48,8 +52,8 @@ Osoba može biti član tima na jednom projektu, a voditelj na drugom – uloga s
 | `period_unclaimed` | financije | završeno razdoblje bez predanog ZNS-a i bez nacrta | po roku ZNS-a | ZNS |
 | `expenses_stranded` | financije | nepredani troškovi iz ranijih razdoblja | čeka | ZNS |
 | `claim_unpaid` | financije | odobren (i djelomično) ZNS bez zabilježene isplate | informacija | ZNS |
-| `deliverable_due` | voditelj | otvorena isporuka (planirana, u izradi, odbijena) koja kasni ili dospijeva u 30 dana | kasni / uskoro | struktura |
-| `milestone_due` | voditelj | planirana prekretnica koja kasni ili dospijeva u 30 dana | kasni / uskoro | struktura |
+| `deliverable_due` | voditelj | otvorena isporuka (planirana, u izradi, odbijena) koja kasni ili dospijeva u 30 dana; opis kaže tko je odgovoran („odgovorna osoba: …”, „nije određena”, „… više nije aktivna u timu – odredi drugu”) | kasni / uskoro | struktura |
+| `milestone_due` | voditelj | planirana prekretnica koja kasni ili dospijeva u 30 dana; opis kaže tko je odgovoran | kasni / uskoro | struktura |
 | `risks_high` | voditelj | broj visokih otvorenih rizika (vjerojatnost × utjecaj ≥ 6) | čeka | struktura |
 | `deviations` | voditelj | broj odstupanja od pravila programa (isti izračun kao na projektu) | čeka | pregled projekta |
 | `report_next` | voditelj | sljedeći nepredani rok ZNS-a i izvještaja (samo ako korisnik na projektu nije i u ulozi financija – tada to pokrivaju stavke ZNS-a) | po roku / informacija | ZNS ili pregled |
@@ -57,13 +61,20 @@ Osoba može biti član tima na jednom projektu, a voditelj na drugom – uloga s
 | `call_decision` | radar | praćeni poziv bez odluke go / no-go (bez odluke ili „pratimo”) čiji je interni rok (i prošao, dok rok predaje traje) ili rok predaje unutar 30 dana | kasni / uskoro | poziv na radaru |
 | `mfa_missing` | administrator | broj aktivnih računa kojima je MFA obvezan po postavci institucije, a nemaju ga | čeka | Korisnici |
 
-**Nije napravljeno – nema podatka u modelu:** zadaci, isporuke i prekretnice nemaju odgovornu **osobu** (samo partnera-nositelja, `lead_partner_id`). Jedina osobna odgovornost u strukturi je nositelj rizika – zato `risk_owned`. Dodavanje odgovorne osobe isporuci je mala promjena (stupac, polje u sučelju i uvozu), ali je nismo uveli nagađanjem; ako pilot to traži, stavka „isporuke za koje sam odgovoran” izvodi se istim putem.
+### Odgovorna osoba (WP1.22, v0.32.0)
+
+Isporuka, prekretnica i zadatak mogu imati **jednu odgovornu osobu**: člana tima istog projekta (s korisničkim računom ili bez njega – istraživač bez računa vidi se voditelju, ali sam ne dobiva stavke). Partner-nositelj (`lead_partner_id`) ostaje kakav jest. Određuje je i uklanja tko smije uređivati strukturu (`projects:write`), u istim obrascima i tablicama kartice **Struktura rada**; prikazuje se u strukturi, u stavkama voditelja u „Moj rad” i uz rokove na portfelju (kalendar imena ne prenosi). Pravila pristupa i uska iznimka za promjenu statusa: `docs/sigurnost/AUTORIZACIJA.md`, odj. 4.
+
+- **Stavke odgovorne osobe** (`*_responsible`) dobiva korisnik povezan s **aktivnim** članom tima koji je određen kao odgovoran, na otvorenim projektima koje vidi; ista granica hitnosti kao voditeljeve stavke (`urgencyFor`, 30 dana) i iste definicije otvorenih statusa (`OPEN_DELIVERABLE_STATUSES`, `OPEN_MILESTONE_STATUSES`, novo `OPEN_TASK_STATUSES` u `portfolio/facts.ts`). Voditelj koji je i sam odgovoran vidi stavku jednom (kao odgovorna osoba).
+- **Odgovorna osoba pomiče svoju stavku** u strukturi gumbima („→ u izradi”, „→ predana”, „→ gotov”) kroz radni dio statusa; prihvaćanje i odbijanje isporuke, otkazivanje zadatka i status prekretnice ostaju voditelju.
+- **Deaktivacija člana tima** ne briše dodjelu (povijest ostaje, ništa ne nestaje tiho): stavke nestaju iz „Moj rad” deaktiviranog, on više ne mijenja status, a voditelj u strukturi i u svojoj stavci vidi „… više nije aktivna u timu – odredi drugu”; neaktivan član se ne nudi za novu dodjelu (400). **Brisanje** člana tima koji je odgovoran odbija baza (strani ključ bez kaskade); poništavanje uvoza iz Excela koje bi obrisalo takvog člana je blokirano s razlogom.
+- **Uvoz iz Excela:** stupac „odgovorna osoba” nije dodan (predložak i datoteke iz v0.29.0 ostaju nepromijenjeni); osoba se određuje u strukturi nakon uvoza.
 
 ### Zajedničke definicije s portfeljem
 
 Ista stvar se na dva zaslona ne broji različito. `apps/api/src/portfolio/facts.ts` drži izraze koje koriste i portfelj i „Moj rad”: visoki rizici, timesheetovi na odobrenju, troškovi bez dokaza (s pravilom povjerljivih dokaza), nepredani troškovi iz ranijih razdoblja, „razdoblje predano” (ZNS vlastite organizacije koji nije nacrt ili trošak potraživan prije ArQusa), statusi otvorenih projekata, isporuka, prekretnica i prijava. Blokade ZNS-a broji ista funkcija kao popis za provjeru na ZNS-u (`claimChecklist`), stavke spremnosti ista kao na prijavi (`proposalReadiness`), odstupanja ista kao na projektu (`packageDeviations`), račune bez MFA isti izračun kao postavka u izborniku Korisnici. Test `apps/api/test/my-work.e2e.test.ts` provjerava da se brojke slažu s portfeljem.
 
-**Broj upita** ne ovisi o broju projekata: svaki upit obuhvaća sve relevantne projekte; uz to po jedan dohvat za svaki različit paket programa (kao portfelj). Izmjereno: 25 SQL naredbi po zahtjevu voditelja i 17 financija, uključujući provjeru sesije i transakciju; isto i s tri projekta više.
+**Broj upita** ne ovisi o broju projekata: svaki upit obuhvaća sve relevantne projekte; uz to po jedan dohvat za svaki različit paket programa (kao portfelj). Izmjereno (v0.30.0): 25 SQL naredbi po zahtjevu voditelja i 17 financija, uključujući provjeru sesije i transakciju; isto i s tri projekta više. WP1.22 dodaje **jedan** upit (stavke odgovorne osobe – isporuke, prekretnice i zadaci svih projekata u jednom `union all`); odgovorna osoba uz stavke voditelja dolazi spojem u postojećim upitima. Test `responsible.e2e.test.ts` provjerava da broj ostaje isti i s dva projekta i četiri stavke više.
 
 ## 2. Obavijesti
 
@@ -82,6 +93,8 @@ Upisuje ih servis **u istoj transakciji** kao događaj (`apps/api/src/notificati
 | imenovan voditeljem prijave | imenovani | – | nova prijava, promjena voditelja |
 | uvoz iz Excela primijenjen | voditelj projekta | `projects:read` | naziv datoteke |
 | uvoz poništen | voditelj projekta i autor uvoza | `projects:read` | naziv datoteke |
+| (v0.32.0) određen/a kao odgovorna osoba | korisnik povezan s novim odgovornim članom tima | `projects:read` | „Odgovoran/na si za isporuku D1.2 Izvještaj (BLUESENSE)” – i pri stvaranju stavke s odgovornom osobom |
+| (v0.32.0) više nije odgovorna osoba | korisnik povezan s dosadašnjim članom | `projects:read` | „Više nisi odgovoran/na za …” (promjena ili uklanjanje) |
 
 **Sadržaj:** vrsta, akter, projekt/prijava i strukturirani podaci (akronim, mjesec, razdoblje, ishod, uloga, naziv datoteke); tekst se slaže pri čitanju (`notificationText` u domeni – isti za sučelje i dnevni sažetak e-poštom). Bez iznosa i bez slobodnog teksta drugih korisnika, osim razloga povrata ZNS-a koji primatelj vidi i na zahtjevu.
 
@@ -95,7 +108,7 @@ Upisuje ih servis **u istoj transakciji** kao događaj (`apps/api/src/notificati
 
 Kalendarski klijenti ne šalju zaglavlje Authorization, pa se feed adresira **tajnim tokenom u URL-u**: `https://<instalacija>/api/calendar/<token>.ics`.
 
-**Sadržaj:** isti rokovi koje korisnik vidi na portfelju, istim pravilima pristupa (`PortfolioService.deadlines`): izvještajna razdoblja (kraj i rok ZNS-a), isporuke i prekretnice otvorenih projekata, interni rokovi i rokovi predaje praćenih poziva (uz `calls:read` institucije), interni rokovi prijava (vlastitih ili uz `proposals:read` institucije). Od 180 dana unatrag do 2 godine unaprijed. Cjelodnevni događaji za datume; rok predaje poziva s vremenom kao UTC. Naslov `[AKRONIM] naslov roka`, opis = vrsta roka. Bez iznosa, bez imena osoba.
+**Sadržaj:** isti rokovi koje korisnik vidi na portfelju, istim pravilima pristupa (`PortfolioService.deadlines`): izvještajna razdoblja (kraj i rok ZNS-a), isporuke i prekretnice otvorenih projekata (i one za koje je korisnik odgovoran – član tima vidi projekt, pa i njegove rokove; provjereno testom v0.32.0; zadaci nisu u kalendaru), interni rokovi i rokovi predaje praćenih poziva (uz `calls:read` institucije), interni rokovi prijava (vlastitih ili uz `proposals:read` institucije). Od 180 dana unatrag do 2 godine unaprijed. Cjelodnevni događaji za datume; rok predaje poziva s vremenom kao UTC. Naslov `[AKRONIM] naslov roka`, opis = vrsta roka. Bez iznosa, bez imena osoba.
 
 **Format (RFC 5545):** CRLF, presavijanje na 75 okteta (bez prelamanja UTF-8 znaka), escape `\ ; , \n`, stabilni `UID` (`<vrsta>-<id entiteta>@arqus-projekti` – ažuriranje zamjenjuje događaj), `DTSTAMP`, `REFRESH-INTERVAL`/`X-PUBLISHED-TTL` 4 h, `TRANSP:TRANSPARENT`. Generator `packages/domain/src/ical.ts`.
 

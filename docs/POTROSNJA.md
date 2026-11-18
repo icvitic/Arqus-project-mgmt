@@ -10,6 +10,7 @@ Težina: **L** = samo pisanje/uređivanje dokumenata iz postojećeg znanja; **M*
 
 | Datum | Sesija | Zadatak | Pretraživanja / dohvaćanja | Podagenti | Težina | Očitanje (Ivan) |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-18 | 19 (podagent) | WP1.22 pristupačnost sučelja (axe-core i skriptirane provjere u e2e, e2e u CI-ju, ispravci zajedničkih komponenti, istek sesije, izvještaj o sukladnosti, stranica Pristupačnost) i odgovorne osobe (migracija 0030, Moj rad, obavijesti, uska iznimka za status), v0.32.0 | 2 / 0 (verzije paketa u registru npm) | 0 | H | |
 | 2026-11-08 | 1 (ručno) | WP0.0, WP0.1, ADR-ovi, strategija | ~5 / ~5 | 0 | M | |
 | 2026-11-09 | 1 (zakazana) | WP0.3 dio 1 | 6 / 6 | 0 | M | |
 | 2026-11-09 | 2 (ručno) | WP0.3 dio 2, v0.2.0 | 4 / 6 | 0 | M | |

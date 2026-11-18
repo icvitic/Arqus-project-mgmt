@@ -40,8 +40,8 @@ function ProposalList({ me }: { me: Me }) {
           <table>
             <thead><tr><th>Prijava</th><th>Poziv / paket</th><th>Interni rok</th><th className="num">Članovi</th><th className="num">Zatraženo</th><th>Status</th></tr></thead>
             <tbody>{list.data.map((p) => (
-              <tr key={p.id} className="row" tabIndex={0} onClick={() => go(`prijave/${p.id}`)} onKeyDown={(e) => e.key === 'Enter' && go(`prijave/${p.id}`)}>
-                <td><b>{p.acronym}</b><br /><span className="muted">{p.title}</span></td>
+              <tr key={p.id} className="row" onClick={() => go(`prijave/${p.id}`)}>
+                <td><a href={`#/prijave/${p.id}`} onClick={(e) => e.stopPropagation()}><b>{p.acronym}</b></a><br /><span className="muted">{p.title}</span></td>
                 <td>{p.callCode ?? '–'}<br /><span className="muted">{p.packageId} · {p.actionType}</span></td>
                 <td>{date(p.internalDeadline)}</td><td className="num">{p.members}</td><td className="num">{p.requested !== null ? eur(p.requested) : '–'}</td>
                 <td><Chip f s={p.status} tone={TONE[p.status]} /></td>
@@ -199,7 +199,7 @@ function Consortium({ d, editable, set }: { d: Proposal; editable: boolean; set:
   return (
     <div className="card scroll"><h2>Konzorcij <span className="muted">({d.members.length} članova, {countries} {countries === 1 ? 'država' : 'države'})</span></h2>
       <table>
-        <thead><tr><th>#</th><th>Organizacija</th><th>Država</th><th>Uloga</th><th>Potvrda</th>{editable && <th />}</tr></thead>
+        <thead><tr><th>#</th><th>Organizacija</th><th>Država</th><th>Uloga</th><th>Potvrda</th>{editable && <th><span className="sr-only">Radnje</span></th>}</tr></thead>
         <tbody>{d.members.map((m) => (
           <tr key={m.id}><td>{m.orderNo}</td><td>{m.name}{m.isSelf && <> <span className="chip">mi</span></>}</td><td>{m.country}</td><td>{ROLE[m.role] ?? m.role}</td>
             <td>{m.confirmed ? <Chip s="potvrđeno" tone="ok" /> : <Chip s="čeka potvrdu" tone="warn" />}</td>
@@ -226,7 +226,7 @@ function WorkPlan({ d, editable, set }: { d: Proposal; editable: boolean; set: (
   return (
     <div className="card scroll"><h2>Struktura rada <span className="muted">({d.workPackages.reduce((a, w) => a + w.personMonths, 0)} osoba-mjeseci)</span></h2>
       {d.workPackages.length === 0 ? <p className="muted">Još nema radnih paketa.</p> : (
-        <table><thead><tr><th>RP</th><th>Naslov</th><th>Voditelj</th><th className="num">Mjeseci</th><th className="num">OM</th>{editable && <th />}</tr></thead>
+        <table><thead><tr><th>RP</th><th>Naslov</th><th>Voditelj</th><th className="num">Mjeseci</th><th className="num">OM</th>{editable && <th><span className="sr-only">Radnje</span></th>}</tr></thead>
           <tbody>{d.workPackages.map((w) => (
             <tr key={w.id}><td>{w.code}</td><td>{w.title}</td><td>{name(w.leadMemberId)}</td><td className="num">M{w.startMonth}–M{w.endMonth}</td><td className="num">{w.personMonths}</td>
               {editable && <td><ActionButton kind="danger" onClick={async () => set(await api<Proposal>('DELETE', `/proposals/${d.id}/work-packages/${w.id}`))}>Ukloni</ActionButton></td>}</tr>

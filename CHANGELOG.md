@@ -4,6 +4,22 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-18
+### Dodano
+- WP1.22 **Pristupačnost (WCAG 2.1 AA kao mjerilo)**: automatska provjera **axe-core** (razvojna ovisnost `axe-core@4.14.0`) u e2e testu u pregledniku na 46 stanja zaslona, u svijetloj i tamnoj temi te na 1400 i 390 px – nalaz *serious*/*critical* ruši test; skriptirane provjere (jedan `h1` i razine naslova, `lang`, naslov dokumenta po ruti, orijentiri, „Preskoči na sadržaj”, `aria-live`, preljev na 320 px, vidljiv fokus, dijalog i povratak fokusa, kartice strelicama) i glavni tokovi **samo tipkovnicom** (prijava, timesheet iz „Moj rad”, odobrenje, ZNS i popis za provjeru, pozivnica). Polazište: `color-contrast` 1.535 elemenata, `scrollable-region-focusable` 12; sada 0 nalaza.
+- **E2E u pregledniku u CI-ju**: posao `e2e-browser` (PostgreSQL 16, samo Chromium, `run-local.sh`, zapisi pri neuspjehu, artefakt sa snimkama i nalazima). `playwright@1.63.0` je izričita razvojna ovisnost `apps/web`.
+- Zajedničke komponente sučelja: `Dialog` (fokus, zadržavanje, Escape, povratak fokusa), `TabList`/`TabPanel` (obrazac ARIA „tabs”), `Announcer`/`announce` (statusne poruke), `usePageTitle`, `useRouteFocus`, `useAccessibleTables`; `Field` s oznakom `for` i uputom kao opisom; poveznica „Preskoči na sadržaj”, podnožje.
+- **Istek sesije bez gubitka upisanog**: dijalog ponovne prijave istog računa iznad zaslona umjesto prelaska na prijavu.
+- Stranica **Pristupačnost** (`#/pristupacnost`, i bez prijave) i javna ruta `GET /api/public/accessibility` (kontakt iz `ACCESSIBILITY_CONTACT`); izvještaj o sukladnosti po kriterijima `docs/PRISTUPACNOST.md` (samoprocjena).
+- WP1.22 **Odgovorne osobe**: isporuka, prekretnica i zadatak imaju neobaveznu odgovornu osobu – člana tima istog projekta (`responsible_member_id`, strani ključ stanar + projekt + član, migracija 0030); određuje je tko uređuje strukturu; prikaz u strukturi (novi obrazac i tablica zadataka), u „Moj rad” voditelja i uz rokove portfelja. Stavke `deliverable_responsible`, `milestone_responsible`, `task_responsible` u „Moj rad” (i u dnevnom sažetku); obavijesti „odgovoran/na si za …” i „više nisi odgovoran/na za …”.
+- `POST /api/projects/:id/deliverables/:did/progress` i `…/tasks/:taskId/progress`: odgovorna osoba bez `projects:write` pomiče svoju stavku kroz radni dio statusa (`RESPONSIBLE_TRANSITIONS` u domeni); prihvaćanje, odbijanje, otkazivanje, status prekretnice i sva ostala polja ostaju voditelju.
+- Testovi: `responsible.e2e.test.ts` (9), domena `responsible.test.ts` (7), test pokrivenosti ruta (javne rute, projektne rute koje mijenjaju podatke uz `projects:read`), demo; e2e u pregledniku (+3 koraka, tokovi tipkovnicom, provjere pristupačnosti).
+
+### Promijenjeno
+- Boje svijetle teme (zelena, narančasta, pomoćna siva), obrub polja za unos, poveznice u boji naglaska u tamnoj temi; retci tablica koji se otvaraju klikom imaju poveznicu u prvom stupcu umjesto `tabIndex` na retku; gumbi tijekom slanja `aria-disabled` (fokus se ne gubi).
+- Deaktivacija člana tima ne briše dodjelu odgovorne osobe (voditelj je vidi kao neaktivnu); poništavanje uvoza je blokirano ako je uvezeni član u međuvremenu određen kao odgovorna osoba.
+- Demo: Luka (`clan@`) odgovoran za isporuku ovog mjeseca i zadatak u tijeku; isporuka koja kasni s odgovornom osobom za voditeljicu.
+
 ## [0.31.0] - 2026-11-18
 ### Promijenjeno – NEKOMPATIBILNO (API)
 - **`POST /api/users` više ne prima lozinku**: tijelo je `{ email, displayName, roleCodes? }` (stroga shema – polje `password` → 400). Korisnik nastaje u stanju **pozvan** (`invited`, ne može se prijaviti), a odgovor nosi `invitation: { delivery: 'mail' | 'link', expiresAt, token? }` – `token` samo kad e-pošta nije uključena (jednom).
