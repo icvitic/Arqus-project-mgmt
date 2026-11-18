@@ -3,6 +3,8 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+### Dokumentacija
+- `docs/STATUS.md`: odluke WP1.23 koje je vlasnik potvrdio 2026-11-18 (zadani rok čuvanja 10 godina kao zadana vrijednost proizvoda, predlošci `docs/gdpr/` kao radni predlošci uz obavezan pravni pregled, posao čuvanja uključen u produkciji, zatvaranje i anonimizacija bez četiri oka).
 
 ## [0.33.0] - 2026-11-18
 ### Dodano

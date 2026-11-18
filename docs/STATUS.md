@@ -86,15 +86,20 @@ Do tada: samo ispravci grešaka nađenih na demonstracijama ili penetracijskom t
 - Alati (v0.3.1): `scripts/verzija.sh` + lokalni preglednik verzija (`site/`), upute `docs/LOKALNO-TESTIRANJE.md`, dnevnik potrošnje `docs/POTROSNJA.md`.
 - WP0.4 (v0.3.0): domenski model v1 – moduli, entiteti, životni ciklusi, invarijante (`docs/domena/domenski-model-v1.md`); JSON shema paketa programa + primjeri HE i NPOO (`docs/domena/paketi/`); ADR-0006.
 
-## Odluke WP1.23 za potvrdu (Ivan)
+## Odluke WP1.23 – potvrđeno (Ivan, 2026-11-18)
+Ivan je 2026-11-18 potvrdio četiri stavke iz izvještaja o WP1.23:
+1. **Zadani rok čuvanja od 10 godina** (projekti i revizijski zapis) ostaje zadana vrijednost proizvoda. To nije pravna provjera roka: svaka ustanova i dalje u sučelju potvrđuje svoj rok (ostaje oznaka „zadano, nije potvrđeno” dok to ne učini), a rokove prema pravilima programa i hrvatskim propisima provjerava njezin službenik za zaštitu podataka.
+2. **Dokumenti u `docs/gdpr/`** prihvaćeni su kao radni predlošci. Napomena „bez pravnog pregleda” ostaje na njima: potvrda vlasnika proizvoda nije pravni pregled, koji treba obaviti prije upotrebe s ustanovom.
+3. **Posao čuvanja uključen je u produkciji** (`RETENTION_ENABLED=0` ga isključuje).
+4. **Zatvaranje računa i anonimizaciju izvodi jedan administrator** (upisano ime, razlog, revizija) – bez četiri oka.
+
+Ostale odluke WP1.23 (bez posebne potvrde, vrijede kako su izvedene):
 - **Revizijski zapis se ne redigira** (varijanta a): imena u starim promjenama ostaju do isteka njegova roka; brisanje samo funkcijom u bazi s donjom granicom 5 godina koja čuva razdoblje projekta kojemu rok traje. Administrator ne može skratiti trag vlastitih radnji ispod 5 godina.
 - **Samoposluga bez iznosa plaće** osim kad korisnik i inače vidi plaće (`personnel:read`) – isto pravilo kao za administratora; potpun izvoz na zahtjev instituciji.
 - **Rok čuvanja projekta** teče tek kad je projekt zatvoren/raskinut/arhiviran i bez neodlučenog predanog zahtjeva, od kasnijeg od: kraja projekta, posljednje isplate, posljednje odluke; postavka po paketu programa i institucije; bez postavke 10 godina (označeno kao nepotvrđeno).
 - **Zatvoren račun zadržava ime** (odobravatelj na tuđim timesheetovima, voditelj, revizija) i nakon anonimizacije njegovih zapisa člana tima.
 - **Anonimizacija ne mijenja predan zahtjev** (snimka predaje, bilješke) ni slobodni tekst projekta – samo ih navodi; mijenja ime u opisu troška osoblja (i odlučenog, kroz usku iznimku okidača).
-- **Zatvaranje i anonimizaciju izvodi jedan administrator** (upisano ime, razlog, revizija) – bez četiri oka.
 - **Prijave koje nisu postale projekt i praćenje poziva nemaju automatski rok** (prijava može postati projekt godinama kasnije).
-- Posao čuvanja uključen u produkciji (`RETENTION_ENABLED=0` isključuje), nikad sam izvan nje.
 
 ## Odluke WP1.22 za potvrdu (Ivan)
 - Odgovorna osoba smije: isporuka planirana ↔ u izradi → predana i dorada odbijene; zadatak planiran ↔ u tijeku → gotov. **Prekretnicu ne mijenja** (postignuće je ocjena voditelja) – vidi je u „Moj rad” i dobiva obavijesti.
@@ -109,7 +114,7 @@ Do tada: samo ispravci grešaka nađenih na demonstracijama ili penetracijskom t
 - **Ljudski kolosijek:** barem tri demonstracije (`docs/DEMO.md`, `docs/DEMO-SCENARIJ.md`) s bilješkama po predlošku `docs/faza-0/predlozak-biljeske.md`.
 
 ## Sljedeće
-Razvoja koji ne ovisi o Ivanu nema (faza 1c gotova). **Pravni pregled** predložaka `docs/gdpr/` i **potvrda rokova čuvanja**. Moguć mali dodatak na zahtjev: evidencija zahtjeva ispitanika s rokom od mjesec dana u „Moj rad” administratora (nije napravljena). Pristupačnost: prolaz čitačem zaslona (NVDA, VoiceOver) i neovisna revizija prije upotrebe u natječaju. Na Ivanovom kolosijeku: **demonstracije** s bilješkama → revizija strategije; **odluka o pružatelju** (i pružatelju e-pošte) → instalacija (samo konfiguracija); **penetracijski test** (opseg od v0.31.0 uključuje rute pozivnica i nove lozinke).
+Razvoja koji ne ovisi o Ivanu nema (faza 1c gotova). **Pravni pregled** predložaka `docs/gdpr/` (i dalje potreban; Ivan ih je 2026-11-18 prihvatio kao radne predloške) i **provjera rokova čuvanja prema propisima** kod prve ustanove (zadanih 10 godina Ivan je potvrdio kao zadanu vrijednost proizvoda). Moguć mali dodatak na zahtjev: evidencija zahtjeva ispitanika s rokom od mjesec dana u „Moj rad” administratora (nije napravljena). Pristupačnost: prolaz čitačem zaslona (NVDA, VoiceOver) i neovisna revizija prije upotrebe u natječaju. Na Ivanovom kolosijeku: **demonstracije** s bilješkama → revizija strategije; **odluka o pružatelju** (i pružatelju e-pošte) → instalacija (samo konfiguracija); **penetracijski test** (opseg od v0.31.0 uključuje rute pozivnica i nove lozinke).
 
 ## Otvorena pitanja za Ivana
 - WP1.21: potvrdi (1) da **nova lozinka briše privremeno zaključavanje računa** nakon pogrešnih lozinki (brojač po IP-u ostaje) – zaključavanje štiti od pogađanja stare lozinke, a korisnik je dokazao pristup poveznici; (2) **preostali rizik bez e-pošte**: administrator vidi poveznicu i mogao bi je sam iskoristiti (vidljivo u reviziji) – za pilot preporuka je uključiti e-poštu; (3) prihvaćanje pozivnice **odmah prijavljuje** korisnika, a nova lozinka **ne** (traži novu prijavu, s MFA kodom); (4) poništena pozivnica ostavlja korisnika u stanju „pozvan” (ne briše ga) – a ponovno aktiviran nikad prijavljen korisnik vraća se u „pozvan”; (5) **radni dan** sažetka = pon–pet bez blagdana, sažetak 7:00–12:00 (kasnije se taj dan ne šalje); obavijesti u sažetku samo naslovom (bez imena aktera i razloga); po sažetku nema revizijskog zapisa (zapis isporuke je u Korisnici → E-pošta); (6) zadane granice: zaboravljena lozinka 5 po računu i 20 po IP-u u 15 min, 20 nevaljanih tokena po IP-u; pozivnica 7 dana, nova lozinka 1 h; (7) SMTP slika za testove je Mailpit s ghcr.io (Docker Hub ograničava povlačenja); klijent nije provjeren na relayu budućeg pružatelja – probna poruka pri instalaciji.
