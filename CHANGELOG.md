@@ -5,6 +5,7 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 ## [Unreleased]
 ### Dokumentacija
 - `docs/STATUS.md`: odluke WP1.23 koje je vlasnik potvrdio 2026-11-18 (zadani rok čuvanja 10 godina kao zadana vrijednost proizvoda, predlošci `docs/gdpr/` kao radni predlošci uz obavezan pravni pregled, posao čuvanja uključen u produkciji, zatvaranje i anonimizacija bez četiri oka).
+- `docs/STATUS.md`: starija pitanja koja su tražila potvrdu izvedenog rješenja (WP1.14b–WP1.22) označena kao potvrđena 2026-11-18; pitanja koja traže odgovor ili ovise o pilotu (čuvanje ključa kopija, proba obnove, polazna mjera ZNS-a, obrasci financijera, Excelova datoteka pilota, SMTP relay) ostaju otvorena. Ispravljen opis isteka sesije (sadržaj ispod dijaloga se ne vidi).
 
 ## [0.33.0] - 2026-11-18
 ### Dodano
