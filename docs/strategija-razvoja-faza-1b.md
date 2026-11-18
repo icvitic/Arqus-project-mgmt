@@ -114,3 +114,19 @@ Ivan je 2026-11-17 odlučio da se **WP1.17** (uvoz postojećeg projekta iz Excel
 | **WP1.18** | Rokovi i „Moj rad” | član tima nakon prijave vidi što danas treba napraviti |
 
 Nakon WP1.17 i WP1.18 sljedeći koraci su ponovno na ljudskom kolosijeku: **demonstracije** (barem tri, s bilješkama – one određuju sljedeću reviziju strategije), **odluka o pružatelju** i **penetracijski test**.
+
+## 10. Nastavak bez bilješki s demonstracija (2026-11-18, v0.30.1)
+
+Ivan je 2026-11-18 zatražio nastavak razvoja. Bilješki s demonstracija, odluke o pružatelju i nalaza penetracijskog testa još nema, pa i dalje vrijedi pravilo iz odjeljka 8: radi se samo ono što treba **svakom** pilotu, bez obzira na to što će sugovornici tražiti. Mjerilo je pitanje „bi li prva javna ustanova ovo tražila prije potpisa ili u prvom tjednu rada?”.
+
+| # | Radni paket | Zašto ne ovisi o demonstracijama | Gotovo kad |
+| --- | --- | --- | --- |
+| **WP1.21** | Računi bez dijeljenja lozinki i e-pošta | Danas administrator svakom korisniku upisuje lozinku i javlja mu je mimo sustava, a zaboravljenu lozinku može vratiti samo on. S 30–100 korisnika pilot tako ne počinje, a izvođač penetracijskog testa to će zapisati kao nalaz. Dnevni sažetak iz WP1.18 čeka isti prijenos pošte. | administrator doda korisnike a da ne zna nijednu lozinku; korisnik sam vrati zaboravljenu lozinku; član tima ujutro dobije poruku kad nešto kasni; sve radi i bez SMTP-a (poveznica koju administrator kopira) |
+| **WP1.22** | Pristupačnost sučelja i odgovorne osobe | Javne ustanove obvezuje Zakon o pristupačnosti mrežnih stranica (EN 301 549, WCAG 2.1 AA) i to se pita u nabavi. WP1.18 je pokazao da isporuke, prekretnice i zadaci bilježe samo partnera, pa istraživač u „Moj rad” ne vidi ono za što je osobno odgovoran. | automatska provjera pristupačnosti u e2e bez ozbiljnih nalaza, cijeli glavni tijek prolazi tipkovnicom, objavljena izjava o pristupačnosti; odgovorna osoba na isporuci, prekretnici i zadatku vidi ih u „Moj rad” |
+| **WP1.23** | Osobni podaci u proizvodu (GDPR) | Svaka ustanova prije pilota traži ugovor o obradi i odgovor na pitanje kako se ostvaruju prava ispitanika; u proizvodu su plaće i evidencije rada. | izvoz podataka jedne osobe, anonimizacija osobe koja je otišla uz očuvanje financijskih zapisa, rokovi čuvanja po vrsti podatka, evidencija obrade i predložak ugovora o obradi kao dokumenti |
+
+**Redoslijed i tempo.** WP1.21 pa WP1.22 (najviše dva paketa dnevno, odj. 6), zatim WP1.23. Nakon toga ponovno vrijedi da je daljnji razvoj bez povratne informacije nagađanje.
+
+**Što i dalje čeka okidač** (odj. 4): jedinstvena prijava (AAI@EduHr, Entra) – dok se ne zna sustav identiteta pilot-ustanove; novi paketi programa; izvještaji prema financijeru u punom opsegu; amandmani ugovora.
+
+**Usput ispravljeno (v0.30.1):** objava slike u GHCR za v0.30.0 zaglavila je pod emulacijom arm64; slika se sada gradi bez emulacije.
