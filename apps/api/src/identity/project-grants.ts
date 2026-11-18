@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { and, eq, isNull, or } from 'drizzle-orm';
+import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import type { Tx } from '../db/db.service';
 import { projects, roleAssignments, roles, users } from '../db/schema';
 import type { AuditService } from '../audit/audit.service';
@@ -41,7 +41,8 @@ export async function projectRoleCodesOf(tx: Tx, userId: string, projectId: stri
 
 /** Dodjela uloge na projektu; postojeća ista dodjela se ne ponavlja (vraća null). */
 export async function grantProjectRole(tx: Tx, audit: AuditService, a: { tenantId: string; userId: string; projectId: string; roleCode: string; actorId?: string; reason: string }) {
-  const user = (await tx.select({ id: users.id }).from(users).where(and(eq(users.id, a.userId), isNull(users.deletedAt))))[0];
+  // WP1.23: zatvoren račun ne dobiva pristup.
+  const user = (await tx.select({ id: users.id }).from(users).where(and(eq(users.id, a.userId), isNull(users.deletedAt), ne(users.status, 'closed'))))[0];
   if (!user) throw new NotFoundException(`Korisnik ${a.userId} ne postoji`);
   const role = await findRole(tx, a.tenantId, a.roleCode);
   const dup = await tx.select({ id: roleAssignments.id }).from(roleAssignments)

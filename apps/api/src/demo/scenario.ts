@@ -20,6 +20,8 @@ export const DEMO_USERS: DemoUser[] = [
   { key: 'member', local: 'clan', displayName: 'Luka Novak', role: 'team-member', scope: 'project', roleLabel: 'Član tima – samo BLUESENSE', note: 'vlastiti timesheetovi (jedan čeka odobrenje); ne vidi plaće ni povjerljive dokumente' },
   { key: 'finance', local: 'financije', displayName: 'Maja Jurić', role: 'finance', scope: 'tenant', roleLabel: 'Financije / računovodstvo', note: 'svi projekti: troškovi s dokazima, plaće u timovima, ZNS' },
   { key: 'board', local: 'uprava', displayName: 'prof. dr. sc. Tomislav Perić', role: 'reader', scope: 'tenant', roleLabel: 'Uprava (samo čitanje)', note: 'pregled projekata i financija' },
+  // WP1.23: istraživačica koja odlazi s instituta – administrator u „Osobni podaci” izvozi njezine podatke i zatvara račun.
+  { key: 'leaver', local: 'istrazivacica', displayName: 'dr. sc. Lea Babić', role: 'team-member', scope: 'project', roleLabel: 'Istraživačica – samo ZELENI-LAB (odlazi s instituta)', note: 'primjer za „Osobni podaci”: izvoz njezinih podataka i zatvaranje računa (administrator); njezini timesheetovi su u odlučenom ZNS-u 1' },
 ];
 
 export const demoEmail = (local: string, slug: string): string => `${local}@${slug}.local`;
@@ -91,7 +93,7 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   // Jedan račun ostaje pozvan (pozivnica neprihvaćena).
   await admin.post('/users', { email: demoEmail(DEMO_INVITED.local, slug), displayName: DEMO_INVITED.displayName, roleCodes: [] });
   const as = async (key: string): Promise<Api> => DemoApi.login(base, slug, demoEmail(DEMO_USERS.find((u) => u.key === key)!.local, slug), password);
-  const office = await as('office'); const pm = await as('pm'); const pm2 = await as('pm2'); const member = await as('member'); const finance = await as('finance');
+  const office = await as('office'); const pm = await as('pm'); const pm2 = await as('pm2'); const member = await as('member'); const finance = await as('finance'); const leaver = await as('leaver');
   log(`korisnici: ${DEMO_USERS.length}`);
 
   const upload = async (api: Api, entityType: string, entityId: string, fileName: string, title: string, kind: string, lines: string[], confidentiality = 'internal') => {
@@ -211,6 +213,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   // Tim s godišnjim troškom (plaće vidi i unosi samo uloga s pristupom podacima o osoblju).
   const josip = (await finance.post<Row>(`/projects/${npoo}/team`, { fullName: 'Josip Barić', userId: userIds.pm2, role: 'voditelj projekta', annualCost: 4_300_000 })).id;
   const marina = (await finance.post<Row>(`/projects/${npoo}/team`, { fullName: 'Marina Šimić', role: 'istraživačica', annualCost: 3_600_000 })).id;
+  // WP1.23: Lea Babić (račun istrazivacica@) radila je na ZELENI-LAB prva tri mjeseca i odlazi s instituta.
+  const lea = (await finance.post<Row>(`/projects/${npoo}/team`, { fullName: 'Lea Babić', userId: userIds.leaver, role: 'istraživačica – energetska mjerenja', annualCost: 3_900_000 })).id;
   await upload(office, 'project', npoo, 'ZELENI-LAB-ugovor.pdf', 'Ugovor o dodjeli bespovratnih sredstava', 'contract', ['Broj ugovora: NPOO.C3.2.R3-I2.07.0147', `Početak provedbe: ${npooStart}`, 'Trajanje: 24 mjeseca'], 'confidential');
   await office.post(`/projects/${npoo}/transition`, { to: 'active' });
 
@@ -233,6 +237,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
     if (m < 12) await timesheet(pm2, office, npoo, marina, month, mEntries);
     else await timesheet(office, pm2, npoo, marina, month, mEntries, false);
     if (m === 12) marinaLast = mEntries;
+    // WP1.23: Lea sama unosi i predaje sate (mj. 1–3), voditelj Josip odobrava; RP1 ulazi u odlučeni ZNS 1.
+    if (m <= 3) await timesheet(leaver, pm2, npoo, lea, month, timesheetEntries(month, m, [120, 180, 90, 240], nWp, 9));
   }
   // Ručni troškovi RP1 s dokazima (trošak i dokaz unose financije).
   const expense = async (projectId: string, body: Record<string, unknown>, evidence?: { api: Api; file: string }) => {
@@ -454,6 +460,8 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   }
   log('obavijesti: starije označene pročitanima, najnovije tri nepročitane');
 
-  for (const api of [admin, office, pm, pm2, member, finance]) await api.post('/auth/logout').catch(() => undefined);
+  // WP1.23: administrator probno pokreće posao čuvanja (ništa ne briše) – zaslon „Rokovi čuvanja” ima stvarne brojeve.
+  await admin.post('/privacy/retention/dry-run');
+  for (const api of [admin, office, pm, pm2, member, finance, leaver]) await api.post('/auth/logout').catch(() => undefined);
   return sum;
 }

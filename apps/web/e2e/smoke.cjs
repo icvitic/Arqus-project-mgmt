@@ -109,7 +109,7 @@ const tag = Date.now().toString(36);
     await a11y.tabTo(page, 'E-adresa', { label: 'prijava' }); await page.keyboard.type(EMAIL);
     await a11y.tabTo(page, 'Lozinka', { label: 'prijava' }); await page.keyboard.type(PW);
     await page.keyboard.press('Enter');
-    await page.getByRole('heading', { name: 'Portfelj' }).waitFor(); // početna stranica uz portfolio:read (WP1.15)
+    await page.getByRole('heading', { name: 'Portfelj', exact: true }).waitFor(); // početna stranica uz portfolio:read (WP1.15)
     await a11y.scan(page, 'portfelj (prazan)');
     // „Preskoči na sadržaj” je prvi u redoslijedu tipke Tab i premješta fokus na glavni sadržaj.
     await page.evaluate(() => (document.activeElement instanceof HTMLElement) && document.activeElement.blur());
@@ -833,6 +833,92 @@ const tag = Date.now().toString(36);
       return `${a} ${b}`;
     }, totp(adminSecret, 1));
     if (res !== '200 201') throw new Error(`vraćanje postavki: ${res}`);
+  });
+  // WP1.23: osobni podaci. Javna stranica „Privatnost”; istraživačica preuzima vlastite podatke; administrator joj izvozi
+  // podatke, otvara pregled anonimizacije (ne potvrđuje – rok čuvanja projekta traje) i zatvara račun; rokovi čuvanja.
+  await step('privatnost: javna stranica bez prijave (poveznica u podnožju)', async () => {
+    const { ctx, p } = await freshContext('privatnost');
+    await p.goto(WEB);
+    await p.getByRole('contentinfo').getByRole('link', { name: 'Privatnost' }).click();
+    await p.getByRole('heading', { name: 'Privatnost', level: 1 }).waitFor();
+    await p.getByText(/je voditelj obrade/).waitFor();
+    await a11y.scan(p, 'privatnost (bez prijave)');
+    if (SHOTS) await p.screenshot({ path: `${SHOTS}/privatnost.png`, fullPage: true });
+    await ctx.close();
+  });
+  let leaverPage = null;
+  const leaverEmail = `bivsa.${tag}@e2e.local`; const leaverPw = `ljubicasta-staza-${tag}-uz-more`;
+  await step('Moj račun: korisnica preuzima vlastite podatke (ZIP)', async () => {
+    const status = await apiInvite(leaverEmail, 'Lucija Bivšić', [], leaverPw);
+    if (status !== 201) throw new Error(`korisnica nije stvorena (${status})`);
+    const linked = await page.evaluate(async ([email, acronym]) => {
+      const h = { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` };
+      const u = (await (await fetch('/api/users', { headers: h })).json()).find((x) => x.email === email);
+      const p = (await (await fetch('/api/projects', { headers: h })).json()).find((x) => x.acronym === acronym);
+      return (await fetch(`/api/projects/${p.id}/team`, { method: 'POST', headers: h, body: JSON.stringify({ fullName: 'Lucija Bivšić', userId: u.id, role: 'istraživačica' }) })).status;
+    }, [leaverEmail, acronym]);
+    if (linked !== 201) throw new Error(`član tima: ${linked}`);
+    const { ctx, p } = await freshContext('moji podaci');
+    await p.goto(WEB);
+    await p.getByLabel('Institucija (oznaka)').fill(SLUG);
+    await p.getByLabel('E-adresa').fill(leaverEmail);
+    await p.getByLabel('Lozinka').fill(leaverPw);
+    await p.getByRole('button', { name: 'Prijava' }).click();
+    await p.getByRole('heading', { name: 'Moj rad' }).waitFor();
+    await p.getByRole('link', { name: /Lucija Bivšić/ }).click();
+    await p.getByRole('heading', { name: 'Moji podaci' }).waitFor();
+    await a11y.scan(p, 'moj račun: moji podaci');
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Preuzmi moje podatke (ZIP)' }).click()]);
+    if (!/^Osobni-podaci_Lucija-Bivsic_\d{4}-\d{2}-\d{2}\.zip$/.test(dl.suggestedFilename())) throw new Error(`preuzeto: ${dl.suggestedFilename()}`);
+    if (require('node:fs').readFileSync(await dl.path()).subarray(0, 2).toString() !== 'PK') throw new Error('preuzeta datoteka nije ZIP');
+    if (SHOTS) await p.screenshot({ path: `${SHOTS}/moji-podaci.png`, fullPage: true });
+    leaverPage = { ctx, p };
+  });
+  await step('Osobni podaci: administrator izvozi podatke osobe, otvara pregled anonimizacije i zatvara račun', async () => {
+    await page.getByRole('navigation', { name: 'Glavni izbornik' }).getByRole('link', { name: 'Osobni podaci' }).click();
+    await page.getByRole('heading', { name: 'Osobni podaci', level: 1 }).waitFor();
+    await a11y.scan(page, 'osobni podaci');
+    await page.getByLabel('Ime, prezime ili e-adresa').fill(leaverEmail); // e-adresa je jedinstvena i pri ponovljenom pokretanju nad istom bazom
+    await page.getByRole('button', { name: 'Traži' }).click();
+    await page.getByRole('button', { name: 'Odaberi račun Lucija Bivšić' }).click();
+    const card = page.locator('.privacy-subject');
+    await card.getByText('povezan s računom').waitFor();
+    await a11y.scan(page, 'osobni podaci: osoba');
+    await shot('osobni-podaci-osoba');
+    const [dl] = await Promise.all([page.waitForEvent('download'), card.getByRole('button', { name: 'Preuzmi podatke osobe (ZIP)' }).click()]);
+    if (require('node:fs').readFileSync(await dl.path()).subarray(0, 2).toString() !== 'PK') throw new Error('izvoz nije ZIP');
+    // Pregled anonimizacije: rok čuvanja projekta još nije počeo – pregled to kaže, ne potvrđujemo.
+    await card.getByRole('button', { name: /^Anonimiziraj zapis Lucija Bivšić/ }).click();
+    const anon = page.getByRole('dialog', { name: 'Anonimizacija zapisa člana tima' });
+    await anon.getByText(/Rok čuvanja još nije počeo/).waitFor();
+    await a11y.assertFocusInDialog(page);
+    await a11y.scan(page, 'osobni podaci: pregled anonimizacije (dijalog)');
+    await shot('anonimizacija-pregled');
+    await anon.getByRole('button', { name: 'Odustani' }).click();
+    await card.getByRole('button', { name: 'Zatvori račun…' }).click();
+    const close = page.getByRole('dialog', { name: 'Zatvoriti račun: Lucija Bivšić?' });
+    await close.waitFor();
+    await a11y.scan(page, 'osobni podaci: zatvaranje računa (dijalog)');
+    await close.getByLabel('Razlog (bilježi se u reviziju)').fill('Istraživačica je otišla s instituta');
+    await close.getByLabel(/Za potvrdu upiši ime i prezime/).fill('Lucija Bivšić');
+    await close.getByRole('button', { name: 'Zatvori račun' }).click();
+    await card.locator('.chip', { hasText: 'zatvoren' }).waitFor();
+    await shot('osobni-podaci-zatvoren');
+    // Njezina otvorena sesija više ne vrijedi; prijava više nije moguća.
+    const st = await leaverPage.p.evaluate(async () => (await fetch('/api/me', { headers: { Authorization: `Bearer ${sessionStorage.getItem('arqus.token')}` } })).status);
+    if (st !== 401) throw new Error(`sesija zatvorenog računa: ${st}`);
+    const login = await leaverPage.p.evaluate(async ([slug, email, pw]) => (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantSlug: slug, email, password: pw }) })).status, [SLUG, leaverEmail, leaverPw]);
+    if (login !== 401) throw new Error(`prijava zatvorenog računa: ${login}`);
+    await leaverPage.ctx.close();
+  });
+  await step('Osobni podaci: rokovi čuvanja – stvarni brojevi, probno izvođenje bez brisanja', async () => {
+    await page.getByRole('tab', { name: 'Rokovi čuvanja' }).click();
+    await page.getByRole('heading', { name: 'Rokovi po vrsti podatka' }).waitFor();
+    await page.getByText(/Rokovi nisu potvrđeni|Rokove je institucija potvrdila/).waitFor();
+    await a11y.scan(page, 'osobni podaci: rokovi čuvanja');
+    await page.getByRole('button', { name: 'Probno izvođenje (ništa ne briše)' }).click();
+    await page.getByText(/Zadnje probno: \d/).waitFor();
+    await shot('rokovi-cuvanja');
   });
   problems.push(...a11y.report());
   await browser.close();

@@ -19,6 +19,8 @@ import { MyWork } from './pages/MyWork';
 import { NotificationBell } from './NotificationBell';
 import { Loading, useAccessibleTables, usePageTitle, useRouteFocus } from './ui';
 import { Accessibility } from './pages/Accessibility';
+import { Privacy } from './pages/Privacy';
+import { PersonalData } from './pages/PersonalData';
 import { ReauthDialog } from './pages/Reauth';
 import { can, canAny } from './lib/access';
 
@@ -28,9 +30,10 @@ const NoAccess = ({ what }: { what?: string }) => <><h1>Nema pristupa</h1><p cla
 const PAGE_TITLES: Record<string, string> = {
   'moj-rad': 'Moj rad', portfelj: 'Portfelj', radar: 'Radar poziva', prijave: 'Prijave', projekti: 'Projekti', organizacije: 'Organizacije',
   paketi: 'Paketi programa', korisnici: 'Korisnici', revizija: 'Revizija', racun: 'Moj račun', pristupacnost: 'Pristupačnost',
+  privatnost: 'Privatnost', 'osobni-podaci': 'Osobni podaci',
 };
 const SUB_TITLES: Record<string, Record<string, string>> = {
-  radar: { novi: 'Novi poziv' }, prijave: { nova: 'Nova prijava' }, paketi: { novi: 'Novi paket po pozivu', pregled: 'Paket programa', verzija: 'Nova verzija paketa' },
+  radar: { novi: 'Novi poziv' }, prijave: { nova: 'Nova prijava' }, 'osobni-podaci': { rokovi: 'Rokovi čuvanja' }, paketi: { novi: 'Novi paket po pozivu', pregled: 'Paket programa', verzija: 'Nova verzija paketa' },
 };
 function routeTitle(page: string, id: string | undefined): string | null {
   if (page === 'projekti' && id) return null; // ProjectDetail
@@ -40,9 +43,9 @@ function routeTitle(page: string, id: string | undefined): string | null {
   return sub ? `${sub} – ${base}` : base;
 }
 
-/** WP1.22: podnožje s izjavom o pristupačnosti – i na stranicama bez prijave. */
+/** WP1.22: podnožje s izjavom o pristupačnosti – i na stranicama bez prijave; WP1.23: i stranica „Privatnost”. */
 const SiteFooter = () => (
-  <footer className="site"><span>ArQus Projekti</span><a href="#/pristupacnost">Pristupačnost</a></footer>
+  <footer className="site"><span>ArQus Projekti</span><a href="#/privatnost">Privatnost</a><a href="#/pristupacnost">Pristupačnost</a></footer>
 );
 
 export function App() {
@@ -65,7 +68,7 @@ export function App() {
   useRouteFocus(route.join('/'));
   const [routePage0, routeId0] = route;
   const pageKey = routePage0 ?? (me && !me.mfa?.setupRequired ? (can(me, 'portfolio:read') ? 'portfelj' : 'moj-rad') : '');
-  usePageTitle(routePage0 === 'pozivnica' ? 'Prihvaćanje pozivnice' : routePage0 === 'lozinka' ? 'Nova lozinka' : !me && routePage0 !== 'pristupacnost' ? 'Prijava'
+  usePageTitle(routePage0 === 'pozivnica' ? 'Prihvaćanje pozivnice' : routePage0 === 'lozinka' ? 'Nova lozinka' : !me && routePage0 !== 'pristupacnost' && routePage0 !== 'privatnost' ? 'Prijava'
     : me?.mfa?.setupRequired ? 'Postavi dvofaktorsku prijavu' : routeTitle(pageKey, routeId0));
   // WP1.18: značka „Moj rad” (prošli i bliski rokovi) – pri promjeni stranice (najviše svakih 15 s) i svake 2 minute.
   const [work, setWork] = useState<WorkSummary | null>(null);
@@ -92,6 +95,8 @@ export function App() {
   if (checking) return <main><h1 className="sr-only">ArQus Projekti</h1><Loading /></main>;
   // WP1.22: izjava o pristupačnosti dostupna i bez prijave.
   if (!me && route[0] === 'pristupacnost') return <><main className="statement-page"><Accessibility /></main><SiteFooter /></>;
+  // WP1.23: stranica „Privatnost” dostupna i bez prijave.
+  if (!me && route[0] === 'privatnost') return <><main className="statement-page"><Privacy /></main><SiteFooter /></>;
   if (!me) return <><Login onLogin={async () => { go(''); await loadMe(); }} /><SiteFooter /></>;
 
   // WP1.19: obvezni MFA nije postavljen – samo postavljanje MFA i odjava (poslužitelj odbija sve ostalo).
@@ -135,6 +140,7 @@ export function App() {
           {canAny(me, 'packages:read') && <a href="#/paketi" {...current('paketi')}>Paketi programa</a>}
           {can(me, 'users:read') && <a href="#/korisnici" {...current('korisnici')}>Korisnici</a>}
           {can(me, 'audit:read') && <a href="#/revizija" {...current('revizija')}>Revizija</a>}
+          {can(me, 'privacy:manage') && <a href="#/osobni-podaci" {...current('osobni-podaci')}>Osobni podaci</a>}
         </nav>
         <div className="spacer" />
         <NotificationBell />
@@ -144,6 +150,8 @@ export function App() {
       <main id="sadrzaj" tabIndex={-1}>
         {page === 'racun' ? <Account me={me} reloadMe={loadMe} />
           : page === 'pristupacnost' ? <Accessibility />
+          : page === 'privatnost' ? <Privacy institution={me.tenant?.name} />
+          : page === 'osobni-podaci' ? <PersonalData me={me} tab={id} />
           : page === 'moj-rad' ? <MyWork me={me} onSummary={setWork} />
           : page === 'organizacije' ? (canAny(me, 'organisations:read') ? <Organisations me={me} /> : <NoAccess />)
           : page === 'korisnici' ? <Users me={me} />

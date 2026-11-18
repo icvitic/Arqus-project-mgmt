@@ -15,6 +15,8 @@ export const PERMISSIONS = [
   'reports:read', 'reports:write',
   'documents:read', 'documents:write', 'documents:confidential',
   'portfolio:read',
+  /** WP1.23: prava ispitanika i rokovi čuvanja – izvoz podataka osobe, zatvaranje računa, anonimizacija, rokovi. Samo administrator (`*`). */
+  'privacy:manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

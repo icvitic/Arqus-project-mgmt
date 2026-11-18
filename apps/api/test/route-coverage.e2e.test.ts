@@ -88,7 +88,7 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
     // poveznice, prihvaćanje pozivnice i nova lozinka, (WP1.22) kontakt za stranicu „Pristupačnost” – izričit popis, nova javna
     // ruta ruši test.
     expect(routes.filter((r) => r.access.kind === 'public').map((r) => `${r.method} ${r.path}`).sort()).toEqual([
-      'GET /api/calendar/:token', 'GET /api/health', 'GET /api/health/ready', 'GET /api/public/accessibility', 'POST /api/auth/invitation/accept', 'POST /api/auth/login',
+      'GET /api/calendar/:token', 'GET /api/health', 'GET /api/health/ready', 'GET /api/public/accessibility', 'GET /api/public/privacy', 'POST /api/auth/invitation/accept', 'POST /api/auth/login',
       'POST /api/auth/password/forgot', 'POST /api/auth/password/reset', 'POST /api/auth/token/inspect',
     ]);
     // WP1.21: token računa nikad u putanji ili upitu (zapisi pristupa, Referer) – javne rute računa nemaju parametar putanje.
@@ -122,6 +122,15 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
       'DELETE /api/projects/:id/access/:assignmentId', 'POST /api/projects/:id/access', 'POST /api/projects/:id/deliverables/:did/progress',
       'POST /api/projects/:id/import/confirm', 'POST /api/projects/:id/import/preview', 'POST /api/projects/:id/imports/:importId/undo', 'POST /api/projects/:id/tasks/:taskId/progress',
     ]);
+    // WP1.23: prava ispitanika i rokovi čuvanja – sve rute institucije s dozvolom privacy:manage (samo administrator);
+    // samoposluga je jedina ruta „o meni” (bez id-ja druge osobe), stranica „Privatnost” jedina nova javna ruta (gore).
+    expect(routes.filter((r) => r.path.startsWith('/api/privacy')).map((r) => `${r.method} ${r.path} ${r.access.kind}:${(r.access as { permission?: string }).permission}`).sort()).toEqual([
+      'GET /api/privacy/export tenant:privacy:manage', 'GET /api/privacy/people tenant:privacy:manage', 'GET /api/privacy/retention tenant:privacy:manage',
+      'POST /api/privacy/members/:mid/anonymise tenant:privacy:manage', 'POST /api/privacy/members/:mid/anonymise/preview tenant:privacy:manage',
+      'POST /api/privacy/retention/dry-run tenant:privacy:manage', 'POST /api/privacy/subject tenant:privacy:manage', 'POST /api/privacy/users/:id/close tenant:privacy:manage',
+      'PUT /api/privacy/retention tenant:privacy:manage',
+    ]);
+    expect(routes.filter((r) => r.path === '/api/me/privacy-export').map((r) => `${r.method} ${r.access.kind} ${r.mfaSetup}`)).toEqual(['GET authenticated false']);
     // Sigurnosne postavke institucije (WP1.19): čitanje uz users:read, izmjena samo uz users:write (administrator).
     expect(routes.filter((r) => r.path === '/api/tenant/security').map((r) => `${r.method} ${(r.access as { permission?: string }).permission}`).sort()).toEqual(['GET users:read', 'PUT users:write']);
   });

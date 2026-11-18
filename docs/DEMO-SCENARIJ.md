@@ -139,6 +139,18 @@ Rečenica: *„Vi već imate projekte u tijeku – u Excelu. Ne prepisujete ih: 
 - **Pozovi korisnika**: ime, e-adresa, uloga (npr. član tima na BLUESENSE-u) → **Pošalji pozivnicu**. Demo ne šalje e-poštu, pa se poveznica prikaže **jednom** s gumbom „Kopiraj” i uputom da se preda pouzdanim kanalom. Otvori je u privatnoj kartici: korisnik sam bira lozinku i odmah je u aplikaciji („Moj rad”). U pilotu s uključenom e-poštom poveznica ide samo u njegov pretinac, a administrator ne vidi ništa tajno.
   *„Administrator dodaje ljude, ali nikad ne zna ničiju lozinku. Tko zaboravi lozinku, na prijavi klikne ‚Zaboravljena lozinka?’ i dobije poveznicu e-poštom – bez administratora; dvofaktorska prijava pritom ostaje.”*
 
+## 9c. Istraživačica je otišla i traži svoje podatke (2 min) – „što smijemo obrisati, a što moramo čuvati”
+
+**Klik:** (prijavljen `admin@demo.local`) → **Osobni podaci** → upiši „Babić” → **Odaberi** (dr. sc. Lea Babić).
+
+- Pregled osobe: račun, zapis člana tima na ZELENI-LAB-u (*povezan s računom*), rok čuvanja („nije počeo” – projekt je u provedbi) i koliko zapisa sustav o njoj drži po kategoriji (timesheetovi, troškovi osoblja, revizija…). Zapis člana tima **bez** računa istog imena sustav bi samo predložio – pripisuje ga administrator nakon provjere.
+- **Preuzmi podatke osobe (ZIP)**: `procitaj-me.html` (sažetak i pravila), `podaci.json` (strojno čitljivo), `podaci.xlsx`. Nema sati ni imena drugih članova tima; uz timesheet stoji samo tko ga je odobrio. Administrator vidi plaće, pa su iznosi uključeni – izvoz koji izradi netko bez pristupa plaćama ih ne sadrži i to kaže.
+- Lea sama može isto preuzeti u **Moj račun → Moji podaci** (bez iznosa plaće, kao u sučelju).
+- **Anonimiziraj…** pokazuje točno što bi se promijenilo („Lea Babić” → „Bivši član tima 1”, uloga obrisana, veza s računom prekinuta, opis troška osoblja) i što ostaje (sati, iznosi, ZNS) – i **odbija** jer rok čuvanja projekta još nije ni počeo. Odustani.
+- **Zatvori račun…**: razlog i upisano ime → račun je *zatvoren*. Lozinka, dvofaktorska prijava, sesije, poveznice, kalendar i e-adresa nestaju odmah; prijava više nije moguća.
+  *„Što ostaje i zašto: njezino ime na odobrenim timesheetovima i u ZNS-u 1 – to je dokaz za zahtjev koji posredničko tijelo može provjeravati godinama. Kad rok čuvanja projekta istekne, ime u projektnim zapisima zamjenjujemo oznakom, a iznosi i sati ostaju da se zbrojevi i dalje slažu.”*
+- Kartica **Rokovi čuvanja**: svaka vrsta podatka, rok, koliko se drži, što je zadnje izvođenje uklonilo (sesije iz pripreme demonstracije) – zadani rokovi su označeni kao nepotvrđeni; institucija ih potvrđuje sa službenikom za zaštitu podataka. Stranica **Privatnost** (podnožje, i bez prijave) objašnjava korisnicima što se obrađuje.
+
 ## 10. Zatvaranje (1 min)
 
 - Sigurnost u jednoj rečenici: podaci svake institucije odvojeni na razini baze, dvofaktorska prijava, revizijski zapis svake promjene, poslužitelj u EU.

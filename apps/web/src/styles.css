@@ -149,3 +149,6 @@ table.tasks td:first-child{white-space:nowrap}
 @media(max-width:620px){header.top{gap:8px 12px;padding:8px 12px}footer.site{padding:8px 16px 20px}}
 .grid>*{min-width:0}
 @media(max-width:520px){.import-file{min-width:0;max-width:100%}.import-file input{width:100%}}
+/* WP1.23 – osobni podaci */
+.days-input{width:6.5em}.retention-table td{vertical-align:top}.privacy-counts{max-width:420px}.privacy-dialog.wide{max-width:760px}
+.privacy-dialog ul{padding-left:1.2em}.privacy-subject h3{margin-top:18px}

@@ -23,7 +23,8 @@ export const tenants = pgTable('tenants', {
   ...audited,
 });
 
-export type UserStatus = 'invited' | 'active' | 'disabled';
+/** WP1.23: `closed` – račun zatvoren (osoba je otišla): nikad se više ne prijavljuje i ne aktivira, e-adresa je zamijenjena. */
+export type UserStatus = 'invited' | 'active' | 'disabled' | 'closed';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -40,8 +41,11 @@ export const users = pgTable('users', {
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   /** WP1.21: dnevni sažetak e-poštom (zadano uključen; korisnik ga isključuje u Moj račun). */
   digestEnabled: boolean('digest_enabled').notNull().default(true),
+  /** WP1.23: zatvaranje računa (privacy:manage) – vrijeme i tko; nepovratno. */
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+  closedBy: uuid('closed_by'),
   ...audited,
-}, (t) => [uniqueIndex('users_tenant_email_uq').on(t.tenantId, t.email), unique('users_tenant_id_uq').on(t.tenantId, t.id)]);
+}, (t) => [check('users_closed_ck', sql`(status = 'closed') = (closed_at is not null)`), uniqueIndex('users_tenant_email_uq').on(t.tenantId, t.email), unique('users_tenant_id_uq').on(t.tenantId, t.id)]);
 
 /** Sesija prijave (id = `sid` u JWT-u). Provjerava se pri svakom zahtjevu: opoziv i deaktivacija vrijede odmah (ASVS V3.3). */
 export const sessions = pgTable('sessions', {
@@ -374,8 +378,17 @@ export const teamMembers = pgTable('team_members', {
   /** Godišnji trošak (plaća); NULL dok ga ne upiše uloga s personnel:read (WP1.14). */
   annualCostCents: bigint('annual_cost_cents', { mode: 'number' }),
   active: boolean('active').notNull().default(true),
+  /**
+   * WP1.23: anonimizacija nakon isteka roka čuvanja – ime zamijenjeno pseudonimom (stabilan unutar projekta), veza s računom
+   * prekinuta; iznosi, sati i struktura financijskog zapisa ostaju. Nepovratno.
+   */
+  pseudonym: text('pseudonym'),
+  anonymisedAt: timestamp('anonymised_at', { withTimezone: true }),
+  anonymisedBy: uuid('anonymised_by'),
   ...audited,
 }, (t) => [
+  check('team_members_anonymised_ck', sql`(anonymised_at is null) = (pseudonym is null) and (anonymised_at is null or (user_id is null and full_name = pseudonym))`),
+  uniqueIndex('team_members_pseudonym_uq').on(t.projectId, t.pseudonym).where(sql`pseudonym is not null`),
   unique('team_members_tenant_id_uq').on(t.tenantId, t.id),
   /** WP1.22: cilj stranog ključa odgovorne osobe (član tima istog projekta). */
   unique('team_members_project_id_uq').on(t.tenantId, t.projectId, t.id),
@@ -850,4 +863,27 @@ export const digestRuns = pgTable('digest_runs', {
 }, (t) => [
   uniqueIndex('digest_runs_pk').on(t.tenantId, t.userId, t.day),
   foreignKey({ name: 'digest_runs_user_fk', columns: [t.tenantId, t.userId], foreignColumns: [users.tenantId, users.id] }).onDelete('cascade'),
+]);
+
+/**
+ * WP1.23 – izvođenje posla čuvanja podataka (rokovi čuvanja): jedan redak po instituciji i danu za zakazano izvođenje
+ * (jedinstven indeks – kao `digest_runs`: tko prvi umetne redak, taj radi; druga instanca isti dan ne radi ništa) i
+ * proizvoljno mnogo probnih izvođenja (`dry`, ništa se ne briše). Rezultat po kategoriji, bez osobnih podataka.
+ */
+export type RetentionRunMode = 'scheduled' | 'dry';
+export type RetentionRunOutcome = 'claimed' | 'done' | 'failed';
+export const retentionRuns = pgTable('retention_runs', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  day: date('day', { mode: 'string' }).notNull(),
+  mode: text('mode').$type<RetentionRunMode>().notNull(),
+  outcome: text('outcome').$type<RetentionRunOutcome>().notNull().default('claimed'),
+  result: jsonb('result').$type<Record<string, unknown>>(),
+  createdBy: uuid('created_by'),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+}, (t) => [
+  uniqueIndex('retention_runs_scheduled_uq').on(t.tenantId, t.day).where(sql`mode = 'scheduled'`),
+  index('retention_runs_tenant_idx').on(t.tenantId, t.id),
+  check('retention_runs_mode_ck', sql`mode in ('scheduled', 'dry') and outcome in ('claimed', 'done', 'failed')`),
 ]);

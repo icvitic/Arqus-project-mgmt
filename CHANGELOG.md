@@ -4,6 +4,26 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-18
+### Dodano
+- WP1.23 **Evidencija obrade**: `docs/gdpr/EVIDENCIJA-OBRADE.md` (po tablici: ispitanici, podaci, svrha, tko vidi, rok, kategorija izvoza) i strojno čitljivi `docs/gdpr/evidencija-obrade.json` (po stupcu). Test `privacy-inventory.test.ts` pada kad se u shemu doda tablica bez zapisa ili stupac koji po nazivu izgleda osobno, a nije naveden.
+- **Izvoz podataka osobe** (`GET /api/privacy/export`, nova dozvola `privacy:manage` – samo administrator stanara): ZIP s `podaci.json`, `podaci.xlsx` i `procitaj-me.html` (18 kategorija: račun, uloge, sesije, tokeni bez vrijednosti, obavijesti, pošta, članstva, timesheetovi, troškovi osoblja, odgovornosti, rizici, projekti i prijave koje vodi, praćenje poziva, popis dokumenata, revizijski zapis). Bez podataka trećih osoba (pravilo u `docs/gdpr/PRAVA-ISPITANIKA.md`); iznosi plaća samo uz `personnel:read` institucije, inače izvoz to navodi; revizija bez sadržaja; ograničenje po korisniku; `no-store`. Pretraga i pregled osobe (`GET /api/privacy/people`, `POST /api/privacy/subject`): zapisi člana tima bez računa samo se predlažu po imenu, pripisuje ih operater.
+- **Samoposluga**: „Moj račun → Moji podaci” (`GET /api/me/privacy-export`).
+- **Zatvaranje računa** (`POST /api/privacy/users/:id/close`, upisano ime i razlog): lozinka, MFA, sesije, tokeni, kalendar, obavijesti, zapisi sažetka i pošte, uloge i e-adresa nestaju odmah; status `closed` je konačan.
+- **Anonimizacija zapisa člana tima** nakon roka čuvanja projekta (`POST /api/privacy/members/:mid/anonymise[/preview]`): pseudonim stabilan unutar projekta, veza s računom prekinuta, ime u opisu troška osoblja zamijenjeno; iznosi, sati i zahtjevi nepromijenjeni; pregled = učinak (otisak), upisano ime, razlog dok rok traje; slobodni tekst i dokumenti navedeni za ručni pregled.
+- **Rokovi čuvanja** (`GET|PUT /api/privacy/retention`, `POST /api/privacy/retention/dry-run`) i zaslon **Osobni podaci → Rokovi čuvanja**: 9 kategorija sa zadanim rokom, donjom granicom i oznakom promjenjivosti; rok čuvanja projekta po paketu programa (zadano 10 godina, najmanje 3); potvrda institucije; što drži, što je isteklo, što se čuva preko roka, što je zadnje izvođenje uklonilo. **Dnevni posao čuvanja** (`RETENTION_ENABLED`, `RETENTION_HOUR`) – serije, granica vremena, jedna instanca po danu (`retention_runs`), probno izvođenje.
+- Stranica **Privatnost** (`#/privatnost`, i bez prijave, poveznica u podnožju) i javna ruta `GET /api/public/privacy` (kontakt iz `PRIVACY_CONTACT`).
+- Dokumenti `docs/gdpr/MJERE-ZASTITE.md`, `UGOVOR-O-OBRADI-predlozak.md` (čl. 28(3) GDPR-a, rezervirana mjesta za strane, podizvršitelje i lokaciju), `PRAVA-ISPITANIKA.md` – radni predlošci bez pravnog pregleda.
+- Migracije 0031 (stupci zatvaranja računa i anonimizacije, `retention_runs`) i 0032 (RLS i prava, okidač koji revizijski zapis štiti i od vlasnika, funkcije `project_retention_end`, `privacy_audit_purge`, `privacy_documents_purge`, `privacy_notifications_purge`, uska iznimka okidača nepromjenjivosti troškova za anonimizaciju).
+- Testovi: `privacy-inventory.test.ts` (5), `privacy.e2e.test.ts` (9), `privacy-retention.e2e.test.ts` (6), test pokrivenosti ruta (rute `/api/privacy`, nova javna ruta), demo; e2e u pregledniku (+4 koraka, novi zasloni i dijalozi u provjeri pristupačnosti).
+
+### Promijenjeno
+- Revizijski zapis: uz to što ga aplikacija ne može mijenjati, okidač odbija izmjenu, brisanje i `TRUNCATE` i vlasničkoj ulozi (osim funkcije `privacy_audit_purge`).
+- Aplikacijska uloga smije brisati sesije, zapise isporuke pošte i dnevnog sažetka (zatvaranje računa, posao čuvanja).
+- `privacy:manage` je povlaštena dozvola obveznog MFA.
+- Zatvoren račun se ne mijenja, ne dobiva pristup projektu i ne povezuje se s članom tima; anonimiziran zapis člana tima se ne mijenja.
+- Demo: istraživačica Lea Babić (`istrazivacica@demo.local`) na ZELENI-LAB za korak „istraživačica je otišla”; zaslon rokova čuvanja sa stvarnim izvođenjem.
+
 ## [0.32.0] - 2026-11-18
 ### Dodano
 - WP1.22 **Pristupačnost (WCAG 2.1 AA kao mjerilo)**: automatska provjera **axe-core** (razvojna ovisnost `axe-core@4.14.0`) u e2e testu u pregledniku na 46 stanja zaslona, u svijetloj i tamnoj temi te na 1400 i 390 px – nalaz *serious*/*critical* ruši test; skriptirane provjere (jedan `h1` i razine naslova, `lang`, naslov dokumenta po ruti, orijentiri, „Preskoči na sadržaj”, `aria-live`, preljev na 320 px, vidljiv fokus, dijalog i povratak fokusa, kartice strelicama) i glavni tokovi **samo tipkovnicom** (prijava, timesheet iz „Moj rad”, odobrenje, ZNS i popis za provjeru, pozivnica). Polazište: `color-contrast` 1.535 elemenata, `scrollable-region-focusable` 12; sada 0 nalaza.

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../lib/api';
+import { api, downloadFile } from '../lib/api';
 import { dateTime } from '../lib/format';
 import { useLoad } from '../lib/hooks';
 import type { CalendarStatus, DigestSetting, Me } from '../lib/types';
@@ -30,6 +30,7 @@ export function Account({ me, reloadMe }: { me: Me; reloadMe: () => Promise<void
       </div>
       <DigestCard />
       <CalendarCard />
+      <MyDataCard me={me} />
     </>
   );
 }
@@ -152,5 +153,19 @@ export function MfaRequired({ me, reloadMe }: { me: Me; reloadMe: () => Promise<
       {done && <div className="warnbox" role="status">{done}</div>}
       <div className="grid g2"><MfaCard me={me} reloadMe={reloadMe} onDone={setDone} /></div>
     </>
+  );
+}
+
+/**
+ * WP1.23 – samoposluga prava na pristup: korisnik preuzima vlastite podatke (ZIP: JSON, Excel, sažetak). Iznosi plaće i
+ * troška osoblja samo ako ih korisnik i inače vidi (pristup podacima o plaćama) – potpun izvoz izrađuje institucija.
+ */
+function MyDataCard({ me }: { me: Me }) {
+  const seesSalaries = me.permissions.includes('*') || me.permissions.includes('personnel:read');
+  return (
+    <div className="card my-data-card"><h2>Moji podaci</h2>
+      <p className="muted">Preuzmi sve što ArQus Projekti drži o tebi: račun, uloge, sesije (IP adresa i preglednik), članstva u timovima, timesheetove, odgovornosti, obavijesti i revizijski zapis tvojih radnji – kao strojno čitljiv JSON, Excel i čitljiv sažetak. {seesSalaries ? 'Izvoz uključuje iznose plaće i troška osoblja jer ih i inače vidiš.' : 'Iznosi plaće i troška osoblja nisu uključeni (kao ni u sučelju) – potpun izvoz možeš zatražiti od institucije.'} Što se obrađuje i kako ostvariti prava: <a href="#/privatnost">Privatnost</a>.</p>
+      <div className="actions"><ActionButton onClick={() => downloadFile('/me/privacy-export', 'moji-podaci.zip')}>Preuzmi moje podatke (ZIP)</ActionButton></div>
+    </div>
   );
 }

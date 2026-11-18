@@ -13,7 +13,7 @@ export const MFA_POLICIES = ['none', 'privileged', 'all'] as const;
 export type MfaPolicy = (typeof MFA_POLICIES)[number];
 
 /** Povlaštene dozvole (na razini institucije): upravljanje korisnicima i postavkama, plaće, revizija, financijske izmjene. */
-export const PRIVILEGED_PERMISSIONS: readonly Permission[] = ['users:write', 'tenant:write', 'personnel:read', 'audit:read', 'finance:write'];
+export const PRIVILEGED_PERMISSIONS: readonly Permission[] = ['users:write', 'tenant:write', 'personnel:read', 'audit:read', 'finance:write', 'privacy:manage'];
 
 export const MFA_SETUP_REQUIRED = 'mfa_setup_required';
 

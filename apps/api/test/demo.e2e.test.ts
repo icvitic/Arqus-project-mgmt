@@ -247,6 +247,16 @@ describe('Demo okruženje (WP1.13)', () => {
     expect((await nt('pm2')).items.map((n) => n.kind)).toEqual(expect.arrayContaining(['project_manager', 'proposal_lead', 'timesheet_approved']));
     expect((await nt('finance')).items.map((n) => n.kind).sort()).toEqual(['claim_decided', 'claim_paid']);
     for (const k of ['admin', 'office', 'board']) expect((await nt(k)).items).toEqual([]);
+    // WP1.23: istraživačica koja odlazi (Lea Babić) – administrator vidi njezin račun i zapis člana tima u „Osobni podaci”;
+    // zaslon „Rokovi čuvanja” ima stvarne brojeve: zakazano izvođenje je uklonilo odjavljene sesije iz punjenja, probno je zapisano.
+    const leaver = (await http().post('/api/privacy/subject').set(as('admin')).send({ userId: users.find((u) => u.email === `istrazivacica@${slug}.local`)!.id }).expect(201)).body;
+    expect(leaver.members.map((m: Row) => m.project)).toEqual(['ZELENI-LAB']);
+    expect(leaver.counts.timesheets).toBe(3); expect(leaver.counts.personnelCosts).toBeGreaterThan(0);
+    const ret = (await http().get('/api/privacy/retention').set(as('admin')).expect(200)).body;
+    expect(ret.lastRun).toMatchObject({ mode: 'scheduled', outcome: 'done' });
+    expect(ret.lastRun.result.categories.find((c: Row) => c.key === 'sessions').removed).toBeGreaterThan(0);
+    expect(ret.lastDryRun).toMatchObject({ mode: 'dry', outcome: 'done' });
+    expect(ret.categories.find((c: Row) => c.key === 'audit').held).toBeGreaterThan(100);
 
     // WP1.14b – revizija: povijest odluka i promjena; promjena plaće s iznosom vidljiva administratoru.
     const audit = (await http().get('/api/audit?entity=team_member&action=update').set(as('admin')).expect(200)).body as { diff: { after: { annualCostCents?: unknown } } }[];

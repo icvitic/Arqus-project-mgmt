@@ -218,6 +218,20 @@
       "when": 1794996271679,
       "tag": "0030_odgovorne_osobe",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795008577320,
+      "tag": "0031_osobni_podaci",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795008641254,
+      "tag": "0032_osobni_podaci_rls",
+      "breakpoints": true
     }
   ]
 }
