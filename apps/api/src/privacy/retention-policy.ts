@@ -26,6 +26,8 @@ export const RETENTION_CATEGORIES = [
     basis: 'Otkrivanje pogađanja lozinki kroz dulje razdoblje; donju granicu provodi baza.' },
   { key: 'audit', label: 'Revizijski zapis (ostali zapisi)', unit: 'dana', defaultDays: 3650, floorDays: 1825, configurable: true,
     basis: 'Dokaz tko je što napravio. Zapis se ne briše dok traje rok čuvanja ijednog projekta koji je tada postojao; donju granicu provodi baza.' },
+  { key: 'subjectRequests', label: 'Zatvoreni zahtjevi ispitanika (evidencija)', unit: 'dana nakon zatvaranja', defaultDays: 1825, floorDays: 365, configurable: true,
+    basis: 'Dokaz da je institucija na zahtjev odgovorila u roku (odgovornost, čl. 5(2) GDPR-a). Otvoren zahtjev se ne briše.' },
 ] as const;
 
 export type RetentionKey = (typeof RETENTION_CATEGORIES)[number]['key'];

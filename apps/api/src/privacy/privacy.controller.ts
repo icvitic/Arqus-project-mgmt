@@ -10,6 +10,9 @@ import { PrivacyService } from './privacy.service';
 import { RetentionService } from './retention.service';
 import { searchPeople, type SubjectRef } from './subject-data';
 import { privacySettingsInput } from './retention-policy';
+import {
+  subjectRequestCloseInput, subjectRequestCreateInput, subjectRequestExtendInput, subjectRequestRevisionInput, subjectRequestUpdateInput, SubjectRequestsService,
+} from './subject-requests.service';
 
 const uuid = z.string().uuid();
 const subjectInput = z.object({ userId: uuid.nullable().optional(), memberIds: z.array(uuid).max(200).default([]) }).strict();
@@ -39,7 +42,7 @@ function zipResponse(res: Response, fileName: string, stream: NodeJS.ReadableStr
  */
 @Controller('privacy')
 export class PrivacyController {
-  constructor(private readonly privacy: PrivacyService, private readonly retention: RetentionService, private readonly db: DbService, private readonly ctx: TenantContext, private readonly limit: ExportRateLimit) {}
+  constructor(private readonly privacy: PrivacyService, private readonly retention: RetentionService, private readonly requests: SubjectRequestsService, private readonly db: DbService, private readonly ctx: TenantContext, private readonly limit: ExportRateLimit) {}
 
   @Get('people') @RequirePermission('privacy:manage')
   people(@Query('q') q?: string) {
@@ -89,6 +92,28 @@ export class PrivacyController {
     const c = this.ctx.require();
     return this.retention.runTenant(c.tenantId, { dryRun: true, actorId: c.userId ?? null });
   }
+
+  // ---------- WP1.24: evidencija zahtjeva ispitanika (rok od mjesec dana, čl. 12(3)) ----------
+  @Get('requests') @RequirePermission('privacy:manage')
+  requestList() { return this.db.tx((tx) => this.requests.list(tx)); }
+
+  @Post('requests') @RequirePermission('privacy:manage')
+  requestCreate(@Body() body: unknown) { const i = parseBody(subjectRequestCreateInput, body); return this.db.tx((tx) => this.requests.create(tx, i)); }
+
+  @Put('requests/:requestId') @RequirePermission('privacy:manage')
+  requestUpdate(@Param('requestId', ParseUUIDPipe) id: string, @Body() body: unknown) { const i = parseBody(subjectRequestUpdateInput, body); return this.db.tx((tx) => this.requests.update(tx, id, i)); }
+
+  @Post('requests/:requestId/extend') @RequirePermission('privacy:manage')
+  requestExtend(@Param('requestId', ParseUUIDPipe) id: string, @Body() body: unknown) { const i = parseBody(subjectRequestExtendInput, body); return this.db.tx((tx) => this.requests.extend(tx, id, i)); }
+
+  @Post('requests/:requestId/extend/cancel') @RequirePermission('privacy:manage')
+  requestCancelExtension(@Param('requestId', ParseUUIDPipe) id: string, @Body() body: unknown) { const i = parseBody(subjectRequestRevisionInput, body); return this.db.tx((tx) => this.requests.cancelExtension(tx, id, i)); }
+
+  @Post('requests/:requestId/close') @RequirePermission('privacy:manage')
+  requestClose(@Param('requestId', ParseUUIDPipe) id: string, @Body() body: unknown) { const i = parseBody(subjectRequestCloseInput, body); return this.db.tx((tx) => this.requests.close(tx, id, i)); }
+
+  @Post('requests/:requestId/reopen') @RequirePermission('privacy:manage')
+  requestReopen(@Param('requestId', ParseUUIDPipe) id: string, @Body() body: unknown) { const i = parseBody(subjectRequestRevisionInput, body); return this.db.tx((tx) => this.requests.reopen(tx, id, i)); }
 }
 
 /** Samoposluga: korisnik preuzima vlastite podatke (Moj račun) – bez id-ja u putanji, uvijek osoba iz sesije. */

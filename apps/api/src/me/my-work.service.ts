@@ -13,6 +13,7 @@ import { ProgrammePackagesService } from '../programmes/programme-packages.servi
 import { IdentityService } from '../identity/identity.service';
 import { TenantContext, tenantTimeZone, tenantToday } from '../common/tenant-context';
 import { canInTenant, canOnProject, projectGrants, projectsWith } from '../common/access';
+import { openSubjectRequestFacts } from '../privacy/subject-requests.service';
 import { hasPermission, type Permission } from '../identity/permissions';
 import {
   highRisksCount, OPEN_DELIVERABLE_STATUSES, OPEN_MILESTONE_STATUSES, OPEN_PROJECT_STATUSES, OPEN_TASK_STATUSES, OPEN_PROPOSAL_STATUSES, periodSubmitted, RUNNING_PROJECT_STATUSES,
@@ -35,7 +36,8 @@ const DECIDED_OK: ClaimStatus[] = ['approved', 'partially_approved'];
  *   ured za projekte) ne pretvaraju svaki projekt institucije u osobnu obvezu – njihov pregled je portfelj. Iznimka:
  *   financijski ured (`finance:write` institucije bez `projects:write` institucije) dobiva stavke financija svih projekata.
  * - prijave: voditelj prijave (vlastite) ili izričita `proposals:write` institucije (ne kroz `*`);
- * - pozivi: izričita `calls:write` institucije; administrator: `users:write` institucije (MFA).
+ * - pozivi: izričita `calls:write` institucije; administrator: `users:write` institucije (MFA) i `privacy:manage`
+ *   (otvoreni zahtjevi ispitanika, WP1.24).
  */
 @Injectable()
 export class MyWorkService {
@@ -207,10 +209,13 @@ export class MyWorkService {
       mfaMissing = s.impact[s.requireMfa].withoutMfa;
     }
 
+    // 11) WP1.24: otvoreni zahtjevi ispitanika – samo onome tko ih vodi (`privacy:manage`).
+    const subjectRequests = canInTenant(ctx, 'privacy:manage') ? await openSubjectRequestFacts(tx) : [];
+
     return {
       today, userId,
       projects: projRows.map((p) => ({ id: p.id, acronym: p.acronym, startDate: p.startDate, endDate: projectEndDate(p.startDate, p.durationMonths) })),
-      members, approvals, finance, managers, ownRisks, responsible, proposals: proposalFacts, calls: callFacts, mfaMissing,
+      members, approvals, finance, managers, ownRisks, responsible, proposals: proposalFacts, calls: callFacts, mfaMissing, subjectRequests,
     };
   }
 

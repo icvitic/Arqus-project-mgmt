@@ -97,6 +97,7 @@ export class RetentionService {
       case 'accountTokens': { const x = await one(sql`select count(*) as held, count(*) filter (where expires_at < ${cutoff}) as eligible from account_tokens`); return { held: num(x.held), eligible: num(x.eligible), keptForEvidence: 0 }; }
       case 'mailDeliveries': { const x = await one(sql`select count(*) as held, count(*) filter (where created_at < ${cutoff}) as eligible from mail_deliveries`); return { held: num(x.held), eligible: num(x.eligible), keptForEvidence: 0 }; }
       case 'digestRuns': { const x = await one(sql`select count(*) as held, count(*) filter (where created_at < ${cutoff}) as eligible from digest_runs`); return { held: num(x.held), eligible: num(x.eligible), keptForEvidence: 0 }; }
+      case 'subjectRequests': { const x = await one(sql`select count(*) as held, count(*) filter (where status = 'closed' and closed_on < ${cutoff}::date) as eligible from subject_requests`); return { held: num(x.held), eligible: num(x.eligible), keptForEvidence: 0 }; }
       case 'notificationsRead': case 'notificationsUnread': {
         const x = (await one(sql`select privacy_notifications_purge(${key === 'notificationsRead' ? days : 90}, ${key === 'notificationsUnread' ? days : 36500}, 0, true) as r`)).r as Row;
         return { held: num(x.held), eligible: num(key === 'notificationsRead' ? x.eligibleRead : x.eligibleUnread), keptForEvidence: 0 };
@@ -124,6 +125,7 @@ export class RetentionService {
       case 'accountTokens': return del(sql`delete from account_tokens where id in (select id from account_tokens where expires_at < ${cutoff} limit ${batch})`);
       case 'mailDeliveries': return del(sql`delete from mail_deliveries where id in (select id from mail_deliveries where created_at < ${cutoff} order by id limit ${batch})`);
       case 'digestRuns': return del(sql`delete from digest_runs where ctid in (select ctid from digest_runs where created_at < ${cutoff} limit ${batch})`);
+      case 'subjectRequests': return del(sql`delete from subject_requests where id in (select id from subject_requests where status = 'closed' and closed_on < ${cutoff}::date order by closed_on limit ${batch})`);
       case 'notificationsRead': case 'notificationsUnread': {
         const x = (await rows(tx, sql`select privacy_notifications_purge(${key === 'notificationsRead' ? days : 36500}, ${key === 'notificationsUnread' ? days : 36500}, ${batch}, false) as r`))[0]!.r as Row;
         return { removed: num(x.removedRead) + num(x.removedUnread), keys: [] };

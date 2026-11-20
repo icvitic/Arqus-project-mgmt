@@ -33,7 +33,7 @@ const PAGE_TITLES: Record<string, string> = {
   privatnost: 'Privatnost', 'osobni-podaci': 'Osobni podaci',
 };
 const SUB_TITLES: Record<string, Record<string, string>> = {
-  radar: { novi: 'Novi poziv' }, prijave: { nova: 'Nova prijava' }, 'osobni-podaci': { rokovi: 'Rokovi čuvanja' }, paketi: { novi: 'Novi paket po pozivu', pregled: 'Paket programa', verzija: 'Nova verzija paketa' },
+  radar: { novi: 'Novi poziv' }, prijave: { nova: 'Nova prijava' }, 'osobni-podaci': { rokovi: 'Rokovi čuvanja', zahtjevi: 'Zahtjevi ispitanika' }, paketi: { novi: 'Novi paket po pozivu', pregled: 'Paket programa', verzija: 'Nova verzija paketa' },
 };
 function routeTitle(page: string, id: string | undefined): string | null {
   if (page === 'projekti' && id) return null; // ProjectDetail

@@ -1,12 +1,24 @@
-# Prava ispitanika u proizvodu ArQus Projekti (WP1.23, v0.33.0)
+# Prava ispitanika u proizvodu ArQus Projekti (WP1.23, v0.33.0; evidencija zahtjeva WP1.24, v0.34.0)
 
 > **Napomena.** Ovo je radni predložak koji je pripremio razvojni tim bez pravnog pregleda. Prije upotrebe ga mora provjeriti službenik za zaštitu podataka institucije ili pravnik. Opisuje kako se pojedino pravo tehnički provodi u proizvodu i gdje proizvod ne pomaže; ne odlučuje o tome postoji li pravo u konkretnom slučaju (to procjenjuje institucija kao voditelj obrade) i nije pravni savjet.
 
 **Tko radi:** administrator institucije s dozvolom `privacy:manage` (sistemska uloga „Administrator stanara”; drugim ulogama se ne dodjeljuje). Izbornik **Osobni podaci**. Sve radnje se bilježe u revizijski zapis (tko, za koga, kada – ne sadržaj izvoza).
 
-**Rok:** odgovor ispitaniku u pravilu u roku od mjesec dana (čl. 12(3) GDPR-a). Proizvod zasad **ne vodi evidenciju zahtjeva** ni rokova – institucija ih vodi u vlastitom urudžbenom zapisniku (vidi „Gdje proizvod ne pomaže”).
+**Rok:** odgovor ispitaniku u pravilu u roku od mjesec dana od zaprimanja zahtjeva (čl. 12(3) GDPR-a). Od v0.34.0 proizvod vodi **evidenciju zahtjeva i rokova** – vidi odjeljak 0.
 
 **Utvrđivanje identiteta podnositelja zahtjeva** provodi institucija izvan proizvoda (npr. zahtjev s poslovne e-adrese, osobno). Proizvod ne provjerava tko je podnio zahtjev.
+
+## 0. Evidencija zahtjeva i rok za odgovor (WP1.24)
+**Administrator:** Osobni podaci → **Zahtjevi i rokovi** → **Novi zahtjev…**
+- Upisuje se: dan zaprimanja, na koje se pravo zahtjev odnosi, kako je zaprimljen, podnositelj i kontakt za odgovor, po potrebi sažetak, dan utvrđivanja identiteta i e-adresa korisničkog računa podnositelja. Zahtjev dobiva oznaku (`ZI-1`, `ZI-2`…).
+- **Rok računa sustav:** mjesec dana od dana zaprimanja, kalendarski (zahtjev zaprimljen 20. 11. → rok 20. 12.; zaprimljen 31. 1. → rok zadnji dan veljače). Rok koji padne na subotu, nedjelju ili blagdan sustav **ne pomiče** na idući radni dan – prikazani rok je zato isti ili raniji od pravnog, nikad kasniji. Od kada rok teče u konkretnom slučaju (npr. tek nakon utvrđivanja identiteta) procjenjuje institucija; sustav uvijek računa od upisanog dana zaprimanja, a dan utvrđivanja identiteta samo bilježi.
+- **Podsjetnik:** svaki otvoreni zahtjev je stavka u „Moj rad” onoga tko ima `privacy:manage` – „uskoro” u zadnjih 10 dana roka, „kasni” nakon njega – i ulazi u jutarnji sažetak e-poštom. Stavka nosi samo oznaku i vrstu zahtjeva, bez imena podnositelja. U osobni kalendar rokova zahtjevi ne ulaze.
+- **Produlji rok…:** još dva mjeseca (ukupno tri od zaprimanja). Bilježi se razlog i dan kad je ispitanik obaviješten; obavijest nakon osnovnog roka sustav prihvaća, ali je označava zakašnjelom. Pogrešno upisano produljenje se poništava.
+- **Zatvori…:** dan odgovora ispitaniku i ishod (udovoljeno, djelomično udovoljeno, odbijeno, povučen); uz odbijanje i djelomično udovoljenje obvezno je obrazloženje. Zahtjev zatvoren nakon roka ostaje tako označen. Pogrešno zatvoren zahtjev se ponovno otvara (rok ostaje isti).
+- **Što evidencija nije:** ne šalje odgovor ispitaniku, ne provjerava identitet i ne odlučuje postoji li pravo. Samu radnju (izvoz, zatvaranje računa, anonimizaciju) administrator izvodi na kartici „Osoba” – evidencija bilježi da je zahtjev zaprimljen i kada je na njega odgovoreno.
+- **Čuvanje:** zahtjev se kroz sučelje ne briše. Zatvoreni zahtjevi brišu se sami 1825 dana (5 godina) nakon zatvaranja (zadano, najmanje 365; Rokovi čuvanja → „Zatvoreni zahtjevi ispitanika”) – rok je prijedlog razvojnog tima, potvrđuje ga institucija. Otvoren zahtjev se ne briše. Zatvaranje računa podnositelja evidenciju ne briše.
+- **Revizijski zapis** bilježi svaku radnju nad zahtjevom (tko, kada, vrsta, rokovi, ishod), ali ne i ime podnositelja, kontakt ni upisani tekst – revizija se čuva dulje od evidencije.
+- **Izvoz podataka osobe** sadrži njezine zahtjeve samo ako ih je operater povezao s njezinim računom (sustav ih ne povezuje po imenu).
 
 ## Kako sustav pripisuje zapise jednoj osobi
 1. **Korisnički račun** – jednoznačan (e-adresa unutar institucije).
@@ -16,7 +28,7 @@
 
 ## 1. Pravo na pristup (čl. 15) i prenosivost (čl. 20)
 **Administrator:** Osobni podaci → Pronađi osobu (ime ili e-adresa) → Odaberi → provjeri zapise i kandidate → **Preuzmi podatke osobe (ZIP)**.
-- Sadržaj: `podaci.json` (strojno čitljivo, UTF-8), `podaci.xlsx` (isti podaci po listovima), `procitaj-me.html` (sažetak i pravila). Kategorije: račun, uloge, sesije (IP, preglednik), pozivnice/poveznice (bez tokena), kalendar (bez tokena), obavijesti, isporuke e-pošte, dnevni sažetak, članstva u timovima, timesheetovi sa satima po danu, troškovi osoblja, odgovornosti, rizici, projekti i prijave koje osoba vodi, praćenje poziva, popis dokumenata koje je prenijela, revizijski zapis.
+- Sadržaj: `podaci.json` (strojno čitljivo, UTF-8), `podaci.xlsx` (isti podaci po listovima), `procitaj-me.html` (sažetak i pravila). Kategorije: račun, uloge, sesije (IP, preglednik), pozivnice/poveznice (bez tokena), kalendar (bez tokena), obavijesti, zahtjevi za ostvarivanje prava povezani s računom, isporuke e-pošte, dnevni sažetak, članstva u timovima, timesheetovi sa satima po danu, troškovi osoblja, odgovornosti, rizici, projekti i prijave koje osoba vodi, praćenje poziva, popis dokumenata koje je prenijela, revizijski zapis.
 - **Treće osobe:** nisu u izvozu sati, iznosi ni imena drugih članova tima. Uz timesheet stoji ime osobe koja ga je odobrila (dio zapisa, kao na potpisanoj evidenciji rada). Revizijski zapis: zapisi kojima je osoba predmet – s promjenama, ali drugi korisnik je samo „drugi korisnik” (bez imena i IP-a), a vrijednosti koje identificiraju treće osobe zamijenjene su oznakom „[treća osoba]”; zapisi u kojima je osoba radila na tuđem zapisu – samo vrijeme, radnja, vrsta zapisa i njezina IP adresa, bez sadržaja.
 - **Plaće:** godišnji trošak i iz njega izvedeni iznosi su osobni podatak osobe i ulaze u izvoz – ali **samo ako ga izrađuje netko tko i inače smije vidjeti plaće** (`personnel:read` na razini institucije). Inače su iznosi prazni i izvoz to izričito navodi. Tako izvoz ne otvara put do plaća onome tko ih ne smije vidjeti.
 - **Dokumenti:** sadržaj datoteka nije u izvozu (mogu sadržavati podatke drugih osoba koje sustav ne vidi). Popis je u izvozu i na zaslonu; datoteke institucija predaje nakon pregleda (kartica „Dokumenti” projekta → Preuzmi).
@@ -57,7 +69,7 @@ Brisanje je ograničeno obvezom čuvanja financijske dokumentacije projekta (pra
 Proizvod ne donosi odluke o osobama automatizirano. Izračuni (trošak osoblja iz sati i godišnjeg troška) su aritmetika po pravilu programa koju provjerava čovjek.
 
 ## Gdje proizvod ne pomaže (sažetak)
-- evidencija zahtjeva ispitanika i rokova (mjesec dana) – vodi institucija; mogući budući dodatak;
+- slanje odgovora ispitaniku i pomicanje roka s neradnog dana – evidencija zahtjeva (odj. 0) bilježi rok i ishod, odgovor šalje institucija;
 - utvrđivanje identiteta podnositelja zahtjeva;
 - sadržaj prenesenih datoteka (pregled ručno);
 - ograničenje obrade na razini pojedinog zapisa;

@@ -130,3 +130,22 @@ Ivan je 2026-11-18 zatražio nastavak razvoja. Bilješki s demonstracija, odluke
 **Što i dalje čeka okidač** (odj. 4): jedinstvena prijava (AAI@EduHr, Entra) – dok se ne zna sustav identiteta pilot-ustanove; novi paketi programa; izvještaji prema financijeru u punom opsegu; amandmani ugovora.
 
 **Usput ispravljeno (v0.30.1):** objava slike u GHCR za v0.30.0 zaglavila je pod emulacijom arm64; slika se sada gradi bez emulacije.
+
+## 11. Nastavak nakon faze 1c: zahtjevi ispitanika (2026-11-20, v0.33.0)
+
+Ivan je 2026-11-20 zatražio nastavak razvoja prema planu. Plan nakon WP1.23 kaže da razvoja koji ne ovisi o demonstracijama, pružatelju ili penetracijskom testu više nema – uz **jednu imenovanu iznimku**: evidenciju zahtjeva ispitanika s rokom od mjesec dana (`docs/STATUS.md`, „Sljedeće”; `docs/gdpr/PRAVA-ISPITANIKA.md`, „Gdje proizvod ne pomaže”). Ona prolazi mjerilo iz odjeljka 10: rok iz čl. 12(3) GDPR-a obvezuje svaku ustanovu od prvog dana, a WP1.23 je dao radnje (izvoz, zatvaranje računa, anonimizaciju) bez mjesta gdje se vidi da je zahtjev stigao i do kada treba odgovoriti.
+
+| # | Radni paket | Zašto ne ovisi o demonstracijama | Gotovo kad |
+| --- | --- | --- | --- |
+| **WP1.24** | Evidencija zahtjeva ispitanika | Rok od mjesec dana je zakonski i isti za svaku ustanovu; bez evidencije ga administrator prati u vlastitoj tablici, a proizvod koji drži plaće i evidencije rada ne može pokazati da je na zahtjev odgovoreno na vrijeme. | zahtjev se upisuje s danom zaprimanja, sustav računa rok (i produljenje), administrator ga vidi u „Moj rad” i u jutarnjem sažetku, zatvaranje bilježi ishod i je li odgovoreno u roku |
+
+**Što je razmotreno i nije uzeto** (ne prolazi mjerilo „bi li prva javna ustanova ovo tražila prije potpisa ili u prvom tjednu rada?” bez povratne informacije):
+
+| Kandidat | Zašto ne sada | Okidač |
+| --- | --- | --- |
+| Pristup suradnika na prijavi (danas samo voditelj prijave bez uloge institucije) | ne znamo kako ustanove raspoređuju rad na prijavi; poznato ograničenje je u opsegu testa | bilješke s demonstracija ili nalaz testa |
+| Provjera lozinki protiv popisa probijenih, ograničenja prijava u zajedničkoj pohrani umjesto u memoriji | pilot je jedna instanca; provjera lozinki traži vanjsku uslugu ili popis čije održavanje ovisi o pružatelju | nalaz penetracijskog testa, više instanci |
+| Oznaka „obrada ograničena” na pojedinom zapisu (čl. 18) | rijedak zahtjev s nejasnim učinkom na ZNS; treba mišljenje službenika za zaštitu podataka | pravni pregled `docs/gdpr/` |
+| Jedinstvena prijava, novi paketi programa, izvještaji prema financijeru, amandmani | kao u odjeljku 4 i 10 | poznat pilot |
+
+**Nakon WP1.24** ponovno vrijedi zaključak odjeljka 10 – i ovaj put bez preostale imenovane iznimke: sljedeći korak određuju bilješke s demonstracija, odluka o pružatelju, pravni pregled predložaka i nalazi penetracijskog testa. Do tada samo ispravci grešaka.

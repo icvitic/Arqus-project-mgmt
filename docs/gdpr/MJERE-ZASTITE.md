@@ -42,6 +42,7 @@
 | --- | --- | --- |
 | Rokovi čuvanja po vrsti podatka | dnevni posao briše sesije, istekle tokene, zapise pošte i sažetka, obavijesti, obrisane dokumente i istekle revizijske zapise; probno izvođenje; zaslon s brojevima | `privacy/retention.service.ts`, `privacy/retention-policy.ts`; [`EVIDENCIJA-OBRADE.md`](EVIDENCIJA-OBRADE.md) odj. 3 |
 | Zatvaranje računa | vjerodajnice, sesije, tokeni, obavijesti i e-adresa odmah nestaju | `privacy/privacy.service.ts` (`close`) |
+| Evidencija zahtjeva ispitanika i rok za odgovor (v0.34.0) | svaki zahtjev s danom zaprimanja; rok od mjesec dana (uz produljenje tri) računa sustav i pokazuje ga administratoru u „Moj rad” i dnevnom sažetku; ishod i dan odgovora; revizija bez imena podnositelja | `privacy/subject-requests.service.ts`, `packages/domain/src/subject-requests.ts`; test `subject-requests.e2e.test.ts` |
 | Anonimizacija nakon roka | ime → pseudonim, veza s računom prekinuta, financijski zapis ostaje | `privacy/privacy.service.ts` (`anonymise`) |
 | Što se ne sprema | sadržaj poslane e-pošte, datoteke uvoza iz Excela, upisani tekst neuspjele prijave | `mail/mail.service.ts`, `import/`, `identity/identity.service.ts` |
 

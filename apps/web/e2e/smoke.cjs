@@ -911,6 +911,65 @@ const tag = Date.now().toString(36);
     if (login !== 401) throw new Error(`prijava zatvorenog računa: ${login}`);
     await leaverPage.ctx.close();
   });
+  // WP1.24: evidencija zahtjeva ispitanika – upis s danom zaprimanja, rok koji računa sustav, stavka u „Moj rad”,
+  // produljenje i zatvaranje s ishodom. Ime podnositelja je jedinstveno po pokretanju (baza se ponovno koristi).
+  await step('Osobni podaci: zahtjev ispitanika – upis, rok u „Moj rad”, produljenje i zatvaranje s obrazloženjem', async () => {
+    const who = `Podnositelj ${tag}`;
+    await page.getByRole('tab', { name: 'Zahtjevi i rokovi' }).click();
+    await page.getByRole('heading', { name: 'Otvoreni zahtjevi' }).waitFor();
+    if (!/Zahtjevi ispitanika/.test(await page.title())) throw new Error(`naslov kartice: ${await page.title()}`);
+    await a11y.scan(page, 'osobni podaci: zahtjevi');
+    await page.getByRole('button', { name: 'Novi zahtjev…' }).click();
+    const form = page.getByRole('dialog', { name: 'Novi zahtjev ispitanika' });
+    await form.waitFor();
+    await a11y.assertFocusInDialog(page);
+    await form.getByLabel('Podnositelj (ime i prezime)').fill(who);
+    await form.getByLabel('Kontakt za odgovor (neobvezno)').fill('podnositelj@primjer.hr');
+    await form.getByLabel('Sažetak zahtjeva (neobvezno)').fill('Traži kopiju svojih evidencija rada.');
+    // Račun koji ne postoji: zahtjev se ne upisuje, greška ostaje u dijalogu.
+    await form.getByLabel('E-adresa korisničkog računa podnositelja (neobvezno)').fill(`nema-${tag}@e2e.local`);
+    await form.getByRole('button', { name: 'Upiši zahtjev' }).click();
+    await form.getByText(/ne postoji – provjeri adresu/).waitFor();
+    await a11y.scan(page, 'osobni podaci: novi zahtjev (dijalog s greškom)');
+    await form.getByLabel('E-adresa korisničkog računa podnositelja (neobvezno)').fill('');
+    await form.getByRole('button', { name: 'Upiši zahtjev' }).click();
+    const row = page.locator('table.requests-table tbody tr', { hasText: who });
+    await row.getByText(/još \d+ dana/).waitFor();
+    const ref = (await row.locator('td').first().innerText()).trim();
+    if (!/^ZI-\d+$/.test(ref)) throw new Error(`oznaka zahtjeva: ${ref}`);
+    await a11y.scan(page, 'osobni podaci: zahtjevi s otvorenim zahtjevom');
+    await shot('zahtjevi-ispitanika');
+    // „Moj rad” administratora: stavka s oznakom i rokom, bez imena podnositelja; vodi natrag na evidenciju.
+    await page.getByRole('navigation', { name: 'Glavni izbornik' }).getByRole('link', { name: /^Moj rad/ }).click();
+    const item = page.getByRole('link', { name: new RegExp(`Zahtjev ispitanika ${ref}: pristup podacima`) });
+    await item.waitFor();
+    if ((await page.locator('main').innerText()).includes(who)) throw new Error('„Moj rad” prikazuje ime podnositelja zahtjeva');
+    await shot('moj-rad-zahtjev-ispitanika');
+    await item.click();
+    await page.getByRole('heading', { name: 'Otvoreni zahtjevi' }).waitFor();
+    // Produljenje: rok tri mjeseca od zaprimanja.
+    await row.getByRole('button', { name: `Produlji rok zahtjeva ${ref}` }).click();
+    const ext = page.getByRole('dialog', { name: `Produljenje roka: ${ref}` });
+    await ext.waitFor();
+    await a11y.scan(page, 'osobni podaci: produljenje roka (dijalog)');
+    await ext.getByLabel('Razlog produljenja (najmanje 10 znakova)').fill('Zahtjev obuhvaća zapise s više projekata.');
+    await ext.getByRole('button', { name: 'Produlji rok' }).click();
+    await row.getByText(/produljen \(osnovni rok/).waitFor();
+    // Zatvaranje: odbijanje traži obrazloženje (polje postaje obvezno).
+    await row.getByRole('button', { name: `Zatvori zahtjev ${ref}` }).click();
+    const close = page.getByRole('dialog', { name: `Zatvaranje zahtjeva: ${ref}` });
+    await close.waitFor();
+    await close.getByLabel('Ishod').selectOption('refused');
+    const note = close.getByLabel('Obrazloženje (obvezno uz odbijanje ili djelomično udovoljenje)');
+    if (!(await note.evaluate((el) => el.required))) throw new Error('obrazloženje uz odbijanje nije obvezno polje');
+    await a11y.scan(page, 'osobni podaci: zatvaranje zahtjeva (dijalog)');
+    await note.fill('Traženi zapisi su dio dokaza predanog zahtjeva za nadoknadu.');
+    await close.getByRole('button', { name: 'Zatvori zahtjev' }).click();
+    await row.getByText('odbijeno (s obrazloženjem)').waitFor();
+    await row.locator('.chip', { hasText: 'u roku' }).waitFor();
+    await a11y.scan(page, 'osobni podaci: zahtjevi sa zatvorenim zahtjevom');
+    await shot('zahtjevi-ispitanika-zatvoren');
+  });
   await step('Osobni podaci: rokovi čuvanja – stvarni brojevi, probno izvođenje bez brisanja', async () => {
     await page.getByRole('tab', { name: 'Rokovi čuvanja' }).click();
     await page.getByRole('heading', { name: 'Rokovi po vrsti podatka' }).waitFor();

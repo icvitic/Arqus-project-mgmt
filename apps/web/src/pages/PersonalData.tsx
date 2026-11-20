@@ -5,29 +5,30 @@ import { useLoad } from '../lib/hooks';
 import type { AnonymisePreview, Me, PrivacyPeople, PrivacySubject, RetentionOverview, RetentionRun } from '../lib/types';
 import { ActionButton, ActionForm, Chip, Dialog, ErrorBox, Field, Loading, TabList, TabPanel, announce } from '../ui';
 import { can } from '../lib/access';
+import { RequestsTab } from './SubjectRequests';
 
 const CATEGORY_LABELS: Record<string, string> = {
   account: 'Korisnički račun', roles: 'Uloge', sessions: 'Sesije', accountTokens: 'Pozivnice i poveznice', calendar: 'Kalendar', notifications: 'Obavijesti',
   mailDeliveries: 'Isporuka e-pošte', digestRuns: 'Dnevni sažetak', teamMemberships: 'Članstva u timovima', timesheets: 'Timesheetovi', personnelCosts: 'Troškovi osoblja',
   responsibilities: 'Odgovornosti', risks: 'Rizici', projectsManaged: 'Projekti koje vodi', proposalsLed: 'Prijave koje vodi', callTracking: 'Praćenje poziva',
-  documents: 'Dokumenti koje je prenijela', audit: 'Revizijski zapis',
+  subjectRequests: 'Zahtjevi za ostvarivanje prava', documents: 'Dokumenti koje je prenijela', audit: 'Revizijski zapis',
 };
 const PROJECT_STATUS: Record<string, string> = { contracting: 'u ugovaranju', active: 'aktivan', suspended: 'obustavljen', closing: 'u završetku', closed: 'zatvoren', terminated: 'prekinut', archived: 'arhiviran' };
 const STATUS: Record<string, string> = { active: 'aktivan', invited: 'pozvan', disabled: 'deaktiviran', closed: 'zatvoren' };
 
 /**
  * WP1.23 – „Osobni podaci” (samo `privacy:manage`, administrator): prava ispitanika za jednu osobu (izvoz, zatvaranje računa,
- * anonimizacija nakon roka čuvanja) i rokovi čuvanja po vrsti podatka. Nepovratne radnje traže upisano ime osobe.
+ * anonimizacija nakon roka čuvanja) i rokovi čuvanja po vrsti podatka; WP1.24 – evidencija zahtjeva ispitanika s rokom za odgovor. Nepovratne radnje traže upisano ime osobe.
  */
 export function PersonalData({ me, tab }: { me: Me; tab?: string }) {
   if (!can(me, 'privacy:manage')) return <><h1>Osobni podaci</h1><p className="muted">Prava ispitanika i rokove čuvanja vodi administrator (dozvola privacy:manage).</p></>;
-  const active = tab === 'rokovi' ? 'rokovi' : 'osoba';
+  const active = tab === 'rokovi' ? 'rokovi' : tab === 'zahtjevi' ? 'zahtjevi' : 'osoba';
   return (
     <>
       <h1>Osobni podaci</h1>
-      <p className="sub">Institucija je voditelj obrade. Ovdje osobi predaješ sve što sustav o njoj drži, zatvaraš račun osobe koja je otišla, nakon isteka roka čuvanja anonimiziraš njezine projektne zapise i postavljaš rokove čuvanja. Postupci po pravu: <code>docs/gdpr/PRAVA-ISPITANIKA.md</code>.</p>
-      <TabList label="Osobni podaci" active={active} tabs={[{ key: 'osoba', label: 'Osoba (prava ispitanika)', href: '#/osobni-podaci' }, { key: 'rokovi', label: 'Rokovi čuvanja', href: '#/osobni-podaci/rokovi' }]} />
-      <TabPanel active={active}>{active === 'rokovi' ? <RetentionTab /> : <PersonTab me={me} />}</TabPanel>
+      <p className="sub">Institucija je voditelj obrade. Ovdje upisuješ zahtjeve ispitanika i pratiš rok za odgovor, osobi predaješ sve što sustav o njoj drži, zatvaraš račun osobe koja je otišla, nakon isteka roka čuvanja anonimiziraš njezine projektne zapise i postavljaš rokove čuvanja. Postupci po pravu: <code>docs/gdpr/PRAVA-ISPITANIKA.md</code>.</p>
+      <TabList label="Osobni podaci" active={active} tabs={[{ key: 'osoba', label: 'Osoba (prava ispitanika)', href: '#/osobni-podaci' }, { key: 'zahtjevi', label: 'Zahtjevi i rokovi', href: '#/osobni-podaci/zahtjevi' }, { key: 'rokovi', label: 'Rokovi čuvanja', href: '#/osobni-podaci/rokovi' }]} />
+      <TabPanel active={active}>{active === 'rokovi' ? <RetentionTab /> : active === 'zahtjevi' ? <RequestsTab /> : <PersonTab me={me} />}</TabPanel>
     </>
   );
 }

@@ -4,7 +4,7 @@ import { CATEGORY_LABELS, EXPORT_CATEGORIES, type ExportCategory, type ResolvedS
 
 /** Što izvoz sadrži i zašto – isti tekst u `procitaj-me.html` i `podaci.json` (`meta.rules`). */
 export const EXPORT_RULES: string[] = [
-  'Izvoz sadrži podatke koje ArQus Projekti drži o osobi: korisnički račun, uloge, sesije, članstva u timovima projekata, timesheetove i sate, troškove osoblja, odgovornosti, rizike, projekte i prijave koje vodi, praćenje poziva, dokumente koje je prenijela (popis), obavijesti, isporuke e-pošte i revizijski zapis.',
+  'Izvoz sadrži podatke koje ArQus Projekti drži o osobi: korisnički račun, uloge, sesije, članstva u timovima projekata, timesheetove i sate, troškove osoblja, odgovornosti, rizike, projekte i prijave koje vodi, praćenje poziva, zahtjeve za ostvarivanje prava povezane s njezinim računom, dokumente koje je prenijela (popis), obavijesti, isporuke e-pošte i revizijski zapis.',
   'Zapisi člana tima bez korisničkog računa uključeni su samo ako ih je operater izričito pripisao osobi; sustav ih ne pripisuje po imenu.',
   'Podaci drugih osoba nisu uključeni: ni sati, ni iznosi, ni imena drugih članova tima. Uz timesheet je navedeno samo ime osobe koja ga je odobrila (dio zapisa, kao na potpisanoj evidenciji rada).',
   'Revizijski zapis: zapisi kojima je osoba predmet – s promjenama, ali bez identiteta drugih korisnika i njihovih IP adresa; zapisi u kojima je osoba radila na tuđem zapisu – samo vrijeme, radnja i vrsta zapisa, bez sadržaja.',

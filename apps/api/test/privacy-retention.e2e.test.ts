@@ -138,7 +138,7 @@ describe('Rokovi čuvanja i posao čuvanja podataka (WP1.23, e2e)', () => {
     expect([a.claimed, b.claimed].sort()).toEqual([false, true]);
     const done = a.claimed ? a : b;
     expect(Object.fromEntries(done.categories.map((c) => [c.key, c.removed]))).toEqual({
-      sessions: 2, accountTokens: 1, mailDeliveries: 1, digestRuns: 1, notificationsRead: 1, notificationsUnread: 1, deletedDocuments: 1, loginFailures: 1, audit: 1,
+      sessions: 2, accountTokens: 1, mailDeliveries: 1, digestRuns: 1, notificationsRead: 1, notificationsUnread: 1, deletedDocuments: 1, loginFailures: 1, audit: 1, subjectRequests: 0,
     });
     expect([await exists('sessions', row.sIn!), await exists('sessions', row.sLive!), await exists('sessions', row.sOut!), await exists('sessions', row.sRevokedOut!)]).toEqual([true, true, false, false]);
     expect([await exists('account_tokens', row.tIn!), await exists('account_tokens', row.tOut!)]).toEqual([true, false]);

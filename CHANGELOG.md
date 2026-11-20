@@ -3,7 +3,25 @@
 Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije prema [SemVer](https://semver.org/lang/hr/). Do prve komercijalne verzije koristi se 0.x.
 
 ## [Unreleased]
+
+## [0.34.0] - 2026-11-20
+### Dodano
+- WP1.24 **Evidencija zahtjeva ispitanika** (strategija, odj. 11): kartica **Osobni podaci → Zahtjevi i rokovi** (dozvola `privacy:manage`). Zahtjev se upisuje s danom zaprimanja, pravom na koje se odnosi (pristup, ispravak, brisanje, ograničenje, prenosivost, prigovor, drugo), kanalom, podnositeljem i kontaktom, sažetkom, danom utvrđivanja identiteta i po želji korisničkim računom podnositelja; dobiva oznaku `ZI-n` unutar institucije.
+- WP1.24 **Rok za odgovor** (čl. 12(3) GDPR-a) računa domena (`packages/domain/src/subject-requests.ts`): mjesec dana od zaprimanja, kalendarski (ako mjesec nema taj dan, njegov posljednji dan); rok se ne pomiče s vikenda ili blagdana, pa prikazani rok nikad nije kasniji od pravnog. **Produljenje** na tri mjeseca od zaprimanja uz dan obavijesti ispitaniku i razlog; obavijest nakon osnovnog roka je označena kao zakašnjela; produljenje se može poništiti.
+- WP1.24 **Zatvaranje** s danom odgovora i ishodom (udovoljeno, djelomično udovoljeno, odbijeno, povučen); obrazloženje obvezno uz odbijanje i djelomično udovoljenje; zahtjev zatvoren nakon roka ostaje označen; ponovno otvaranje pogrešno zatvorenog zahtjeva. Svaka izmjena traži reviziju retka (409 pri sukobu); nepostojeći ili tuđi zahtjev → 404.
+- WP1.24 **„Moj rad”**: svaki otvoreni zahtjev je stavka onoga tko ima `privacy:manage` (uskoro u zadnjih 10 dana roka, kasni nakon njega) i ulazi u dnevni sažetak e-poštom – s oznakom i vrstom zahtjeva, bez imena podnositelja.
+- WP1.24 **Rok čuvanja** `subjectRequests`: zatvoreni zahtjevi brišu se 1825 dana nakon zatvaranja (zadano, najmanje 365, promjenjivo u Rokovi čuvanja); otvoren zahtjev se ne briše – ni izravnim upitom vlasnika baze (okidač, migracija 0034).
+- WP1.24 **Izvoz podataka osobe**: nova kategorija „Zahtjevi za ostvarivanje prava” (zahtjevi koje je operater povezao s računom osobe).
+- Migracije `0033_zahtjevi_ispitanika` (tablica `subject_requests` s ograničenjima dosljednosti i kompozitnim stranim ključem na račun) i `0034_zahtjevi_ispitanika_rls` (RLS po stanaru, prava aplikacijske uloge, okidač brisanja).
+- Demo: Lein zahtjev za pristup podacima (zaprimljen prije 24 dana, rok uskoro) u „Moj rad” administratora i jedan zahtjev zatvoren u roku; scenarij korak 9c.
+- Testovi: `packages/domain/test/subject-requests.test.ts` (rok, produljenje, stanje, stavke „Moj rad”), `apps/api/test/subject-requests.e2e.test.ts` (dozvole, upis i odbijanja, istovremeni upisi, revizija retka, produljenje, zatvaranje i ponovno otvaranje, „Moj rad”, revizijski zapis bez imena, izvoz, zatvaranje računa, druga institucija, rok čuvanja, ograničenja baze), dopune `rls.test.ts`, `route-coverage`, `privacy`, `privacy-retention`, `demo`; e2e u pregledniku s novim korakom i šest novih stanja zaslona u provjeri pristupačnosti.
+
+### Promijenjeno
+- Revizijski zapis o zahtjevu ispitanika bilježi radnju, vrstu, rokove i ishod – nikad ime podnositelja, kontakt ni slobodni tekst (revizija se čuva dulje od evidencije).
+- `docs/gdpr/PRAVA-ISPITANIKA.md` (novi odj. 0), `EVIDENCIJA-OBRADE.md` i `evidencija-obrade.json` (tablica `subject_requests`, kategorija ispitanika „podnositelj zahtjeva”), `MJERE-ZASTITE.md`, `docs/sigurnost/AUTORIZACIJA.md`, `PENTEST-OPSEG.md` (t. 13), `docs/domena/moj-rad-i-obavijesti.md`, `docs/DEMO.md`, `docs/DEMO-SCENARIJ.md`, `docs/RAZVOJ.md`.
+
 ### Dokumentacija
+- `docs/strategija-razvoja-faza-1b.md`, odj. 11: nastavak nakon faze 1c (WP1.24), što je razmotreno i ostavljeno s okidačem; nakon WP1.24 nema preostale imenovane stavke razvoja neovisne o demonstracijama.
 - `docs/STATUS.md`: odluke WP1.23 koje je vlasnik potvrdio 2026-11-18 (zadani rok čuvanja 10 godina kao zadana vrijednost proizvoda, predlošci `docs/gdpr/` kao radni predlošci uz obavezan pravni pregled, posao čuvanja uključen u produkciji, zatvaranje i anonimizacija bez četiri oka).
 - `docs/STATUS.md`: starija pitanja koja su tražila potvrdu izvedenog rješenja (WP1.14b–WP1.22) označena kao potvrđena 2026-11-18; pitanja koja traže odgovor ili ovise o pilotu (čuvanje ključa kopija, proba obnove, polazna mjera ZNS-a, obrasci financijera, Excelova datoteka pilota, SMTP relay) ostaju otvorena. Ispravljen opis isteka sesije (sadržaj ispod dijaloga se ne vidi).
 

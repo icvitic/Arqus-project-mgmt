@@ -87,7 +87,7 @@ export async function candidateMembers(tx: Tx, subject: ResolvedSubject): Promis
 export const EXPORT_CATEGORIES = [
   'account', 'roles', 'sessions', 'accountTokens', 'calendar', 'notifications', 'mailDeliveries', 'digestRuns',
   'teamMemberships', 'timesheets', 'personnelCosts', 'responsibilities', 'risks', 'projectsManaged', 'proposalsLed', 'callTracking',
-  'documents', 'audit',
+  'subjectRequests', 'documents', 'audit',
 ] as const;
 export type ExportCategory = (typeof EXPORT_CATEGORIES)[number];
 export const CATEGORY_LABELS: Record<ExportCategory, string> = {
@@ -95,7 +95,7 @@ export const CATEGORY_LABELS: Record<ExportCategory, string> = {
   notifications: 'Obavijesti', mailDeliveries: 'Isporuka e-pošte', digestRuns: 'Dnevni sažetak', teamMemberships: 'Članstva u timovima projekata',
   timesheets: 'Timesheetovi (evidencija rada)', personnelCosts: 'Troškovi osoblja', responsibilities: 'Odgovornosti (isporuke, prekretnice, zadaci)',
   risks: 'Rizici kojima je osoba vlasnik', projectsManaged: 'Projekti koje osoba vodi', proposalsLed: 'Prijave koje osoba vodi', callTracking: 'Praćenje poziva',
-  documents: 'Dokumenti koje je osoba prenijela', audit: 'Revizijski zapis',
+  subjectRequests: 'Zahtjevi za ostvarivanje prava (evidencija)', documents: 'Dokumenti koje je osoba prenijela', audit: 'Revizijski zapis',
 };
 
 export interface SubjectExport {
@@ -155,6 +155,11 @@ export async function collectSubject(tx: Tx, s: ResolvedSubject, withAmounts: bo
     c.callTracking = await rows(tx, sql`select cl.code as call, cl.title, ct.decision, ct.internal_deadline as "internalDeadline",
       (ct.owner_user_id = ${uid}) as owner, (ct.assessed_by = ${uid}) as assessed, (ct.decided_by = ${uid}) as decided
       from call_tracking ct join calls cl on cl.id = ct.call_id where ${uid} in (ct.owner_user_id, ct.assessed_by, ct.decided_by) order by cl.code`);
+    // WP1.24: zahtjevi za ostvarivanje prava koje je operater povezao s računom osobe (zahtjev bez povezanog računa sustav
+    // ne pripisuje po imenu podnositelja – isto pravilo kao za zapise člana tima bez računa).
+    c.subjectRequests = await rows(tx, sql`select 'ZI-' || number as ref, received_on as "receivedOn", kind, channel, requester_name as "requesterName", requester_contact as "requesterContact",
+      description, identity_verified_on as "identityVerifiedOn", extension_informed_on as "extensionInformedOn", extension_reason as "extensionReason", due_on as "dueOn",
+      status, outcome, closed_on as "closedOn", outcome_note as "outcomeNote" from subject_requests where subject_user_id = ${uid} order by number`);
     c.documents = await rows(tx, sql`select d.title, d.kind, d.confidentiality, d.entity_type as "entityType", coalesce(p.acronym, pr.acronym) as project, v.version, v.file_name as "fileName",
       v.mime_type as "mimeType", v.size_bytes as "sizeBytes", v.sha256, v.created_at as "uploadedAt", (d.deleted_at is not null) as deleted
       from document_versions v join documents d on d.id = v.document_id left join projects p on p.id = d.project_id left join proposals pr on pr.id = d.proposal_id

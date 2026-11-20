@@ -6,6 +6,7 @@
  */
 import { DEADLINE_SOON_DAYS, daysBetween } from './portfolio.js';
 import { daysInMonth } from './finance.js';
+import { SUBJECT_REQUEST_KIND_LABELS, SUBJECT_REQUEST_SOON_DAYS, subjectRequestRef, type SubjectRequestKind } from './subject-requests.js';
 
 /** Hitnost: rok je prošao / rok je blizu / čeka (radnja bez blizog roka) / samo informacija. */
 export type WorkUrgency = 'overdue' | 'due_soon' | 'waiting' | 'info';
@@ -17,7 +18,7 @@ export type WorkKind =
   | 'timesheet_to_approve'
   | 'expenses_without_evidence' | 'claim_draft' | 'claim_returned' | 'period_unclaimed' | 'expenses_stranded' | 'claim_unpaid'
   | 'deliverable_due' | 'milestone_due' | 'risks_high' | 'deviations' | 'report_next'
-  | 'proposal_deadline' | 'call_decision' | 'mfa_missing';
+  | 'proposal_deadline' | 'call_decision' | 'mfa_missing' | 'subject_request';
 
 export interface WorkItem {
   /** Stabilan ključ stavke (isti između dva učitavanja dok se činjenica ne promijeni). */
@@ -81,6 +82,11 @@ export interface OwnRiskFact { projectId: string; riskId: string; number: number
  */
 export interface ResponsibleFact { projectId: string; kind: 'deliverable' | 'milestone' | 'task'; id: string; code: string; title: string; due: string; status: string }
 export interface ProposalFact { id: string; acronym: string; title: string; internalDeadline: string; openReadiness: number }
+/**
+ * WP1.24: otvoren zahtjev ispitanika (samo korisniku s `privacy:manage`). Namjerno bez imena podnositelja i opisa –
+ * stavka „Moj rad” ide i u dnevni sažetak e-poštom.
+ */
+export interface SubjectRequestFact { id: string; number: number; kind: SubjectRequestKind; dueOn: string; extended: boolean }
 export interface CallFact { id: string; code: string; title: string; internalDeadline: string | null; submission: string | null }
 
 export interface WorkFacts {
@@ -98,6 +104,8 @@ export interface WorkFacts {
   calls: CallFact[];
   /** Administrator: broj aktivnih računa kojima je MFA obvezan, a nemaju ga; null = korisnik nije administrator. */
   mfaMissing: number | null;
+  /** WP1.24: otvoreni zahtjevi ispitanika; izostavljeno ili prazno = korisnik ih ne vodi ili ih nema. */
+  subjectRequests?: SubjectRequestFact[];
 }
 
 export interface WorkSummary { overdue: number; dueSoon: number; waiting: number; info: number; /** Za značku u izborniku: prošli i bliski rokovi. */ attention: number }
@@ -308,6 +316,13 @@ export function deriveWorkItems(f: WorkFacts): { items: WorkItem[]; summary: Wor
   // ---------- administrator ----------
   if (f.mfaMissing) {
     add({ key: 'mfa', kind: 'mfa_missing', role: 'admin', urgency: 'waiting', due: null, count: f.mfaMissing, title: `${f.mfaMissing} ${pl(f.mfaMissing, 'račun nema', 'računa nemaju', 'računa nema')} obveznu dvofaktorsku prijavu`, detail: 'ti korisnici do postavljanja MFA vide samo vlastiti račun', link: 'korisnici' });
+  }
+
+  // WP1.24: zahtjevi ispitanika – rok od mjesec dana (ili produljen) teče od zaprimanja; svaki otvoreni zahtjev je stavka.
+  for (const r of f.subjectRequests ?? []) {
+    add({ key: `subject-request:${r.id}`, kind: 'subject_request', role: 'admin', urgency: urgencyFor(r.dueOn, today, SUBJECT_REQUEST_SOON_DAYS, 'waiting'), due: r.dueOn,
+      title: `Zahtjev ispitanika ${subjectRequestRef(r.number)}: ${SUBJECT_REQUEST_KIND_LABELS[r.kind] ?? r.kind}`,
+      detail: `${dueText(r.dueOn, today)}${r.extended ? ' · rok je produljen' : ''}`, link: 'osobni-podaci/zahtjevi' });
   }
 
   items.sort((a, b) => ORDER.indexOf(a.urgency) - ORDER.indexOf(b.urgency) || (a.due ?? '9999').localeCompare(b.due ?? '9999')
