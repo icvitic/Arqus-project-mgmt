@@ -13,7 +13,7 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { TenantContext, tenantTimeZone, tenantToday } from '../common/tenant-context';
-import { canInTenant, canOnProject, projectsWith } from '../common/access';
+import { canInTenant, canOnProject, ownProposals as ownProposalIds, projectsWith } from '../common/access';
 import {
   highRisksCount, OPEN_DELIVERABLE_STATUSES, OPEN_MILESTONE_STATUSES, OPEN_PROJECT_STATUSES as OPEN, OPEN_PROPOSAL_STATUSES as OPEN_PROPOSAL, periodSubmitted, RUNNING_PROJECT_STATUSES as RUNNING,
   strandedCount, timesheetsToApproveCount, withoutEvidenceCount,
@@ -96,8 +96,8 @@ export class PortfolioService {
     const ctx = this.ctx.require();
     const today = tenantToday(opts.now ?? new Date()); // WP1.14b: kalendarski dan institucije (Europe/Zagreb), ne UTC
     const full = canInTenant(ctx, 'portfolio:read');
-    // WP1.14b: voditelj prijave bez dozvole institucije vidi u pregledu prijava samo vlastite prijave.
-    const ownProposals = full || canInTenant(ctx, 'proposals:read') ? null : [...(ctx.leadProposals ?? [])];
+    // WP1.14b: voditelj prijave bez dozvole institucije vidi u pregledu prijava samo vlastite prijave (WP1.26: i one na kojima je suradnik).
+    const ownProposals = full || canInTenant(ctx, 'proposals:read') ? null : ownProposalIds(ctx);
     const visible = full ? 'all' : projectsWith(ctx, 'projects:read');
     const access = {
       full,
@@ -328,4 +328,3 @@ export class PortfolioService {
     return { view, deadlines };
   }
 }
-
