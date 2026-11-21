@@ -12,7 +12,7 @@ import {
 import { ProgrammePackagesService } from '../programmes/programme-packages.service';
 import { IdentityService } from '../identity/identity.service';
 import { TenantContext, tenantTimeZone, tenantToday } from '../common/tenant-context';
-import { canInTenant, canOnProject, projectGrants, projectsWith } from '../common/access';
+import { canInTenant, canOnProject, ownProposals, projectGrants, projectsWith } from '../common/access';
 import { openSubjectRequestFacts } from '../privacy/subject-requests.service';
 import { hasPermission, type Permission } from '../identity/permissions';
 import {
@@ -169,9 +169,10 @@ export class MyWorkService {
       projectId: r.project_id, kind: r.kind, id: r.id, code: r.code, title: r.title, due: monthEndDate(startOf.get(r.project_id)!, Number(r.month)), status: r.status,
     }));
 
-    // 8) Prijave s internim rokom do 30 dana unaprijed (i prošlim): vlastite (voditelj) ili sve uz izričitu proposals:write institucije.
+    // 8) Prijave s internim rokom do 30 dana unaprijed (i prošlim): vlastite (voditelj ili suradnik s pravom uređivanja, WP1.26)
+    // ili sve uz izričitu proposals:write institucije.
     const allProposals = ctx.permissions.has('proposals:write');
-    const own = [...(ctx.leadProposals ?? [])];
+    const own = ownProposals(ctx, 'proposals:write');
     const horizon = addDays(today, 30);
     const propRows = allProposals || own.length ? await tx.select({
       p: proposals, callOpensAt: calls.opensAt, callDeadlines: calls.deadlines, callCancelled: calls.cancelled,
