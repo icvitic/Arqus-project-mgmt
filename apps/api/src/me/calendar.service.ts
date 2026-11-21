@@ -96,6 +96,7 @@ export class CalendarService {
         tenantId: owner.tenantId, userId: owner.userId, permissions: new Set(access.tenant),
         projectPermissions: new Map(Object.entries(access.projects).map(([id, perms]) => [id, new Set(perms)])),
         leadProposals: new Set(access.leadProposals), timeZone: timeZoneOr(t?.settings?.timeZone),
+        proposalGrants: new Map(Object.entries(access.proposalGrants).map(([id, perms]) => [id, new Set(perms)])),
       };
       const deadlines = await this.ctx.run(rc, () => this.portfolio.deadlines(tx, now));
       await tx.update(calendarTokens).set({ lastUsedAt: now }).where(eq(calendarTokens.userId, owner.userId));

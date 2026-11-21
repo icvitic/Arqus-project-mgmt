@@ -97,6 +97,7 @@ export class AuthGuard implements CanActivate {
       permissions: new Set(fresh.tenant),
       projectPermissions: new Map(Object.entries(fresh.projects).map(([id, perms]) => [id, new Set(perms)])),
       leadProposals: new Set(fresh.leadProposals), timeZone: fresh.timeZone,
+      proposalGrants: new Map(Object.entries(fresh.proposalGrants).map(([id, perms]) => [id, new Set(perms)])),
     };
     // WP1.19: obvezni MFA – bez postavljenog MFA samo vlastiti račun i odjava (svježe iz baze, i za stari token).
     if (!fresh.mfaEnabled && mfaRequiredFor(fresh.mfaPolicy, fresh.tenant) && !this.reflector.getAllAndOverride<boolean>(MFA_SETUP_ALLOWED_KEY, [context.getHandler(), context.getClass()])) {
