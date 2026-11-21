@@ -8,11 +8,12 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 ### Dodano
 - WP1.25 **Dizajn sustava sučelja** (strategija, odj. 12; pravila u `docs/dizajn/DIZAJN-SUSTAV.md`): varijable boja, pisma i mjera na vrhu `apps/web/src/styles.css` za svijetlu i tamnu temu, uključujući boju tinte (`--ink`), oznaku trenutne stranice (`--mark`) i podloge oznaka stanja.
 - WP1.25 **Bočna traka** od 1024 px: naziv proizvoda i ustanove, izbornik po skupinama (Prijave na pozive, Provedba, Uprava; skupina se prikazuje samo ako korisnik vidi barem jednu stavku), na dnu korisnik, obavijesti i odjava. Ispod 1024 px zaglavlje u istoj boji.
-- WP1.25 **Pismo IBM Plex Sans** (400, 500, 600; latinični i prošireni latinični skup) posluženo s vlastitog poslužitelja – nova ovisnost sučelja `@fontsource/ibm-plex-sans` 5.3.0 (SIL OFL 1.1).
-- WP1.25 Stranica prijave s nazivom proizvoda na ploči u boji tinte.
+- WP1.25 **Vizualni identitet ArQus Solutionsa** (s https://arqus-solutions.eu): logotip tvrtke u bočnoj traci, zaglavlju i na stranici prijave (`apps/web/src/brand/`), paleta opsidijan `#0D0A1C` / indigo `#171336` / kvantna ljubičasta `#8F6CFF` u obje teme, ikona kartice preglednika.
+- WP1.25 **Pisma identiteta** – Geist za naslove i IBM Plex Sans za tekst (latinični i prošireni latinični skup) – poslužena s vlastitog poslužitelja: nove ovisnosti sučelja `@fontsource/geist` i `@fontsource/ibm-plex-sans` (SIL OFL 1.1).
+- WP1.25 Stranica prijave s logotipom i nazivom proizvoda na opsidijanskoj ploči.
 
 ### Promijenjeno
-- Naslovi 26 / 17 / 15 px; zaglavlja tablica rečenično umjesto velikim slovima; kartice bez praznine iznad naslova.
+- Naslovi 27 / 17,5 / 15 px; zaglavlja tablica rečenično umjesto velikim slovima; kartice bez praznine iznad naslova.
 - Obrasci: polja poravnata po gornjem rubu (pomoćni tekst više ne pomiče susjedna polja), bijela podloga polja, onemogućena polja jasno označena, oznaka polja u boji teksta.
 - Gumbi iste visine s vidljivim obrubom; nepovratne radnje s crvenim obrubom. Oznake stanja (u redu, uskoro, kasni) s podlogom svog značenja.
 - Pločice portfelja stanu u jedan red i više ne odsijecaju iznose.

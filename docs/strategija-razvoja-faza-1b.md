@@ -158,7 +158,7 @@ Ivan je 2026-11-21 zatražio nastavak razvoja i rad na dizajnu sustava. Zahtjev 
 | --- | --- | --- |
 | **WP1.25** | Dizajn sustava sučelja | jedan skup varijabli (boje, pismo, mjere) u obje teme; navigacija koja stane na zaslon; usklađeni dijelovi (kartica, tablica, obrazac, gumb, oznaka stanja, dijalog); pravila zapisana u `docs/dizajn/DIZAJN-SUSTAV.md`; e2e i provjera pristupačnosti bez nalaza |
 
-**Granice paketa:** bez promjene funkcija, tekstova, ruta i redoslijeda u dokumentu (redoslijed tipke Tab ostaje isti); bez logotipa i vizualnog identiteta tvrtke – naziv proizvoda je i dalje radni. „Dizajn sustava” je shvaćen kao vizualni dizajn sučelja; ako je mišljena arhitektura, to je zaseban paket.
+**Granice paketa:** bez promjene funkcija, tekstova, ruta i redoslijeda u dokumentu (redoslijed tipke Tab ostaje isti). Na Ivanov zahtjev istog dana sučelje koristi vizualni identitet ArQus Solutionsa s javne stranice tvrtke (logotip, pisma Geist i IBM Plex Sans, paleta); naziv proizvoda je i dalje radni. „Dizajn sustava” je shvaćen kao vizualni dizajn sučelja; ako je mišljena arhitektura, to je zaseban paket.
 
-**Nakon WP1.25:** potvrda smjera (boja, pismo, bočna traka) i, kad bude određen, logotip i konačan naziv. Ostalo kao u odjeljku 11.
+**Nakon WP1.25:** potvrda smjera (bočna traka, svijetla radna površina) i konačan naziv proizvoda. Ostalo kao u odjeljku 11.
 

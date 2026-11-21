@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import wordmark from '../brand/arqus-wordmark-dark.svg';
 import { api, ApiError, token } from '../lib/api';
 import { ActionForm, Field } from '../ui';
 
@@ -15,6 +16,7 @@ export function Login({ onLogin }: { onLogin: () => Promise<void> }) {
   const [forgot, setForgot] = useState<ForgotResult | null>(null);
   return (
     <main className="login">
+      <img className="login-logo" src={wordmark} alt="ArQus Solutions" width={298} height={136} />
       <h1>ArQus Projekti</h1>
       <p className="sub">{mode === 'login' ? 'Prijava u sustav za upravljanje projektima.' : 'Zaboravljena lozinka'}</p>
       <div className="card">

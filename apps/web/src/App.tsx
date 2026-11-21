@@ -21,6 +21,7 @@ import { Loading, useAccessibleTables, usePageTitle, useRouteFocus } from './ui'
 import { Accessibility } from './pages/Accessibility';
 import { Privacy } from './pages/Privacy';
 import { PersonalData } from './pages/PersonalData';
+import wordmark from './brand/arqus-wordmark-dark.svg';
 import { ReauthDialog } from './pages/Reauth';
 import { can, canAny } from './lib/access';
 
@@ -105,7 +106,7 @@ export function App() {
       <>
         <a className="skip-link" href="#sadrzaj" onClick={(e) => { e.preventDefault(); document.getElementById('sadrzaj')?.focus(); }}>Preskoči na sadržaj</a>
         <header className="top">
-          <div className="brand"><span className="brand-name">ArQus <span className="brand-product">Projekti</span></span><small>{me.tenant?.name}</small></div>
+          <div className="brand"><img className="brand-logo" src={wordmark} alt="ArQus Solutions" width={298} height={136} /><span className="brand-name">Projekti</span><small>{me.tenant?.name}</small></div>
           <div className="spacer" />
           <div className="user-tools">
             <span className="account">{me.user.displayName}</span>
@@ -129,7 +130,7 @@ export function App() {
       {/* WP1.22: prva stavka u redoslijedu tipke Tab (WCAG 2.4.1); hash ruter – fokus se premješta izravno na glavni sadržaj. */}
       <a className="skip-link" href="#sadrzaj" onClick={(e) => { e.preventDefault(); document.getElementById('sadrzaj')?.focus(); }}>Preskoči na sadržaj</a>
       <header className="top">
-        <div className="brand">ArQus Projekti<small>{me.tenant?.name}</small></div>
+        <div className="brand"><img className="brand-logo" src={wordmark} alt="ArQus Solutions" width={298} height={136} /><span className="brand-name">Projekti</span><small>{me.tenant?.name}</small></div>
         <nav aria-label="Glavni izbornik">
           {/* Izbornik prikazuje samo ono što korisnik smije otvoriti (WP1.14): radar i prijave su radnje institucije,
               projekti, organizacije i paketi dostupni su i uz ulogu samo na projektu. */}

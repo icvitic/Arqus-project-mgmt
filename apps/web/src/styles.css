@@ -1,14 +1,14 @@
-/* WP1.25 – dizajn sustava: boje, pismo i mjere su varijable (docs/dizajn/DIZAJN-SUSTAV.md). Tinta (--ink*) je bočna traka, --mark oznaka trenutne stranice. */
-:root{--bg:#f2f4f7;--card:#fff;--fg:#18212f;--muted:#566174;--line:#d9dee6;--field:#7d8896;--input:#fff;--accent:#1b4fb5;--accent-fg:#fff;--ok:#146c3f;--warn:#8a4f00;--bad:#b3261e;--chip:#eaeef4;--alert:#fdecea;--ok-bg:#e2f3e9;--warn-bg:#fbeed6;--bad-bg:#fde7e4;--ink:#14254a;--ink-fg:#d5ddec;--ink-strong:#fff;--ink-muted:#a9b6cf;--ink-line:#2a3d68;--ink-hover:#1e3463;--ink-active:#294580;--mark:#f2b544;--rail:232px;--radius:8px;--font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f141a;--card:#161d26;--fg:#e6ebf1;--muted:#93a0ae;--line:#2a343f;--field:#76838f;--input:#0f141a;--accent:#6ea8ff;--accent-fg:#0b1220;--ok:#4cc38a;--warn:#f0b35a;--bad:#ff7b72;--chip:#1f2935;--alert:#3a1d1c;--ok-bg:#16301f;--warn-bg:#3a2b12;--bad-bg:#3a1d1c;--ink:#0a0f17;--ink-fg:#c7d0dc;--ink-strong:#fff;--ink-muted:#93a0ae;--ink-line:#222c38;--ink-hover:#161f2b;--ink-active:#1c2a3d;--mark:#f2b544}}
-:root[data-theme=dark]{--bg:#0f141a;--card:#161d26;--fg:#e6ebf1;--muted:#93a0ae;--line:#2a343f;--field:#76838f;--input:#0f141a;--accent:#6ea8ff;--accent-fg:#0b1220;--ok:#4cc38a;--warn:#f0b35a;--bad:#ff7b72;--chip:#1f2935;--alert:#3a1d1c;--ok-bg:#16301f;--warn-bg:#3a2b12;--bad-bg:#3a1d1c;--ink:#0a0f17;--ink-fg:#c7d0dc;--ink-strong:#fff;--ink-muted:#93a0ae;--ink-line:#222c38;--ink-hover:#161f2b;--ink-active:#1c2a3d;--mark:#f2b544}
+/* WP1.25 – dizajn sustava prema vizualnom identitetu ArQus Solutionsa (arqus-solutions.eu): opsidijan, indigo i kvantna ljubičasta; Geist za naslove, IBM Plex Sans za tekst. Pravila: docs/dizajn/DIZAJN-SUSTAV.md. Tinta (--ink*) je bočna traka, --mark oznaka trenutne stranice. */
+:root{--bg:#f4f3f9;--card:#fff;--fg:#15122a;--muted:#5d5878;--line:#dcd9e8;--field:#7d77a0;--input:#fff;--accent:#5b3df5;--accent-fg:#fff;--ok:#146c3f;--warn:#8a4f00;--bad:#b3261e;--chip:#ebe8f5;--alert:#fdecea;--ok-bg:#e2f3e9;--warn-bg:#fbeed6;--bad-bg:#fde7e4;--ink:#0d0a1c;--ink-fg:#c2bddb;--ink-strong:#f4f2fc;--ink-muted:#9b95bd;--ink-line:#2c2756;--ink-hover:#171336;--ink-active:#241f4d;--mark:#8f6cff;--rail:232px;--radius:8px;--font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--font-display:"Geist","IBM Plex Sans",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0d0a1c;--card:#171336;--fg:#f4f2fc;--muted:#b0aacd;--line:#2c2756;--field:#8a84ad;--input:#0d0a1c;--accent:#b9a6ff;--accent-fg:#0d0a1c;--ok:#4ade80;--warn:#ffc857;--bad:#ff8a80;--chip:#241f4d;--alert:#3d1c24;--ok-bg:#143524;--warn-bg:#3a2e14;--bad-bg:#3d1c24;--ink:#0d0a1c;--ink-fg:#c2bddb;--ink-strong:#f4f2fc;--ink-muted:#9b95bd;--ink-line:#2c2756;--ink-hover:#171336;--ink-active:#241f4d;--mark:#8f6cff}}
+:root[data-theme=dark]{--bg:#0d0a1c;--card:#171336;--fg:#f4f2fc;--muted:#b0aacd;--line:#2c2756;--field:#8a84ad;--input:#0d0a1c;--accent:#b9a6ff;--accent-fg:#0d0a1c;--ok:#4ade80;--warn:#ffc857;--bad:#ff8a80;--chip:#241f4d;--alert:#3d1c24;--ok-bg:#143524;--warn-bg:#3a2e14;--bad-bg:#3d1c24;--ink:#0d0a1c;--ink-fg:#c2bddb;--ink-strong:#f4f2fc;--ink-muted:#9b95bd;--ink-line:#2c2756;--ink-hover:#171336;--ink-active:#241f4d;--mark:#8f6cff}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--font)}
 header.top{display:flex;align-items:center;gap:18px;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
 .brand{font-weight:700}.brand small{color:var(--muted);font-weight:400;margin-left:6px}
 nav a{color:var(--fg);text-decoration:none;padding:6px 10px;border-radius:6px}nav a.active,nav a:hover{background:var(--chip)}
 .spacer{flex:1}.muted{color:var(--muted)}small.muted{display:block;font-size:12px}
 main{max-width:1240px;margin:0 auto;padding:20px}
-h1{font-size:26px;line-height:1.2;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}h2{font-size:17px;line-height:1.3;font-weight:600;margin:20px 0 10px}h3{font-size:15px;font-weight:600;margin:14px 0 6px}
+h1,h2,h3{font-family:var(--font-display)}h1{font-size:27px;line-height:1.15;font-weight:600;letter-spacing:-.025em;margin:0 0 6px}h2{font-size:17.5px;line-height:1.3;font-weight:600;letter-spacing:-.015em;margin:20px 0 10px}h3{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:14px 0 6px}
 .sub{color:var(--muted);margin:0 0 18px;font-size:14px;max-width:86ch}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}.card>h2:first-child,.card>.card-head:first-child h2,.card>h3:first-child,.tile>h2:first-child{margin-top:0}
 .scroll{overflow-x:auto;position:relative}
@@ -156,12 +156,12 @@ table.tasks td:first-child{white-space:nowrap}
 .requests-table td{vertical-align:top}.requests-table td:last-child{white-space:nowrap}.requests-table .row-actions>*{margin:0 4px 4px 0}
 /* WP1.25 – dizajn sustava: ljuska aplikacije. Uska širina: zaglavlje s izbornikom u retku (prelama se). Od 1024 px: bočna
    traka u boji tinte s izbornikom po skupinama; korisnik, obavijesti i odjava na dnu trake. Redoslijed u DOM-u je isti. */
-.brand{display:flex;flex-direction:column;line-height:1.25}.brand-name{font-weight:600;font-size:16px;letter-spacing:-.01em}.brand-product{font-weight:400}
+.brand{display:flex;flex-direction:column;line-height:1.25}.brand-logo{display:block;height:44px;width:auto}.brand-name{font-family:var(--font-display);font-weight:500;font-size:15px;letter-spacing:-.01em}
 .brand small{margin-left:0;font-size:12px}
 .nav-label{display:none}
 .user-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .account{color:var(--muted);text-decoration:none;font-size:14px}a.account:hover{text-decoration:underline}
-header.top .brand{flex-direction:row;align-items:baseline;gap:8px}
+header.top .brand{flex-direction:row;align-items:center;gap:8px}
 header.top{background:var(--ink);color:var(--ink-fg);border-bottom-color:var(--ink-line)}
 header.top .brand{color:var(--ink-strong)}header.top .brand small{color:var(--ink-muted)}
 header.top nav a{color:var(--ink-fg)}header.top nav a:hover{background:var(--ink-hover);color:var(--ink-strong)}
@@ -173,12 +173,13 @@ header.top .user-tools>button:hover:not(:disabled),header.top .bell:hover:not(:d
 header.top .dropdown{color:var(--fg)}
 @media(min-width:1024px){
   header.top{position:fixed;inset:0 auto 0 0;width:var(--rail);flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:0;padding:0;border-bottom:0;border-right:1px solid var(--ink-line);overflow-y:auto}
-  header.top .brand{flex-direction:column;align-items:flex-start;gap:2px;padding:20px 20px 16px}
+  header.top .brand{flex-direction:column;align-items:flex-start;gap:0;padding:8px 20px 14px}
+  header.top .brand-logo{height:76px;margin-left:-14px}header.top .brand-name{font-size:16px;color:var(--ink-strong)}
   header.top .brand small{overflow-wrap:anywhere}
   header.top nav{flex-direction:column;flex-wrap:nowrap;gap:1px;padding:4px 10px 12px}
   header.top nav a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:6px;border-left:3px solid transparent;font-size:14.5px}
   header.top nav a.active{border-left-color:var(--mark)}
-  .nav-label{display:block;color:var(--ink-muted);font-size:12px;font-weight:500;padding:14px 13px 4px}
+  .nav-label{display:block;color:var(--ink-muted);font-family:var(--font-display);font-size:12px;font-weight:500;padding:14px 13px 4px}
   header.top .spacer{flex:1 1 auto;min-height:12px}
   header.top .user-tools{flex-direction:column;align-items:stretch;gap:8px;padding:14px 16px 16px;border-top:1px solid var(--ink-line)}
   header.top .account{font-weight:500;overflow-wrap:anywhere;order:-1}
@@ -190,9 +191,10 @@ header.top .dropdown{color:var(--fg)}
 }
 /* Prijava i javne poveznice: ime proizvoda na tinti, obrazac na papiru. */
 @media(min-width:900px){
-  main.login:not(.account-link){max-width:none;margin:0;min-height:calc(100vh - 64px);display:grid;grid-template-columns:minmax(300px,38%) 1fr;grid-template-rows:1fr auto auto 1.4fr;column-gap:0;background:linear-gradient(90deg,var(--ink) 0,var(--ink) 38%,transparent 38%);padding:0}
-  main.login:not(.account-link)>h1{grid-column:1;grid-row:2;color:var(--ink-strong);font-size:34px;padding:0 48px;margin:0 0 8px}
-  main.login:not(.account-link)>.sub{grid-column:1;grid-row:3;color:var(--ink-fg);padding:0 48px;font-size:15px;max-width:34ch}
+  main.login:not(.account-link){max-width:none;margin:0;min-height:calc(100vh - 64px);display:grid;grid-template-columns:minmax(300px,38%) 1fr;grid-template-rows:1fr auto auto auto 1.4fr;column-gap:0;background:linear-gradient(90deg,var(--ink) 0,var(--ink) 38%,transparent 38%);padding:0}
+  main.login:not(.account-link)>.login-logo{grid-column:1;grid-row:2;height:150px;width:auto;margin:0 0 6px 15px}
+  main.login:not(.account-link)>h1{grid-column:1;grid-row:3;color:var(--ink-strong);font-size:30px;font-weight:500;padding:0 48px;margin:0 0 8px}
+  main.login:not(.account-link)>.sub{grid-column:1;grid-row:4;color:var(--ink-fg);padding:0 48px;font-size:15px;max-width:34ch}
   main.login:not(.account-link)>.card{grid-column:2;grid-row:1/-1;align-self:center;justify-self:center;width:min(400px,calc(100% - 48px));padding:24px}
   main.login:not(.account-link)>h1:focus-visible{outline-color:var(--mark)}
 }
@@ -209,9 +211,11 @@ h1[tabindex="-1"]:focus-visible{outline:none}
 #root{position:relative;min-height:100vh}
 @media(min-width:900px){
   main.login:not(.account-link){min-height:100vh}
-  main.login:not(.account-link)>h1::before{content:"";display:block;width:44px;height:4px;background:var(--mark);border-radius:2px;margin-bottom:18px}
   main.login:not(.account-link)>.sub{max-width:none}
   main.login:not(.account-link)~footer.site{position:absolute;left:max(300px,38%);right:0;bottom:0;max-width:none;margin:0;justify-content:center;padding-bottom:20px}
 }
 header.top .dropdown a:focus-visible,header.top .dropdown button:focus-visible{outline-color:var(--accent)}
 .note{font-weight:400}
+/* Logotip ima ugrađenu opsidijansku podlogu – prikazuje se samo na tinti (traka, zaglavlje, ploča prijave). */
+.login-logo{display:none}@media(min-width:900px){main.login:not(.account-link)>.login-logo{display:block}}
+@media(max-width:1023px){header.top .brand small{display:none}header.top .brand-logo{height:40px;margin-left:-6px}}
