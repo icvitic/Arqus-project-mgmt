@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { currentContext, tenantTimeZone, tenantToday } from '../common/tenant-context';
-import { canInTenant, canSeeProposal } from '../common/access';
+import { canInTenant, canLeadProposal, canSeeProposal, ownProposals } from '../common/access';
 import { assertRevision, bump, revisionField } from '../common/revision';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -49,6 +49,11 @@ export class ProposalsService {
     if (!p) throw new NotFoundException(`Prijava ${id} ne postoji`);
     return p;
   }
+  /** WP1.26: radnja voditelja prijave (zaključavanje proračuna, prijelazi) – suradnik je ne smije, voditelj i ured smiju. */
+  private assertLead(id: string, what: string): void {
+    const ctx = currentContext();
+    if (ctx?.userId && !canLeadProposal(ctx, id)) throw new ForbiddenException(`${what} – radnja voditelja prijave ili ureda za projekte`);
+  }
   /** Radnja institucije unutar rute dostupne i voditelju (npr. promjena voditelja, povlačenje prijave). */
   private assertTenant(permission: 'proposals:write', what: string): void {
     const ctx = currentContext();
@@ -66,10 +71,10 @@ export class ProposalsService {
       .where(eq(proposalMembers.proposalId, id)).orderBy(asc(proposalMembers.orderNo));
   }
 
-  /** Uz proposals:read institucije sve prijave, inače samo prijave kojima je korisnik voditelj (WP1.14b). */
+  /** Uz proposals:read institucije sve prijave, inače samo prijave kojima je korisnik voditelj (WP1.14b) ili suradnik (WP1.26). */
   async list(tx: Tx) {
     const ctx = currentContext();
-    const own = ctx?.userId && !canInTenant(ctx, 'proposals:read') ? [...(ctx.leadProposals ?? [])] : null;
+    const own = ctx?.userId && !canInTenant(ctx, 'proposals:read') ? ownProposals(ctx) : null;
     if (own && !own.length) return [];
     const rows = await tx.select({ p: proposals, callCode: calls.code, members: sql<number>`(select count(*)::int from proposal_members m where m.proposal_id = ${proposals.id})` })
       .from(proposals).leftJoin(calls, eq(calls.id, proposals.callId)).where(and(isNull(proposals.deletedAt), own ? inArray(proposals.id, own) : undefined)).orderBy(desc(proposals.createdAt));
@@ -231,6 +236,7 @@ export class ProposalsService {
 
   async lockBudget(tx: Tx, id: string, lock: boolean, actorId?: string) {
     const p = await this.row(tx, id); this.editable(p);
+    this.assertLead(id, lock ? 'Zaključavanje proračuna' : 'Otključavanje proračuna');
     if (lock === p.budgetLocked) throw new ConflictException(lock ? 'Proračun je već zaključan' : 'Proračun nije zaključan');
     await tx.update(proposals).set({ budgetLocked: lock, budgetVersion: lock ? p.budgetVersion : p.budgetVersion + 1, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
     await this.audit.record(tx, { entity: 'proposal', entityId: id, action: lock ? 'budget.lock' : 'budget.unlock', diff: { meta: { version: lock ? p.budgetVersion : p.budgetVersion + 1 } } });
@@ -240,6 +246,7 @@ export class ProposalsService {
   async transition(tx: Tx, id: string, to: ProposalStatus, actorId?: string) {
     const p = await this.row(tx, id);
     if (!PROPOSAL_TRANSITIONS[p.status as ProposalStatus].includes(to)) throw new ConflictException(`Prijelaz ${p.status} → ${to} nije dopušten`);
+    this.assertLead(id, 'Promjena statusa prijave');
     // Voditelj bez uloge institucije vodi pripremu (u pripremu, na internu provjeru i natrag); povlačenje i evaluacija su radnje ureda.
     if (!LEAD_TRANSITIONS.includes(to)) this.assertTenant('proposals:write', 'Ovaj prijelaz prijave');
     await tx.update(proposals).set({ status: to, revision: bump(proposals), updatedAt: new Date(), updatedBy: actorId }).where(eq(proposals.id, id));
