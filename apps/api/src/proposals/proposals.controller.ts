@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
 import * as S from './proposals.service';
 import { ProposalsService } from './proposals.service';
+import { collaboratorInput, collaboratorPatch, ProposalCollaboratorsService } from './proposal-collaborators.service';
 import { ProposalPermission, RequirePermission } from '../identity/auth.guard';
 import { DbService, type Tx } from '../db/db.service';
 import { TenantContext } from '../common/tenant-context';
@@ -10,7 +11,7 @@ const uuid = new ParseUUIDPipe();
 
 @Controller()
 export class ProposalsController {
-  constructor(private readonly p: ProposalsService, private readonly db: DbService, private readonly ctx: TenantContext) {}
+  constructor(private readonly p: ProposalsService, private readonly collab: ProposalCollaboratorsService, private readonly db: DbService, private readonly ctx: TenantContext) {}
   /**
    * WP1.14b – pristup: popis, detalj i priprema prijave (osnovni podaci, konzorcij, radni paketi, proračun, prijelaz u pripremu
    * i internu provjeru) dostupni su uz dozvolu institucije ILI voditelju te prijave (`@ProposalPermission`). Nova prijava,
@@ -32,6 +33,12 @@ export class ProposalsController {
   @Post('proposals/:id/budget/lock') @ProposalPermission('proposals:write') lock(@Param('id', uuid) id: string) { return this.run((tx, _t, u) => this.p.lockBudget(tx, id, true, u)); }
   @Post('proposals/:id/budget/unlock') @ProposalPermission('proposals:write') unlock(@Param('id', uuid) id: string) { return this.run((tx, _t, u) => this.p.lockBudget(tx, id, false, u)); }
   @Post('proposals/:id/transition') @ProposalPermission('proposals:write') transition(@Param('id', uuid) id: string, @Body() b: unknown) { const { to } = parseBody(S.transitionInput, b); return this.run((tx, _t, u) => this.p.transition(tx, id, to, u)); }
+  // WP1.26 – suradnici: popis vidi tko vidi prijavu; dodavanje i promjenu razine servis dopušta voditelju i uredu, a uklanjanje
+  // i samom suradniku (izlazak s prijave – zato i ta ruta traži samo proposals:read).
+  @Get('proposals/:id/collaborators') @ProposalPermission('proposals:read') collaborators(@Param('id', uuid) id: string) { return this.run((tx) => this.collab.list(tx, id)); }
+  @Post('proposals/:id/collaborators') @ProposalPermission('proposals:write') addCollaborator(@Param('id', uuid) id: string, @Body() b: unknown) { const i = parseBody(collaboratorInput, b); return this.run((tx, t, u) => this.collab.add(tx, t, id, i, u)); }
+  @Patch('proposals/:id/collaborators/:collaboratorId') @ProposalPermission('proposals:write') updateCollaborator(@Param('id', uuid) id: string, @Param('collaboratorId', uuid) cid: string, @Body() b: unknown) { const i = parseBody(collaboratorPatch, b); return this.run((tx) => this.collab.update(tx, id, cid, i)); }
+  @Delete('proposals/:id/collaborators/:collaboratorId') @ProposalPermission('proposals:read') removeCollaborator(@Param('id', uuid) id: string, @Param('collaboratorId', uuid) cid: string) { return this.run((tx) => this.collab.remove(tx, id, cid)); }
   @Post('proposals/:id/submit') @RequirePermission('proposals:write') submit(@Param('id', uuid) id: string, @Body() b: unknown) { const i = parseBody(S.submitInput, b); return this.run((tx, _t, u) => this.p.submit(tx, id, i, u)); }
   @Post('proposals/:id/outcome') @RequirePermission('proposals:write') outcome(@Param('id', uuid) id: string, @Body() b: unknown) { const i = parseBody(S.outcomeInput, b); return this.run((tx, _t, u) => this.p.setOutcome(tx, id, i, u)); }
   @Post('proposals/:id/contract') @RequirePermission('projects:write') contract(@Param('id', uuid) id: string, @Body() b: unknown) { const i = parseBody(S.contractInput, b); return this.run((tx, t, u) => this.p.contract(tx, t, id, i, u)); }
