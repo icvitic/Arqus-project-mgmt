@@ -10,6 +10,7 @@ Težina: **L** = samo pisanje/uređivanje dokumenata iz postojećeg znanja; **M*
 
 | Datum | Sesija | Zadatak | Pretraživanja / dohvaćanja | Podagenti | Težina | Očitanje (Ivan) |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-21 | 22 (ručno, bez podagenata) | WP1.25 dizajn sustava sučelja (varijable, bočna traka, IBM Plex Sans, usklađene komponente, prijava, pregled snimaka demo instance u obje teme i na 390 px, e2e s pristupačnošću, `docs/dizajn/DIZAJN-SUSTAV.md`, strategija odj. 12); v0.35.0 | 0 / 0 | 0 | H | |
 | 2026-11-20 | 21 (ručno, bez podagenata) | WP1.24 evidencija zahtjeva ispitanika (domena roka, migracije 0033/0034, API s revizijom retka, „Moj rad”, rok čuvanja, izvoz, kartica Zahtjevi i rokovi, demo, e2e u pregledniku s pristupačnošću, dokumentacija, strategija odj. 11); v0.34.0 | 0 / 0 | 0 | H | |
 | 2026-11-18 | 20 (podagent) | WP1.23 osobni podaci (evidencija obrade s testom, izvoz, zatvaranje računa, anonimizacija, posao i zaslon rokova čuvanja, stranica Privatnost, predlošci GDPR); v0.33.0 | 0 / 0 | 0 | H | |
 | 2026-11-18 | 19 (podagent) | WP1.22 pristupačnost sučelja (axe-core i skriptirane provjere u e2e, e2e u CI-ju, ispravci zajedničkih komponenti, istek sesije, izvještaj o sukladnosti, stranica Pristupačnost) i odgovorne osobe (migracija 0030, Moj rad, obavijesti, uska iznimka za status), v0.32.0 | 2 / 0 (verzije paketa u registru npm) | 0 | H | |

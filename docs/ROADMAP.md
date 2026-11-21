@@ -56,6 +56,7 @@ Paketi koje treba svaki pilot, neovisno o demonstracijama. Obrazloženje i redos
 - [x] **WP1.23** (v0.33.0) Osobni podaci u proizvodu (GDPR): izvoz podataka osobe (administrator, samoposluga), zatvaranje računa, anonimizacija nakon roka čuvanja uz očuvanje financijskih zapisa, rokovi čuvanja s dnevnim poslom i zaslonom, evidencija obrade s testom pokrivenosti sheme, stranica „Privatnost”, predlošci ugovora o obradi, mjera i prava ispitanika; čeka pravni pregled predložaka i potvrdu rokova (ljudski kolosijek)
 
 - [x] **WP1.24** (v0.34.0) Evidencija zahtjeva ispitanika (strategija, odj. 11): upis zahtjeva s danom zaprimanja, rok od mjesec dana koji računa sustav (produljenje na tri uz dan obavijesti i razlog), stavka u „Moj rad” i dnevnom sažetku bez imena podnositelja, zatvaranje s ishodom i oznakom „nakon roka”, ponovno otvaranje, rok čuvanja zatvorenih zahtjeva, zahtjevi u izvozu podataka osobe. **Razvoja koji ne ovisi o Ivanu više nema – bez preostale imenovane iznimke.**
+- [x] **WP1.25** (v0.35.0) Dizajn sustava sučelja (strategija, odj. 12): varijable boja, pisma i mjera u obje teme, bočna traka s izbornikom po skupinama, IBM Plex Sans s vlastitog poslužitelja, usklađene kartice, tablice, obrasci, gumbi i oznake stanja, stranica prijave; pravila u `docs/dizajn/DIZAJN-SUSTAV.md`; e2e i provjera pristupačnosti bez nalaza. Čeka: potvrdu smjera, logotip i konačan naziv (👤).
 
 ## Faza 2 – Komercijalna v1 (mj. 10–15)
 Uvjet za fazu 3: 10 kupaca koji plaćaju, 60.000 € ARR.

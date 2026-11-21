@@ -149,3 +149,16 @@ Ivan je 2026-11-20 zatražio nastavak razvoja prema planu. Plan nakon WP1.23 ka�
 | Jedinstvena prijava, novi paketi programa, izvještaji prema financijeru, amandmani | kao u odjeljku 4 i 10 | poznat pilot |
 
 **Nakon WP1.24** ponovno vrijedi zaključak odjeljka 10 – i ovaj put bez preostale imenovane iznimke: sljedeći korak određuju bilješke s demonstracija, odluka o pružatelju, pravni pregled predložaka i nalazi penetracijskog testa. Do tada samo ispravci grešaka.
+
+## 12. Dizajn sustava sučelja (2026-11-21, v0.34.0)
+
+Ivan je 2026-11-21 zatražio nastavak razvoja i rad na dizajnu sustava. Zahtjev vlasnika, pa ne treba prolaziti mjerilo iz odjeljka 10 – ali ga prolazi: proizvod se prodaje demonstracijom (uvjeti „3 pilota” i „10 institucija u beti”), a sučelje je dosad nastajalo zaslon po zaslon, bez zajedničkih pravila. Na širini prijenosnog računala izbornik se prelamao u dva retka, polja u obrascima nisu bila poravnata, a iznosi na portfelju bili su odsječeni.
+
+| # | Radni paket | Gotovo kad |
+| --- | --- | --- |
+| **WP1.25** | Dizajn sustava sučelja | jedan skup varijabli (boje, pismo, mjere) u obje teme; navigacija koja stane na zaslon; usklađeni dijelovi (kartica, tablica, obrazac, gumb, oznaka stanja, dijalog); pravila zapisana u `docs/dizajn/DIZAJN-SUSTAV.md`; e2e i provjera pristupačnosti bez nalaza |
+
+**Granice paketa:** bez promjene funkcija, tekstova, ruta i redoslijeda u dokumentu (redoslijed tipke Tab ostaje isti); bez logotipa i vizualnog identiteta tvrtke – naziv proizvoda je i dalje radni. „Dizajn sustava” je shvaćen kao vizualni dizajn sučelja; ako je mišljena arhitektura, to je zaseban paket.
+
+**Nakon WP1.25:** potvrda smjera (boja, pismo, bočna traka) i, kad bude određen, logotip i konačan naziv. Ostalo kao u odjeljku 11.
+

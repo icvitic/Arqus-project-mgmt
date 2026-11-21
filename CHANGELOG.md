@@ -4,6 +4,25 @@ Format prema [Keep a Changelog](https://keepachangelog.com/hr/1.1.0/), verzije p
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-11-21
+### Dodano
+- WP1.25 **Dizajn sustava sučelja** (strategija, odj. 12; pravila u `docs/dizajn/DIZAJN-SUSTAV.md`): varijable boja, pisma i mjera na vrhu `apps/web/src/styles.css` za svijetlu i tamnu temu, uključujući boju tinte (`--ink`), oznaku trenutne stranice (`--mark`) i podloge oznaka stanja.
+- WP1.25 **Bočna traka** od 1024 px: naziv proizvoda i ustanove, izbornik po skupinama (Prijave na pozive, Provedba, Uprava; skupina se prikazuje samo ako korisnik vidi barem jednu stavku), na dnu korisnik, obavijesti i odjava. Ispod 1024 px zaglavlje u istoj boji.
+- WP1.25 **Pismo IBM Plex Sans** (400, 500, 600; latinični i prošireni latinični skup) posluženo s vlastitog poslužitelja – nova ovisnost sučelja `@fontsource/ibm-plex-sans` 5.3.0 (SIL OFL 1.1).
+- WP1.25 Stranica prijave s nazivom proizvoda na ploči u boji tinte.
+
+### Promijenjeno
+- Naslovi 26 / 17 / 15 px; zaglavlja tablica rečenično umjesto velikim slovima; kartice bez praznine iznad naslova.
+- Obrasci: polja poravnata po gornjem rubu (pomoćni tekst više ne pomiče susjedna polja), bijela podloga polja, onemogućena polja jasno označena, oznaka polja u boji teksta.
+- Gumbi iste visine s vidljivim obrubom; nepovratne radnje s crvenim obrubom. Oznake stanja (u redu, uskoro, kasni) s podlogom svog značenja.
+- Pločice portfelja stanu u jedan red i više ne odsijecaju iznose.
+- Zaglavlje stanja „obvezni MFA” koristi istu strukturu kao redovito (ime korisnika više nije sivi tekst na tamnoj podlozi).
+- Naslov stranice koji prima fokus pri promjeni stranice više nema vidljiv okvir (čitač zaslona ga i dalje najavi).
+- Bez promjene funkcija, tekstova, ruta i redoslijeda tipke Tab.
+
+### Dokumentacija
+- `docs/STATUS.md`: odluka vlasnika od 2026-11-21 – pozivnice zasad ručnim kopiranjem poveznice (SMTP relay odgođen).
+
 ## [0.34.0] - 2026-11-20
 ### Dodano
 - WP1.24 **Evidencija zahtjeva ispitanika** (strategija, odj. 11): kartica **Osobni podaci → Zahtjevi i rokovi** (dozvola `privacy:manage`). Zahtjev se upisuje s danom zaprimanja, pravom na koje se odnosi (pristup, ispravak, brisanje, ograničenje, prenosivost, prigovor, drugo), kanalom, podnositeljem i kontaktom, sažetkom, danom utvrđivanja identiteta i po želji korisničkim računom podnositelja; dobiva oznaku `ZI-n` unutar institucije.
