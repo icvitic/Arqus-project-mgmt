@@ -1,4 +1,4 @@
-# Evidencija obrade osobnih podataka u proizvodu ArQus Projekti (WP1.23, v0.33.0)
+# Evidencija obrade osobnih podataka u proizvodu ArQus Projekti (WP1.23, v0.33.0; dopuna WP1.24, v0.34.0)
 
 > **Napomena.** Ovo je radni predložak koji je pripremio razvojni tim bez pravnog pregleda. Prije upotrebe ga mora provjeriti službenik za zaštitu podataka institucije ili pravnik. Dokument opisuje što proizvod tehnički radi; ne tvrdi da je proizvod ili njegova upotreba „usklađena s GDPR-om” i nije pravni savjet. Evidenciju aktivnosti obrade (čl. 30 GDPR-a) vodi institucija kao voditelj obrade – ovaj dokument joj služi kao podloga za dio koji se odnosi na ArQus Projekte.
 
@@ -32,6 +32,7 @@ Strojno čitljiv dio ove tablice je [`evidencija-obrade.json`](evidencija-obrade
 | `account_tokens` | korisnik | SHA-256 pozivnice / nove lozinke | postavljanje lozinke | administrator vidi da postoji | `accountTokens`: 7 dana nakon isteka; zatvaranjem odmah | `accountTokens` |
 | `mail_deliveries` | korisnik | kome i kada je poslana poruka, ishod (bez sadržaja) | dijagnostika pošte | administrator | `mailDeliveries`: 180 dana (najmanje 30); zatvaranjem odmah | `mailDeliveries` |
 | `digest_runs` | korisnik | dan i ishod sažetka | jedan sažetak dnevno | nitko | `digestRuns`: 90 dana; zatvaranjem odmah | `digestRuns` |
+| `subject_requests` | podnositelj zahtjeva (i bez računa), korisnik | ime i kontakt podnositelja, vrsta prava, sažetak zahtjeva, dani zaprimanja, utvrđivanja identiteta, produljenja i odgovora, ishod s obrazloženjem | odgovor u zakonskom roku i dokaz postupanja (čl. 12(3), 5(2)) | administrator (`privacy:manage`) | `subjectRequests`: zatvoren zahtjev 1825 dana nakon zatvaranja (najmanje 365); otvoren se ne briše; zatvaranje računa ga **ne** briše | `subjectRequests` (samo zahtjevi povezani s računom osobe) |
 | `work_packages`, `budget_lines` | – | slobodni tekst (ciljevi, opis) može spomenuti osobu | struktura i proračun | tko vidi projekt | rok čuvanja projekta; anonimizacija navodi pojavu imena | – |
 | `tenants` | – | postavke institucije (id administratora koji je potvrdio rokove) | postavke | administrator | dok postoji institucija | – |
 | `organisations`, `project_partners`, `proposal_members`, `proposal_work_packages`, `proposal_budget_lines` | – | pravne osobe; aplikacija **ne vodi kontakt-osobe** organizacija | partneri | tko vidi | – | – |
@@ -56,6 +57,7 @@ Svakog dana (od 2:00 u zoni institucije, `RETENTION_HOUR`) posao čuvanja (`apps
 | `deletedDocuments` | logički obrisani dokumenti | 180 dana | 30 | da | baza (`privacy_documents_purge`) |
 | `loginFailures` | revizijski zapisi neuspjelih prijava | 365 dana | 90 | da | baza (`privacy_audit_purge`) |
 | `audit` | ostali revizijski zapisi | 3650 dana | 1825 | da | baza (`privacy_audit_purge`) |
+| `subjectRequests` | zatvoreni zahtjevi ispitanika (od dana zatvaranja) | 1825 dana | 365 | da | aplikacija; okidač u bazi odbija brisanje otvorenog zahtjeva |
 
 Posao **nikad ne briše** timesheetove, troškove, zahtjeve, članove tima, proračune ni projekte – nijedna kategorija ih ne dotiče. Serije od 500 redaka (`RETENTION_BATCH`), najviše 40 serija po kategoriji i 10 minuta po izvođenju; zakazano izvođenje umeće redak `retention_runs` (jedinstven po instituciji i danu), pa druga instanca isti dan ne radi ništa. Uključeno u produkciji (`RETENTION_ENABLED=0` isključuje), izvan produkcije samo uz `RETENTION_ENABLED=1`.
 
@@ -70,6 +72,7 @@ Postupak po pravu: [`PRAVA-ISPITANIKA.md`](PRAVA-ISPITANIKA.md). Ukratko:
 - **Pristup i prenosivost** – izvoz podataka osobe (administrator, dozvola `privacy:manage`) i samoposluga u „Moj račun”. ZIP: `podaci.json`, `podaci.xlsx`, `procitaj-me.html`.
 - **Pripisivanje osobi:** korisnički račun i zapisi člana tima povezani s njim (veza u podacima). Zapis člana tima bez računa sustav samo predlaže po imenu; operater ga izričito označava. Zapis povezan s drugim računom ne može se pripisati.
 - **Brisanje** – zatvaranje računa odmah, anonimizacija projektnih zapisa nakon roka čuvanja projekta.
+- **Evidencija zahtjeva i rok (WP1.24)** – svaki zahtjev se upisuje u **Osobni podaci → Zahtjevi**: rok za odgovor (mjesec dana od zaprimanja, uz produljenje tri) sustav računa sam i pokazuje ga administratoru u „Moj rad”. Revizijski zapis o zahtjevu ne sadrži ime podnositelja ni slobodni tekst (čuva se dulje od evidencije). Zahtjev se u izvoz podataka osobe uključuje samo ako ga je operater povezao s njezinim računom.
 
 ## 6. Revizijski zapis
 Odluka: **revizijski zapis se ne redigira** (varijanta a). Zapis je dokaz tko je što napravio; izmjena bi ga obezvrijedila. Umjesto toga ima vlastiti rok čuvanja i jedan kontrolirani put brisanja:

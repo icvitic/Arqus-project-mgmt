@@ -21,6 +21,7 @@ import { Loading, useAccessibleTables, usePageTitle, useRouteFocus } from './ui'
 import { Accessibility } from './pages/Accessibility';
 import { Privacy } from './pages/Privacy';
 import { PersonalData } from './pages/PersonalData';
+import wordmark from './brand/arqus-wordmark-dark.svg';
 import { ReauthDialog } from './pages/Reauth';
 import { can, canAny } from './lib/access';
 
@@ -33,7 +34,7 @@ const PAGE_TITLES: Record<string, string> = {
   privatnost: 'Privatnost', 'osobni-podaci': 'Osobni podaci',
 };
 const SUB_TITLES: Record<string, Record<string, string>> = {
-  radar: { novi: 'Novi poziv' }, prijave: { nova: 'Nova prijava' }, 'osobni-podaci': { rokovi: 'Rokovi čuvanja' }, paketi: { novi: 'Novi paket po pozivu', pregled: 'Paket programa', verzija: 'Nova verzija paketa' },
+  radar: { novi: 'Novi poziv' }, prijave: { nova: 'Nova prijava' }, 'osobni-podaci': { rokovi: 'Rokovi čuvanja', zahtjevi: 'Zahtjevi ispitanika' }, paketi: { novi: 'Novi paket po pozivu', pregled: 'Paket programa', verzija: 'Nova verzija paketa' },
 };
 function routeTitle(page: string, id: string | undefined): string | null {
   if (page === 'projekti' && id) return null; // ProjectDetail
@@ -105,10 +106,12 @@ export function App() {
       <>
         <a className="skip-link" href="#sadrzaj" onClick={(e) => { e.preventDefault(); document.getElementById('sadrzaj')?.focus(); }}>Preskoči na sadržaj</a>
         <header className="top">
-          <div className="brand">ArQus Projekti<small>{me.tenant?.name}</small></div>
+          <div className="brand"><img className="brand-logo" src={wordmark} alt="ArQus Solutions" width={298} height={136} /><span className="brand-name">Projekti</span><small>{me.tenant?.name}</small></div>
           <div className="spacer" />
-          <span className="muted">{me.user.displayName}</span>
-          <button onClick={() => void signOut()}>Odjava</button>
+          <div className="user-tools">
+            <span className="account">{me.user.displayName}</span>
+            <button className="signout" onClick={() => void signOut()}>Odjava</button>
+          </div>
         </header>
         <main id="sadrzaj" tabIndex={-1}><MfaRequired me={me} reloadMe={loadMe} /></main>
         <SiteFooter />
@@ -127,25 +130,31 @@ export function App() {
       {/* WP1.22: prva stavka u redoslijedu tipke Tab (WCAG 2.4.1); hash ruter – fokus se premješta izravno na glavni sadržaj. */}
       <a className="skip-link" href="#sadrzaj" onClick={(e) => { e.preventDefault(); document.getElementById('sadrzaj')?.focus(); }}>Preskoči na sadržaj</a>
       <header className="top">
-        <div className="brand">ArQus Projekti<small>{me.tenant?.name}</small></div>
+        <div className="brand"><img className="brand-logo" src={wordmark} alt="ArQus Solutions" width={298} height={136} /><span className="brand-name">Projekti</span><small>{me.tenant?.name}</small></div>
         <nav aria-label="Glavni izbornik">
           {/* Izbornik prikazuje samo ono što korisnik smije otvoriti (WP1.14): radar i prijave su radnje institucije,
               projekti, organizacije i paketi dostupni su i uz ulogu samo na projektu. */}
           <a href="#/moj-rad" {...current('moj-rad')}>Moj rad{work && work.attention > 0 && <span className="badge nav-badge" title={`${work.overdue} kasni, ${work.dueSoon} uskoro`}><span aria-hidden="true">{work.attention}</span><span className="sr-only">: {work.overdue} kasni, {work.dueSoon} uskoro</span></span>}</a>
           {canAny(me, 'projects:read') && <a href="#/portfelj" {...current('portfelj')}>Portfelj</a>}
+          {/* WP1.25: skupine izbornika (vidljive u bočnoj traci); naziv skupine je vizualna pomoć, poveznice ostaju redom. */}
+          {(can(me, 'calls:read') || proposals) && <span className="nav-label" aria-hidden="true">Prijave na pozive</span>}
           {can(me, 'calls:read') && <a href="#/radar" {...current('radar')}>Radar poziva</a>}
           {proposals && <a href="#/prijave" {...current('prijave')}>Prijave</a>}
+          {(canAny(me, 'projects:read') || canAny(me, 'organisations:read') || canAny(me, 'packages:read')) && <span className="nav-label" aria-hidden="true">Provedba</span>}
           {canAny(me, 'projects:read') && <a href="#/projekti" {...current('projekti')}>Projekti</a>}
           {canAny(me, 'organisations:read') && <a href="#/organizacije" {...current('organizacije')}>Organizacije</a>}
           {canAny(me, 'packages:read') && <a href="#/paketi" {...current('paketi')}>Paketi programa</a>}
+          {(can(me, 'users:read') || can(me, 'audit:read') || can(me, 'privacy:manage')) && <span className="nav-label" aria-hidden="true">Uprava</span>}
           {can(me, 'users:read') && <a href="#/korisnici" {...current('korisnici')}>Korisnici</a>}
           {can(me, 'audit:read') && <a href="#/revizija" {...current('revizija')}>Revizija</a>}
           {can(me, 'privacy:manage') && <a href="#/osobni-podaci" {...current('osobni-podaci')}>Osobni podaci</a>}
         </nav>
         <div className="spacer" />
+        <div className="user-tools">
         <NotificationBell />
-        <a href="#/racun" className="muted" style={{ textDecoration: 'none' }} aria-label={`Moj račun: ${me.user.displayName}${!me.user.mfaEnabled ? ', bez MFA' : ''}`} {...(page === 'racun' ? { 'aria-current': 'page' as const } : {})}>{me.user.displayName}{!me.user.mfaEnabled && ' · bez MFA'}</a>
-        <button onClick={() => void signOut()}>Odjava</button>
+        <a href="#/racun" className="account" aria-label={`Moj račun: ${me.user.displayName}${!me.user.mfaEnabled ? ', bez MFA' : ''}`} {...(page === 'racun' ? { 'aria-current': 'page' as const } : {})}>{me.user.displayName}{!me.user.mfaEnabled && ' · bez MFA'}</a>
+        <button className="signout" onClick={() => void signOut()}>Odjava</button>
+        </div>
       </header>
       <main id="sadrzaj" tabIndex={-1}>
         {page === 'racun' ? <Account me={me} reloadMe={loadMe} />

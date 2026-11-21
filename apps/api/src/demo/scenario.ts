@@ -460,6 +460,16 @@ export async function buildDemo(ctx: DemoContext): Promise<DemoSummary> {
   }
   log('obavijesti: starije označene pročitanima, najnovije tri nepročitane');
 
+  // WP1.24: evidencija zahtjeva ispitanika. Lea Babić je prije 24 dana e-poštom zatražila pristup svojim podacima – rok
+  // (mjesec dana od zaprimanja) je za nekoliko dana, pa administrator zahtjev vidi u „Moj rad” kao „uskoro”. Jedan stariji
+  // zahtjev (ispravak, vanjski suradnik bez računa) zatvoren je u roku.
+  await admin.post('/privacy/requests', { receivedOn: inDays(-24), kind: 'access', channel: 'email', requesterName: 'dr. sc. Lea Babić', requesterContact: demoEmail('leaver', slug),
+    description: 'Traži kopiju svojih evidencija rada i podataka o računu prije odlaska s instituta.', identityVerifiedOn: inDays(-23), subjectUserId: userIds.leaver });
+  const fixed = await admin.post<Row>('/privacy/requests', { receivedOn: inDays(-75), kind: 'rectification', channel: 'in_person', requesterName: 'Marko Perić',
+    description: 'Pogrešno upisano prezime u timu projekta (vanjski suradnik bez korisničkog računa).', identityVerifiedOn: inDays(-75) });
+  await admin.post(`/privacy/requests/${fixed.id}/close`, { closedOn: inDays(-68), outcome: 'fulfilled', note: 'Prezime ispravljeno u timu projekta; podnositelj obaviješten.', revision: fixed.revision });
+  log('osobni podaci: jedan otvoren zahtjev ispitanika (rok uskoro), jedan zatvoren u roku');
+
   // WP1.23: administrator probno pokreće posao čuvanja (ništa ne briše) – zaslon „Rokovi čuvanja” ima stvarne brojeve.
   await admin.post('/privacy/retention/dry-run');
   for (const api of [admin, office, pm, pm2, member, finance, leaver]) await api.post('/auth/logout').catch(() => undefined);

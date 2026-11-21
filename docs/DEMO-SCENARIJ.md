@@ -141,7 +141,12 @@ Rečenica: *„Vi već imate projekte u tijeku – u Excelu. Ne prepisujete ih: 
 
 ## 9c. Istraživačica je otišla i traži svoje podatke (2 min) – „što smijemo obrisati, a što moramo čuvati”
 
-**Klik:** (prijavljen `admin@demo.local`) → **Osobni podaci** → upiši „Babić” → **Odaberi** (dr. sc. Lea Babić).
+**Klik:** (prijavljen `admin@demo.local`) → **Moj rad**: „Zahtjev ispitanika ZI-1: pristup podacima (čl. 15)” s rokom za nekoliko dana → klik vodi na **Osobni podaci → Zahtjevi i rokovi**.
+
+- Lea je prije 24 dana e-poštom zatražila svoje podatke. Zahtjev je upisan s danom zaprimanja, a sustav sam računa rok – mjesec dana – i podsjeća administratora u „Moj rad” i u jutarnjem sažetku (bez imena podnositelja u poruci). **Produlji rok…** pokazuje pravilo (još dva mjeseca, uz obavijest ispitaniku unutar prvog mjeseca); **Zatvori…** traži dan odgovora i ishod. Ispod je stariji zahtjev zatvoren u roku.
+  *„Na zahtjev morate odgovoriti u roku od mjesec dana. Ovdje se vidi kada je zahtjev stigao, do kada treba odgovoriti i je li odgovoreno na vrijeme – to je evidencija koju vas službenik za zaštitu podataka ili AZOP mogu pitati.”*
+
+**Klik:** kartica **Osoba (prava ispitanika)** → upiši „Babić” → **Odaberi** (dr. sc. Lea Babić).
 
 - Pregled osobe: račun, zapis člana tima na ZELENI-LAB-u (*povezan s računom*), rok čuvanja („nije počeo” – projekt je u provedbi) i koliko zapisa sustav o njoj drži po kategoriji (timesheetovi, troškovi osoblja, revizija…). Zapis člana tima **bez** računa istog imena sustav bi samo predložio – pripisuje ga administrator nakon provjere.
 - **Preuzmi podatke osobe (ZIP)**: `procitaj-me.html` (sažetak i pravila), `podaci.json` (strojno čitljivo), `podaci.xlsx`. Nema sati ni imena drugih članova tima; uz timesheet stoji samo tko ga je odobrio. Administrator vidi plaće, pa su iznosi uključeni – izvoz koji izradi netko bez pristupa plaćama ih ne sadrži i to kaže.

@@ -29,7 +29,7 @@ Osoba može biti član tima na jednom projektu, a voditelj na drugom – uloga s
 | financijski ured | `finance:write` na razini institucije **bez** `projects:write` institucije → stavke financija na svim projektima |
 | prijave | voditelj prijave (vlastite) ili izričita `proposals:write` institucije |
 | radar | izričita `calls:write` institucije |
-| administrator | `users:write` institucije |
+| administrator | `users:write` institucije (računi bez obveznog MFA); `privacy:manage` institucije (otvoreni zahtjevi ispitanika, WP1.24) |
 
 **Odluka (provjeriti):** dozvole na razini institucije (administrator `*`, ured za projekte) **ne** pretvaraju svaki projekt institucije u osobnu obvezu – inače bi svaki timesheet na odobrenju i svaki trošak bez dokaza svih projekata bio u njihovom „Moj rad” i popis bi bio beskoristan. Njihov pregled je **Portfelj** (iste brojke). Izuzetak je financijski ured, kojem su svi ZNS-ovi posao. „Izričita” dozvola znači navedena u ulozi, ne kroz `*`: administrator dobiva samo administratorske stavke i ono što je osobno njegovo (npr. prijava kojoj je voditelj).
 
@@ -60,6 +60,7 @@ Osoba može biti član tima na jednom projektu, a voditelj na drugom – uloga s
 | `proposal_deadline` | prijave | prijava u pripremi (ideja, priprema, interna provjera) s internim rokom do 30 dana ili prošlim, s brojem neispunjenih stavki spremnosti | kasni / uskoro | prijava |
 | `call_decision` | radar | praćeni poziv bez odluke go / no-go (bez odluke ili „pratimo”) čiji je interni rok (i prošao, dok rok predaje traje) ili rok predaje unutar 30 dana | kasni / uskoro | poziv na radaru |
 | `mfa_missing` | administrator | broj aktivnih računa kojima je MFA obvezan po postavci institucije, a nemaju ga | čeka | Korisnici |
+| `subject_request` | administrator (`privacy:manage`) | otvoren zahtjev ispitanika (WP1.24): oznaka i vrsta zahtjeva, **bez imena podnositelja** (stavka ide i u dnevni sažetak) | rok = mjesec dana od zaprimanja (tri uz produljenje); kasni / uskoro (zadnjih 10 dana) / čeka | Osobni podaci → Zahtjevi i rokovi |
 
 ### Odgovorna osoba (WP1.22, v0.32.0)
 

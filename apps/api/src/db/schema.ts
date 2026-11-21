@@ -887,3 +887,42 @@ export const retentionRuns = pgTable('retention_runs', {
   index('retention_runs_tenant_idx').on(t.tenantId, t.id),
   check('retention_runs_mode_ck', sql`mode in ('scheduled', 'dry') and outcome in ('claimed', 'done', 'failed')`),
 ]);
+
+/* ---------- WP1.24 Evidencija zahtjeva ispitanika (čl. 12(3) GDPR-a) ---------- */
+export type SubjectRequestStatus = 'open' | 'closed';
+/**
+ * Zahtjev za ostvarivanje prava ispitanika: tko ga je i kada podnio, na što se odnosi, rok za odgovor (`due_on` – mjesec
+ * dana od zaprimanja ili tri uz produljenje; računa domena) i ishod. Podnositelj ne mora imati račun (`subject_user_id`
+ * je neobvezan). Zatvoren zahtjev briše posao čuvanja po isteku roka kategorije `subjectRequests`.
+ */
+export const subjectRequests = pgTable('subject_requests', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  number: integer('number').notNull(),
+  receivedOn: date('received_on', { mode: 'string' }).notNull(),
+  kind: text('kind').notNull(),
+  channel: text('channel').notNull(),
+  requesterName: text('requester_name').notNull(),
+  requesterContact: text('requester_contact'),
+  subjectUserId: uuid('subject_user_id'),
+  description: text('description'),
+  identityVerifiedOn: date('identity_verified_on', { mode: 'string' }),
+  extensionInformedOn: date('extension_informed_on', { mode: 'string' }),
+  extensionReason: text('extension_reason'),
+  dueOn: date('due_on', { mode: 'string' }).notNull(),
+  status: text('status').$type<SubjectRequestStatus>().notNull().default('open'),
+  outcome: text('outcome'),
+  closedOn: date('closed_on', { mode: 'string' }),
+  outcomeNote: text('outcome_note'),
+  revision: integer('revision').notNull().default(1),
+  ...audited,
+}, (t) => [
+  uniqueIndex('subject_requests_number_uq').on(t.tenantId, t.number),
+  index('subject_requests_open_idx').on(t.tenantId, t.status, t.dueOn),
+  foreignKey({ name: 'subject_requests_user_fk', columns: [t.tenantId, t.subjectUserId], foreignColumns: [users.tenantId, users.id] }),
+  check('subject_requests_kind_ck', sql`kind in ('access', 'rectification', 'erasure', 'restriction', 'portability', 'objection', 'other') and channel in ('email', 'post', 'in_person', 'other')`),
+  check('subject_requests_status_ck', sql`status in ('open', 'closed') and (status = 'closed') = (closed_on is not null) and (status = 'closed') = (outcome is not null)
+    and (outcome is null or outcome in ('fulfilled', 'partly_fulfilled', 'refused', 'withdrawn'))`),
+  check('subject_requests_dates_ck', sql`due_on > received_on and (closed_on is null or closed_on >= received_on) and (identity_verified_on is null or identity_verified_on >= received_on)
+    and (extension_informed_on is null) = (extension_reason is null) and (extension_informed_on is null or extension_informed_on >= received_on)`),
+]);

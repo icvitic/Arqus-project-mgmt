@@ -5,7 +5,8 @@
     "korisnik": "zaposlenik ili suradnik institucije s korisničkim računom",
     "clan_tima": "osoba koja radi na projektu (s računom ili bez njega)",
     "podnositelj_prijave": "voditelj prijave na poziv",
-    "posjetitelj": "osoba koja pokušava prijavu (i neuspješnu) – IP adresa"
+    "posjetitelj": "osoba koja pokušava prijavu (i neuspješnu) – IP adresa",
+    "podnositelj_zahtjeva": "osoba koja je instituciji podnijela zahtjev za ostvarivanje prava ispitanika (može biti i bez korisničkog računa, npr. bivši zaposlenik)"
   },
   "tables": {
     "tenants": { "personal": false, "reason": "institucija (pravna osoba); postavke ne sadrže podatke o osobama osim id-ja administratora koji je potvrdio rokove čuvanja", "columns": { "name": "ne – naziv institucije", "identifiers": "ne – OIB/PIC institucije", "settings": "id korisnika koji je potvrdio rokove čuvanja (privacy.confirmedBy)", "created_by": "id korisnika", "updated_by": "id korisnika" } },
@@ -66,6 +67,8 @@
       "columns": { "user_id": "id primatelja" } },
     "digest_runs": { "personal": true, "subjects": ["korisnik"], "data": "dan i ishod dnevnog sažetka", "purpose": "najviše jedan sažetak dnevno", "access": "nitko u sučelju", "retention": "90 dana; zatvaranjem računa odmah", "retentionKey": "digestRuns", "exportCategory": "digestRuns",
       "columns": { "user_id": "id primatelja" } },
-    "retention_runs": { "personal": false, "reason": "brojevi po kategoriji, bez osobnih podataka", "columns": { "created_by": "id administratora koji je pokrenuo probno izvođenje" } }
+    "retention_runs": { "personal": false, "reason": "brojevi po kategoriji, bez osobnih podataka", "columns": { "created_by": "id administratora koji je pokrenuo probno izvođenje" } },
+    "subject_requests": { "personal": true, "subjects": ["podnositelj_zahtjeva", "korisnik"], "data": "ime i kontakt podnositelja, vrsta prava, sažetak zahtjeva, dani zaprimanja, utvrđivanja identiteta, produljenja i odgovora, ishod s obrazloženjem", "purpose": "odgovor na zahtjev u zakonskom roku i dokaz postupanja (čl. 12(3) i 5(2) GDPR-a)", "access": "administrator (privacy:manage)", "retention": "otvoren zahtjev se ne briše; zatvoren 1825 dana nakon zatvaranja (zadano, najmanje 365)", "retentionKey": "subjectRequests", "exportCategory": "subjectRequests",
+      "columns": { "requester_name": "ime i prezime podnositelja zahtjeva", "requester_contact": "kontakt za odgovor (e-adresa, adresa ili telefon)", "subject_user_id": "korisnički račun na koji se zahtjev odnosi, ako ga je operater povezao", "description": "sažetak zahtjeva – slobodni tekst operatera", "extension_reason": "razlog produljenja roka – slobodni tekst", "outcome_note": "obrazloženje ishoda – slobodni tekst", "created_by": "id operatera koji je upisao zahtjev", "updated_by": "id operatera koji je zadnji mijenjao zahtjev" } }
   }
 }

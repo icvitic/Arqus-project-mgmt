@@ -232,6 +232,20 @@
       "when": 1795008641254,
       "tag": "0032_osobni_podaci_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795215534235,
+      "tag": "0033_zahtjevi_ispitanika",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795215544339,
+      "tag": "0034_zahtjevi_ispitanika_rls",
+      "breakpoints": true
     }
   ]
 }

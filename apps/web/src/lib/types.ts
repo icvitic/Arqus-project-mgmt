@@ -214,3 +214,12 @@ export interface RetentionOverview {
   lastRun: RetentionRun | null; lastDryRun: RetentionRun | null;
   scheduler: { enabled: boolean; hour: number };
 }
+
+/** WP1.24: zahtjev ispitanika u evidenciji (Osobni podaci → Zahtjevi). */
+export interface SubjectRequest {
+  id: string; number: number; ref: string; receivedOn: string; kind: string; channel: string; requesterName: string; requesterContact: string | null;
+  subjectUser: { id: string; displayName: string; email: string; status: string } | null; description: string | null; identityVerifiedOn: string | null;
+  extension: { informedOn: string; reason: string; late: boolean } | null; baseDueOn: string; dueOn: string; daysLeft: number | null;
+  status: 'open' | 'closed'; state: 'overdue' | 'due_soon' | 'open' | 'closed_late' | 'closed'; outcome: string | null; closedOn: string | null; outcomeNote: string | null; revision: number;
+}
+export interface SubjectRequestList { today: string; items: SubjectRequest[]; summary: { open: number; overdue: number; dueSoon: number; closed: number; closedLate: number } }

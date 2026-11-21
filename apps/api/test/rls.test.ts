@@ -215,4 +215,17 @@ describe('RLS: tokeni računa, isporuke e-pošte i dnevni sažetak (WP1.21)', ()
     expect(await run(async (q) => (await q(`insert into digest_runs (tenant_id, user_id, day) values ($1, $2, '2026-11-18') on conflict do nothing returning day`, [A, ua])).rows.length, { 'app.tenant_id': A })).toBe(0);
     await expect(run((q) => q(`update digest_runs set day = '2026-11-19' where user_id = $1`, [ua]), { 'app.tenant_id': A })).rejects.toThrow(/permission denied/);
   });
+  it('zahtjevi ispitanika (WP1.24): samo vlastiti stanar; bez stanara ništa; tuđi se ne mogu upisati, mijenjati ni brisati', async () => {
+    await admin.query(`insert into subject_requests (tenant_id, number, received_on, kind, channel, requester_name, due_on) values ($1, 1, '2026-11-01', 'access', 'email', 'Podnositelj A', '2026-12-01'), ($2, 1, '2026-11-01', 'erasure', 'post', 'Podnositelj B', '2026-12-01')`, [A, B]);
+    const names = (s: Record<string, string>) => run(async (q) => (await q(`select requester_name from subject_requests where tenant_id in ($1, $2) order by 1`, [A, B])).rows.map((r) => r.requester_name), s);
+    expect(await names({ 'app.tenant_id': A })).toEqual(['Podnositelj A']);
+    expect(await names({})).toEqual([]);
+    await expect(run((q) => q(`insert into subject_requests (tenant_id, number, received_on, kind, channel, requester_name, due_on) values ($1, 2, '2026-11-01', 'access', 'email', 'X Y', '2026-12-01')`, [B]), { 'app.tenant_id': A })).rejects.toThrow(/row-level security/);
+    expect(await run(async (q) => (await q(`update subject_requests set requester_name = 'hak' where tenant_id = $1 returning id`, [B])).rows.length, { 'app.tenant_id': A })).toBe(0);
+    expect(await run(async (q) => (await q(`delete from subject_requests where tenant_id = $1 returning id`, [B])).rows.length, { 'app.tenant_id': A })).toBe(0);
+    // Zahtjev se ne može povezati s računom druge institucije (kompozitni strani ključ).
+    await expect(run((q) => q(`update subject_requests set subject_user_id = $1 where tenant_id = $2`, [ub, A]), { 'app.tenant_id': A })).rejects.toThrow(/subject_requests_user_fk/);
+    // Otvoren zahtjev aplikacija ne može obrisati ni u vlastitom stanaru (okidač).
+    await expect(run((q) => q(`delete from subject_requests where tenant_id = $1`, [A]), { 'app.tenant_id': A })).rejects.toThrow(/Otvoren zahtjev ispitanika se ne briše/);
+  });
 });

@@ -130,3 +130,35 @@ Ivan je 2026-11-18 zatražio nastavak razvoja. Bilješki s demonstracija, odluke
 **Što i dalje čeka okidač** (odj. 4): jedinstvena prijava (AAI@EduHr, Entra) – dok se ne zna sustav identiteta pilot-ustanove; novi paketi programa; izvještaji prema financijeru u punom opsegu; amandmani ugovora.
 
 **Usput ispravljeno (v0.30.1):** objava slike u GHCR za v0.30.0 zaglavila je pod emulacijom arm64; slika se sada gradi bez emulacije.
+
+## 11. Nastavak nakon faze 1c: zahtjevi ispitanika (2026-11-20, v0.33.0)
+
+Ivan je 2026-11-20 zatražio nastavak razvoja prema planu. Plan nakon WP1.23 kaže da razvoja koji ne ovisi o demonstracijama, pružatelju ili penetracijskom testu više nema – uz **jednu imenovanu iznimku**: evidenciju zahtjeva ispitanika s rokom od mjesec dana (`docs/STATUS.md`, „Sljedeće”; `docs/gdpr/PRAVA-ISPITANIKA.md`, „Gdje proizvod ne pomaže”). Ona prolazi mjerilo iz odjeljka 10: rok iz čl. 12(3) GDPR-a obvezuje svaku ustanovu od prvog dana, a WP1.23 je dao radnje (izvoz, zatvaranje računa, anonimizaciju) bez mjesta gdje se vidi da je zahtjev stigao i do kada treba odgovoriti.
+
+| # | Radni paket | Zašto ne ovisi o demonstracijama | Gotovo kad |
+| --- | --- | --- | --- |
+| **WP1.24** | Evidencija zahtjeva ispitanika | Rok od mjesec dana je zakonski i isti za svaku ustanovu; bez evidencije ga administrator prati u vlastitoj tablici, a proizvod koji drži plaće i evidencije rada ne može pokazati da je na zahtjev odgovoreno na vrijeme. | zahtjev se upisuje s danom zaprimanja, sustav računa rok (i produljenje), administrator ga vidi u „Moj rad” i u jutarnjem sažetku, zatvaranje bilježi ishod i je li odgovoreno u roku |
+
+**Što je razmotreno i nije uzeto** (ne prolazi mjerilo „bi li prva javna ustanova ovo tražila prije potpisa ili u prvom tjednu rada?” bez povratne informacije):
+
+| Kandidat | Zašto ne sada | Okidač |
+| --- | --- | --- |
+| Pristup suradnika na prijavi (danas samo voditelj prijave bez uloge institucije) | ne znamo kako ustanove raspoređuju rad na prijavi; poznato ograničenje je u opsegu testa | bilješke s demonstracija ili nalaz testa |
+| Provjera lozinki protiv popisa probijenih, ograničenja prijava u zajedničkoj pohrani umjesto u memoriji | pilot je jedna instanca; provjera lozinki traži vanjsku uslugu ili popis čije održavanje ovisi o pružatelju | nalaz penetracijskog testa, više instanci |
+| Oznaka „obrada ograničena” na pojedinom zapisu (čl. 18) | rijedak zahtjev s nejasnim učinkom na ZNS; treba mišljenje službenika za zaštitu podataka | pravni pregled `docs/gdpr/` |
+| Jedinstvena prijava, novi paketi programa, izvještaji prema financijeru, amandmani | kao u odjeljku 4 i 10 | poznat pilot |
+
+**Nakon WP1.24** ponovno vrijedi zaključak odjeljka 10 – i ovaj put bez preostale imenovane iznimke: sljedeći korak određuju bilješke s demonstracija, odluka o pružatelju, pravni pregled predložaka i nalazi penetracijskog testa. Do tada samo ispravci grešaka.
+
+## 12. Dizajn sustava sučelja (2026-11-21, v0.34.0)
+
+Ivan je 2026-11-21 zatražio nastavak razvoja i rad na dizajnu sustava. Zahtjev vlasnika, pa ne treba prolaziti mjerilo iz odjeljka 10 – ali ga prolazi: proizvod se prodaje demonstracijom (uvjeti „3 pilota” i „10 institucija u beti”), a sučelje je dosad nastajalo zaslon po zaslon, bez zajedničkih pravila. Na širini prijenosnog računala izbornik se prelamao u dva retka, polja u obrascima nisu bila poravnata, a iznosi na portfelju bili su odsječeni.
+
+| # | Radni paket | Gotovo kad |
+| --- | --- | --- |
+| **WP1.25** | Dizajn sustava sučelja | jedan skup varijabli (boje, pismo, mjere) u obje teme; navigacija koja stane na zaslon; usklađeni dijelovi (kartica, tablica, obrazac, gumb, oznaka stanja, dijalog); pravila zapisana u `docs/dizajn/DIZAJN-SUSTAV.md`; e2e i provjera pristupačnosti bez nalaza |
+
+**Granice paketa:** bez promjene funkcija, tekstova, ruta i redoslijeda u dokumentu (redoslijed tipke Tab ostaje isti). Na Ivanov zahtjev istog dana sučelje koristi vizualni identitet ArQus Solutionsa s javne stranice tvrtke (logotip, pisma Geist i IBM Plex Sans, paleta); naziv proizvoda je i dalje radni. „Dizajn sustava” je shvaćen kao vizualni dizajn sučelja; ako je mišljena arhitektura, to je zaseban paket.
+
+**Nakon WP1.25:** potvrda smjera (bočna traka, svijetla radna površina) i konačan naziv proizvoda. Ostalo kao u odjeljku 11.
+

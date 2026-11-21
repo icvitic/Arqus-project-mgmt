@@ -125,10 +125,15 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
     // WP1.23: prava ispitanika i rokovi čuvanja – sve rute institucije s dozvolom privacy:manage (samo administrator);
     // samoposluga je jedina ruta „o meni” (bez id-ja druge osobe), stranica „Privatnost” jedina nova javna ruta (gore).
     expect(routes.filter((r) => r.path.startsWith('/api/privacy')).map((r) => `${r.method} ${r.path} ${r.access.kind}:${(r.access as { permission?: string }).permission}`).sort()).toEqual([
-      'GET /api/privacy/export tenant:privacy:manage', 'GET /api/privacy/people tenant:privacy:manage', 'GET /api/privacy/retention tenant:privacy:manage',
+      'GET /api/privacy/export tenant:privacy:manage', 'GET /api/privacy/people tenant:privacy:manage',
+      // WP1.24: evidencija zahtjeva ispitanika – ista dozvola; nema rute za brisanje (zatvorene briše posao čuvanja).
+      'GET /api/privacy/requests tenant:privacy:manage', 'GET /api/privacy/retention tenant:privacy:manage',
       'POST /api/privacy/members/:mid/anonymise tenant:privacy:manage', 'POST /api/privacy/members/:mid/anonymise/preview tenant:privacy:manage',
+      'POST /api/privacy/requests tenant:privacy:manage', 'POST /api/privacy/requests/:requestId/close tenant:privacy:manage',
+      'POST /api/privacy/requests/:requestId/extend tenant:privacy:manage', 'POST /api/privacy/requests/:requestId/extend/cancel tenant:privacy:manage',
+      'POST /api/privacy/requests/:requestId/reopen tenant:privacy:manage',
       'POST /api/privacy/retention/dry-run tenant:privacy:manage', 'POST /api/privacy/subject tenant:privacy:manage', 'POST /api/privacy/users/:id/close tenant:privacy:manage',
-      'PUT /api/privacy/retention tenant:privacy:manage',
+      'PUT /api/privacy/requests/:requestId tenant:privacy:manage', 'PUT /api/privacy/retention tenant:privacy:manage',
     ]);
     expect(routes.filter((r) => r.path === '/api/me/privacy-export').map((r) => `${r.method} ${r.access.kind} ${r.mfaSetup}`)).toEqual(['GET authenticated false']);
     // Sigurnosne postavke institucije (WP1.19): čitanje uz users:read, izmjena samo uz users:write (administrator).
@@ -138,7 +143,7 @@ describe('Pokrivenost ruta autorizacijom (WP1.14, e2e)', () => {
   /** Id-jevi projekta B za parametre putanje; nepoznati parametar ruši test (treba ga dodati ovdje). */
   const paramsB = (): Record<string, string> => ({
     id: f.B.id, wpId: f.B.wp, taskId: f.B.task, did: f.B.deliverable, mid: f.B.member, rid: f.B.risk, eid: f.B.expense, cid: f.B.claim,
-    partnerId: f.B.self, assignmentId: randomUUID(), month: f.month, n: '1', importId: randomUUID(), nid: '1',
+    partnerId: f.B.self, assignmentId: randomUUID(), month: f.month, n: '1', importId: randomUUID(), nid: '1', requestId: randomUUID(),
   });
   const fill = (path: string, values: Record<string, string>) => path.replace(/:(\w+)/g, (_, k: string) => {
     if (!(k in values)) throw new Error(`Nepoznat parametar :${k} u ${path} – dodaj ga u paramsB`);

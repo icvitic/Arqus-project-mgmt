@@ -87,6 +87,8 @@ describe('Prava ispitanika: izvoz, zatvaranje računa, anonimizacija (WP1.23, e2
     id.ured = (await inviteUser(app, t.admin, { email: `ured@${slug}.hr`, displayName: 'Uredska Osoba', roleCodes: ['project-office'] }, PW)).id;
     id.officer = (await inviteUser(app, t.admin, { email: `dpo@${slug}.hr`, displayName: 'Službenica Zaštite', roleCodes: ['zastita-podataka'] }, PW)).id;
     id.plain = (await inviteUser(app, t.admin, { email: `obican@${slug}.hr`, displayName: 'Obični Korisnik', roleCodes: ['reader'] }, PW)).id;
+    // WP1.24: zahtjev za pristup podacima povezan s Aninim računom (kategorija izvoza „zahtjevi za ostvarivanje prava”).
+    await http().post('/api/privacy/requests').set(auth(t.admin)).send({ receivedOn: '2026-01-12', kind: 'access', channel: 'email', requesterName: 'Ana Anić', subjectUserId: id.ana }).expect(201);
     t.ana = await login(slug, `ana@${slug}.hr`); t.ured = await login(slug, `ured@${slug}.hr`); t.officer = await login(slug, `dpo@${slug}.hr`); t.plain = await login(slug, `obican@${slug}.hr`);
 
     const p = (await http().post('/api/projects').set(auth(t.admin)).send({ acronym: 'PRIV-15', title: 'Projekt za zaštitu podataka', packageId: 'npoo-2021-2026', actionType: 'BESPOVRATNA', contractNo: `UG-${tag}`, startDate: '2015-01-01', durationMonths: 12, managerUserId: id.ana }).expect(201)).body;

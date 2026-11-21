@@ -235,7 +235,14 @@ describe('Demo okruženje (WP1.13)', () => {
     const officeW = await mw('office');
     expect(kinds(officeW).sort()).toEqual(['call_decision', 'proposal_deadline', 'risk_owned']); // ured je i nositeljica jednog rizika BLUESENSE
     expect(officeW.items.find((i) => i.kind === 'proposal_deadline')!.detail).toMatch(/2 stavke spremnosti nisu ispunjene/);
-    for (const k of ['admin', 'board']) expect((await mw(k)).items).toEqual([]);
+    expect((await mw('board')).items).toEqual([]);
+    // WP1.24: administrator u „Moj rad” vidi otvoren zahtjev ispitanika kojem rok uskoro istječe – bez imena podnositelja.
+    const adminW = await mw('admin');
+    expect(adminW.items).toEqual([expect.objectContaining({ kind: 'subject_request', role: 'admin', urgency: 'due_soon', link: 'osobni-podaci/zahtjevi', title: 'Zahtjev ispitanika ZI-1: pristup podacima (čl. 15)' })]);
+    expect(JSON.stringify(adminW)).not.toMatch(/Babić/);
+    const reqs = (await http().get('/api/privacy/requests').set(as('admin')).expect(200)).body as { items: Row[]; summary: Row };
+    expect(reqs.summary).toMatchObject({ open: 1, overdue: 0, dueSoon: 1, closed: 1, closedLate: 0 });
+    expect(reqs.items.map((r) => `${r.ref}|${r.state}`)).toEqual(['ZI-1|due_soon', 'ZI-2|closed']);
     for (const k of ['member', 'pm', 'pm2', 'finance', 'office']) expect(JSON.stringify(await mw(k))).not.toMatch(/EUR|€/);
     // WP1.18 – obavijesti iz stvarnih tokova seedera; nepročitane su najnovije tri.
     type N = { items: { kind: string; read: boolean }[]; unread: number };

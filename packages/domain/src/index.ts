@@ -19,3 +19,4 @@ export * from './my-work.js';
 export * from './ical.js';
 export * from './mail.js';
 export * from './responsible.js';
+export * from './subject-requests.js';
