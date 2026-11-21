@@ -3,13 +3,13 @@ import { and, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import { createHmac, randomUUID } from 'node:crypto';
 import { passwordIssues, timeZoneOr } from '@arqus/domain';
 import { DbService, type Tx } from '../db/db.service';
-import { accountTokens, calendarTokens, projects, proposals, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
+import { accountTokens, calendarTokens, projects, proposalCollaborators, proposals, tenants, users, roles, roleAssignments, sessions, type User } from '../db/schema';
 import { hashPassword, verifyPassword, verifyPasswordOrBurn } from './password';
 import { TokenService } from './token.service';
 import { AuditService } from '../audit/audit.service';
 import { hasPermission, SYSTEM_ROLES } from './permissions';
 import { TenantContext, type RequestContext } from '../common/tenant-context';
-import { canInTenant, canOnProject, projectGrants } from '../common/access';
+import { canInTenant, canOnProject, COLLABORATOR_PERMISSIONS, projectGrants } from '../common/access';
 import { loadProject } from '../common/project-access';
 import { acronymOf, findRole, grantProjectRole } from './project-grants';
 import { notify } from '../notifications/notify';
@@ -24,8 +24,11 @@ export interface LoginInput { tenantSlug: string; email: string; password: strin
 export interface CreateUserInput { email: string; displayName: string; roleCodes?: string[] }
 export interface UpdateUserInput { displayName?: string; status?: 'active' | 'disabled'; roleCodes?: string[] }
 interface ClientInfo { ip?: string; userAgent?: string }
-/** Dozvole korisnika (WP1.14): na razini institucije i po projektu (id projekta → dozvole); WP1.14b: prijave kojima je voditelj. */
-export interface UserAccess { tenant: string[]; projects: Record<string, string[]>; leadProposals: string[] }
+/**
+ * Dozvole korisnika (WP1.14): na razini institucije i po projektu (id projekta → dozvole); WP1.14b: prijave kojima je voditelj;
+ * WP1.26: prijave na kojima je suradnik (id prijave → dozvole suradnika).
+ */
+export interface UserAccess { tenant: string[]; projects: Record<string, string[]>; leadProposals: string[]; proposalGrants: Record<string, string[]> }
 
 const publicUser = (u: User) => ({ id: u.id, tenantId: u.tenantId, email: u.email, displayName: u.displayName, status: u.status, mfaEnabled: u.mfaEnabled, lastLoginAt: u.lastLoginAt, createdAt: u.createdAt });
 
@@ -62,7 +65,14 @@ export class IdentityService {
     }
     // WP1.14b: voditelj prijave radi na vlastitoj prijavi i bez uloge institucije (zaključene prijave se i dalje čitaju).
     const leads = await tx.select({ id: proposals.id }).from(proposals).where(and(eq(proposals.tenantId, tenantId), eq(proposals.leadUserId, userId), isNull(proposals.deletedAt)));
-    return { tenant: [...tenant], projects: Object.fromEntries([...byProject].map(([id, set]) => [id, [...set]])), leadProposals: leads.map((l) => l.id) };
+    // WP1.26: suradnik na prijavi – dozvole po razini (uređivanje / čitanje), samo na toj prijavi.
+    const collab = await tx.select({ id: proposalCollaborators.proposalId, access: proposalCollaborators.access }).from(proposalCollaborators)
+      .innerJoin(proposals, eq(proposals.id, proposalCollaborators.proposalId))
+      .where(and(eq(proposalCollaborators.tenantId, tenantId), eq(proposalCollaborators.userId, userId), isNull(proposals.deletedAt)));
+    return {
+      tenant: [...tenant], projects: Object.fromEntries([...byProject].map(([id, set]) => [id, [...set]])), leadProposals: leads.map((l) => l.id),
+      proposalGrants: Object.fromEntries(collab.map((c) => [c.id, [...COLLABORATOR_PERMISSIONS[c.access]]])),
+    };
   }
 
   /** Dozvole na razini institucije. */
@@ -124,7 +134,7 @@ export class IdentityService {
     // `perms` u tokenu je samo informativan; ovlaštenje se uvijek računa svježe iz uloga (AuthGuard).
     const accessToken = await this.tokens.sign({ sub: outcome.user.id, tid: tenant.id, perms: outcome.access.tenant, sid: outcome.sid });
     // WP1.19: `mfaSetupRequired` – prijava je uspjela, ali je sesija u ograničenom stanju dok korisnik ne postavi MFA.
-    return { accessToken, user: publicUser(outcome.user), permissions: outcome.access.tenant, projectPermissions: outcome.access.projects, leadProposals: outcome.access.leadProposals, mfaSetupRequired: outcome.mfaSetupRequired };
+    return { accessToken, user: publicUser(outcome.user), permissions: outcome.access.tenant, projectPermissions: outcome.access.projects, leadProposals: outcome.access.leadProposals, proposalGrants: outcome.access.proposalGrants, mfaSetupRequired: outcome.mfaSetupRequired };
   }
 
   /** Aktivna sesija + aktivan korisnik → svježe dozvole (promjena i opoziv uloga vrijede odmah). Null = sesija ne vrijedi. */
@@ -199,7 +209,7 @@ export class IdentityService {
     if (!user) throw new NotFoundException();
     const tenant = (await tx.select().from(tenants).where(eq(tenants.id, tenantId)))[0];
     const access = await this.accessOf(tx, tenantId, userId);
-    return { user: publicUser(user), tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name, plan: tenant.plan, timeZone: timeZoneOr(tenant.settings?.timeZone) } : null, permissions: access.tenant, projectPermissions: access.projects, leadProposals: access.leadProposals,
+    return { user: publicUser(user), tenant: tenant ? { id: tenant.id, slug: tenant.slug, name: tenant.name, plan: tenant.plan, timeZone: timeZoneOr(tenant.settings?.timeZone) } : null, permissions: access.tenant, projectPermissions: access.projects, leadProposals: access.leadProposals, proposalGrants: access.proposalGrants,
       mfa: this.mfaState(tenant?.settings, access.tenant, user.mfaEnabled) };
   }
 
