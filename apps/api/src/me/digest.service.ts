@@ -110,6 +110,7 @@ export class DigestService {
         tenantId, userId: u.id, permissions: new Set(access.tenant),
         projectPermissions: new Map(Object.entries(access.projects).map(([id, perms]) => [id, new Set(perms)])),
         leadProposals: new Set(access.leadProposals), timeZone,
+        proposalGrants: new Map(Object.entries(access.proposalGrants).map(([id, perms]) => [id, new Set(perms)])),
       };
       const work = await this.ctx.run(rc, () => this.work.work(tx, now));
       const prev = (await tx.select({ at: digestRuns.createdAt }).from(digestRuns)

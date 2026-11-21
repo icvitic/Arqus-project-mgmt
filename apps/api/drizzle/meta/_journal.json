@@ -246,6 +246,20 @@
       "when": 1795215544339,
       "tag": "0034_zahtjevi_ispitanika_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795291741728,
+      "tag": "0035_suradnici_prijave",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795291742897,
+      "tag": "0036_suradnici_prijave_rls",
+      "breakpoints": true
     }
   ]
 }
