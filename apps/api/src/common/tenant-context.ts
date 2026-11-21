@@ -11,6 +11,8 @@ export interface RequestContext {
   projectPermissions: ReadonlyMap<string, ReadonlySet<string>>;
   /** WP1.14b: prijave kojima je korisnik voditelj (`leadUserId`) – voditelj radi na vlastitoj prijavi bez uloge institucije. */
   leadProposals?: ReadonlySet<string>;
+  /** WP1.26: suradnici na prijavi – id prijave → dozvole suradnika na njoj (uređivanje ili samo čitanje). */
+  proposalGrants?: ReadonlyMap<string, ReadonlySet<string>>;
   /** WP1.14b: vremenska zona institucije (`tenants.settings.timeZone`, zadano Europe/Zagreb) – za „danas”. */
   timeZone?: string;
   ip?: string;
